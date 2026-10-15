@@ -1,12 +1,12 @@
 from django.urls import include, path
 
+from helix_core import SignalKind
 from helix_core.column_types import (
     AggregateMeta,
     ColumnType,
     OperatorMeta,
     registry as column_type_registry,
 )
-from helix_core.mod_system.registry import registry
 
 
 class TiptapContentColumnType(ColumnType):
@@ -45,37 +45,45 @@ class TiptapContentColumnType(ColumnType):
         return f"Expected TipTap JSON (dict, list, or string), got {type(value).__name__}"
 
 
-def register():
+def register(mod):
     """Called by ModLoader after topological sort. Populates the backend registry."""
-    from django.db.models.signals import post_save
-
     from mods.eln.cascade import update_status_from_source
-    from mods.eln.models import ElnAction, NotebookEntry
-    from bundled.lims.models import Entity
+    from mods.eln.models import NotebookEntry
+    from mods.eln.serializers import NotebookEntrySerializer
+    from mods.eln.views import NotebookEntryViewSet
+    from bundled.access.access.scoping import visible_rows_q
 
     # Register the tiptap_content column type so consumers (entity hub,
     # registry table) can discover and render it generically.
-    column_type_registry.register_column_type(TiptapContentColumnType())
+    mod.register_column_type(TiptapContentColumnType())
 
-    registry.register_action_model("eln", ElnAction)
+    entry = mod.register_model("entry", NotebookEntry)
+    mod.register_source_kind(
+        "entry",
+        entry,
+        visibility_query=lambda request, queryset: queryset.filter(
+            visible_rows_q(request.user)
+        ),
+        serializer=NotebookEntrySerializer,
+        hub_visible=True,
+        display_metadata={
+            "label": "ELN Entry",
+            "workspace_id": "eln",
+            "icon": "notebook",
+            "color": "flask",
+        },
+        mutation_handlers={
+            "create": NotebookEntryViewSet.perform_create,
+            "edit": NotebookEntryViewSet.perform_update,
+            "lock": NotebookEntryViewSet._acquire_lock,
+        },
+    )
 
     # ── Entry-level custom actions ───────────────────────────────────────
     # Actions used by @logs_action decorators in views.py.  Must be
     # registered before the views are imported.
-    registry.register_custom_action(
-        mod_id="eln",
-        action_id="eln.entry.tags_attached",
-        label="Tags Attached",
-        core="edited",
-        target_model="mods.eln.models.NotebookEntry",
-    )
-    registry.register_custom_action(
-        mod_id="eln",
-        action_id="eln.entry.tag_detached",
-        label="Tag Detached",
-        core="edited",
-        target_model="mods.eln.models.NotebookEntry",
-    )
+    mod.register_custom_action("eln.entry.tags_attached", "Tags Attached", "edited", entry)
+    mod.register_custom_action("eln.entry.tag_detached", "Tag Detached", "edited", entry)
 
     # ── Block-level custom actions ───────────────────────────────────────
     # Per docs/actions-system-design.md the backend catalog is the single
@@ -104,28 +112,15 @@ def register():
         ("eln.registry-table.deleted", "Registry Table Deleted", "deleted"),
     ]
     for action_id, label, core in block_actions:
-        registry.register_custom_action(
-            mod_id="eln",
-            action_id=action_id,
-            label=label,
-            core=core,
-            target_model="mods.eln.models.NotebookEntry",
-        )
+        mod.register_custom_action(action_id, label, core, entry)
 
-    registry.register_schema_type(
+    mod.register_schema_type(
         display_name="ELN Entry",
         workspace_id="eln",
-        model="mods.eln.models.NotebookEntry",
+        model=entry,
         prefix="E",
         icon="notebook",
         color="flask",
     )
-    registry.register_signal(
-        "eln", post_save, update_status_from_source, sender=NotebookEntry
-    )
-    registry.register_signal(
-        "eln", post_save, update_status_from_source, sender=Entity
-    )
-    registry.register_urls(
-        "eln", [path("api/eln/", include("mods.eln.urls"))]
-    )
+    mod.register_signal(SignalKind.MODEL_POST_SAVE, entry, update_status_from_source)
+    mod.register_urls([path("api/eln/", include("mods.eln.urls"))])

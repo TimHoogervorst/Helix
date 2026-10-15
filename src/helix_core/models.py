@@ -12,6 +12,7 @@ import uuid
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.utils import timezone
 
 
 # ── Shared column-ID + content-hash pipeline ──────────────────────────────
@@ -129,6 +130,12 @@ class SchemaType(ContentHashedModel):
 
     display_name = models.CharField(max_length=255)
     workspace_id = models.CharField(max_length=100)
+    identity = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        help_text="Canonical Schema Type reference, e.g. 'helix.lims:entity'.",
+    )
     model = models.CharField(
         max_length=500,
         help_text="Dotted Python path to the model class, e.g. 'bundled.lims.models.Entity'.",
@@ -138,10 +145,10 @@ class SchemaType(ContentHashedModel):
         blank=True,
         help_text="Ordered array of column definitions: {id, name, type, required, default, units, description}.",
     )
-    tags = models.JSONField(
+    capabilities = models.JSONField(
         default=list,
         blank=True,
-        help_text="Capability tags declared by the owning mod.",
+        help_text="Capabilities declared by the owning mod.",
     )
     is_active = models.BooleanField(
         default=True,
@@ -236,6 +243,84 @@ class Schema(ContentHashedModel):
         return [*(self.schema_type.columns or []), *(self.columns or [])]
 
 
+# ── Platform-owned Action records ─────────────────────────────────────────
+
+
+class ActionDefinition(models.Model):
+    """Platform-owned declaration of an action a Mod can initiate."""
+
+    identity = models.CharField(max_length=255, unique=True)
+    label = models.CharField(max_length=255)
+    core_action = models.CharField(max_length=16)
+    target_model_reference = models.CharField(max_length=255)
+    provider_mod_id = models.CharField(max_length=255)
+    provider_mod_version = models.CharField(max_length=64)
+
+    class Meta:
+        db_table = "helix_action_definition"
+        ordering = ["identity"]
+
+
+class ActionLogEntry(models.Model):
+    """The single durable, Mod-independent Action Log Entry store."""
+
+    performed_by = models.ForeignKey(
+        "core.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="action_log_entries",
+    )
+    action = models.CharField(max_length=255)
+    action_type = models.CharField(max_length=16)
+    target_model_reference = models.CharField(max_length=255)
+    target_object_id = models.CharField(max_length=255)
+    target_version_reference = models.CharField(max_length=255, null=True, blank=True)
+    target_version_object_id = models.CharField(max_length=255, null=True, blank=True)
+    target_version_label = models.CharField(max_length=255, null=True, blank=True)
+    target_version_hash = models.CharField(max_length=128, null=True, blank=True)
+    initiating_mod_id = models.CharField(max_length=255, default="unknown")
+    initiating_mod_version = models.CharField(max_length=64, default="unknown")
+    request_id = models.UUIDField(null=True, blank=True)
+    client_ip = models.GenericIPAddressField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    legacy_table = models.CharField(max_length=255, null=True, blank=True)
+    legacy_id = models.PositiveBigIntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = "helix_action_log_entry"
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["target_model_reference", "target_object_id"], name="helix_action_target_75f3c0_idx"),
+            models.Index(fields=["action", "created_at"], name="helix_action_action_0d1d0d_idx"),
+            models.Index(fields=["initiating_mod_id", "created_at"], name="helix_action_initia_4b48a1_idx"),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["legacy_table", "legacy_id"],
+                name="helix_action_legacy_source_uniq",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        """Keep the audit ledger append-only after its initial insert."""
+        if self.pk is not None:
+            raise ValueError("ActionLogEntry is append-only")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("ActionLogEntry is append-only")
+
+    @property
+    def target_type(self):
+        return self.target_model_reference
+
+    @property
+    def target_id(self):
+        try:
+            return int(self.target_object_id)
+        except (TypeError, ValueError):
+            return self.target_object_id
+
+
 # ── Entity Hub View (unmanaged — backed by PostgreSQL VIEW) ──────────────
 
 
@@ -243,7 +328,7 @@ class EntityHubView(models.Model):
     """Unmanaged model mapping to the ``entity_hub_view`` PostgreSQL VIEW.
 
     Provides a read-only UNION ALL across all AbstractEntity tables
-    (eln_entry, lims_entity, and any future entity tables).  Each row
+    (provider-owned, LIMS, and any future entity tables).  Each row
     includes ``schema_type_id`` and ``workspace_id`` computed columns
     populated by the VIEW definition.
 
@@ -421,3 +506,41 @@ class IconLibraryEntry(models.Model):
 
     def __str__(self):
         return f"{self.label} ({self.key})"
+
+
+class ModInstallation(models.Model):
+    """Durable installation and activation state for a discovered Mod."""
+
+    class State(models.TextChoices):
+        INSTALLED = "installed", "Installed"
+        INACTIVE = "inactive", "Inactive"
+        ACTIVE = "active", "Active"
+        REMOVED = "removed", "Removed"
+
+    class DesiredState(models.TextChoices):
+        INACTIVE = "inactive", "Inactive"
+        ACTIVE = "active", "Active"
+
+    mod_id = models.CharField(max_length=255, unique=True)
+    display_name = models.CharField(max_length=255)
+    version = models.CharField(max_length=64)
+    requires_helix = models.CharField(max_length=255)
+    artifacts = models.JSONField(default=list)
+    dependencies = models.JSONField(default=list)
+    tier = models.CharField(max_length=20)
+    locator = models.CharField(max_length=500, blank=True, default="")
+    state = models.CharField(max_length=20, choices=State.choices)
+    desired_state = models.CharField(
+        max_length=20,
+        choices=DesiredState.choices,
+        default=DesiredState.INACTIVE,
+    )
+    manifest = models.JSONField(default=dict)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "helix_mod_installation"
+        ordering = ["mod_id"]
+
+    def __str__(self):
+        return f"{self.display_name} ({self.mod_id})"

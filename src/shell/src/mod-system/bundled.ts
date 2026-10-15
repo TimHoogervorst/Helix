@@ -28,11 +28,11 @@ export const bundledModModules: Record<string, ModModule> = {
   "../../../bundled/access/users/index.ts": usersModule as ModModule,
   "../../../bundled/datatypes/dropdowns/index.ts": dropdownsModule as ModModule,
   "../../../bundled/labelling/tags/index.ts": tagsModule as ModModule,
-  "../../../bundled/lims/index.ts": limsModule as ModModule,
+  "../../../bundled/lims/index.ts": limsModule as unknown as ModModule,
   "../../../bundled/settings/index.ts": settingsModule as ModModule,
   "../../../bundled/shared/entities/index.ts": entitiesModule as ModModule,
   "../../../bundled/shared/home/index.ts": homeModule as ModModule,
-  "../../../bundled/shared/library/index.ts": libraryModule as ModModule,
+  "../../../bundled/shared/library/index.ts": libraryModule as unknown as ModModule,
   "../../../bundled/tabs/index.ts": tabsModule as ModModule,
 };
 export const bundledJsonManifestModules: Record<

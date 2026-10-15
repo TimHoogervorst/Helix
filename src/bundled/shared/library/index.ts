@@ -1,15 +1,11 @@
 import { BookOpen, Info, LayoutList } from "lucide-react";
-import { Mod } from "../../../shell/src/mod-system/Mod";
-import type { ModManifest } from "../../../shell/src/mod-system/types";
+import type { Mod } from "@helix/mod-api";
 import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { SelectionBlock } from "./blocks/SelectionBlock";
 import { ViewsBlock } from "./blocks/ViewsBlock";
 import LibraryHub from "./hub/LibraryHub";
-import manifest from "./modManifest.json";
-
-const mod = new Mod(manifest as ModManifest);
-
 // ── Hub: Library browsing surface ─────────────────────────────────────
+export function register(mod: Mod) {
 mod.registerHub("library", {
   label: "Library",
   icon: BookOpen,
@@ -21,7 +17,7 @@ mod.registerHub("library", {
 });
 
 // ── Slot: Library Sidebar ──────────────────────────────────────────
-export const sidebarSlot = mod.declareSlot("sidebar", {
+const sidebarSlot = mod.declareSlot("sidebar", {
   accepts: "block",
   renderer: SlotSidebar,
   layout: "vertical",
@@ -30,7 +26,7 @@ export const sidebarSlot = mod.declareSlot("sidebar", {
 });
 
 // ── Block: Selection placeholder ───────────────────────────────────
-export const selectionBlock = mod.registerBlock("selection", {
+const selectionBlock = mod.registerBlock("selection", {
   label: "Selection",
   icon: Info,
   component: SelectionBlock,
@@ -43,7 +39,7 @@ export const selectionBlock = mod.registerBlock("selection", {
 });
 
 // ── Block: Views placeholder ────────────────────────────────────────
-export const viewsBlock = mod.registerBlock("views", {
+const viewsBlock = mod.registerBlock("views", {
   label: "Views",
   icon: LayoutList,
   component: ViewsBlock,
@@ -59,5 +55,4 @@ export const viewsBlock = mod.registerBlock("views", {
 mod.registerIntoSlot(sidebarSlot, selectionBlock, {}, 0);
 mod.registerIntoSlot(sidebarSlot, viewsBlock, {}, 1);
 
-/** No-op — all registrations happen at module scope via the Mod class. */
-export function register() {}
+}

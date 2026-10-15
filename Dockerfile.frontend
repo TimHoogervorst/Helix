@@ -6,6 +6,7 @@ COPY package.json package-lock.json ./
 RUN npm install
 
 COPY src/shell/ src/shell/
+COPY src/mod-api/ src/mod-api/
 COPY src/mods/ src/mods/
 COPY src/bundled/ src/bundled/
 

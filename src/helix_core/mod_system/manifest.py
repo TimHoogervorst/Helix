@@ -1,167 +1,140 @@
-"""ModManifest dataclass.
-
-Every mod declares a manifest in its ``mod.py`` file.  The manifest provides
-identity, version, and dependency information validated at construction time.
-
-The manifest shape mirrors the frontend ``meta`` exactly:
-
-.. code-block:: python
-
-    manifest = ModManifest(
-        id="eln",
-        display_name="Electronic Lab Notebook",
-        version="0.1.0",
-        depends_on=["lims", "tags"],
-    )
-
-    # Object-form dependencies with version constraints are also accepted:
-    manifest = ModManifest(
-        id="eln",
-        display_name="Electronic Lab Notebook",
-        depends_on=[
-            "lims",
-            {"id": "tags", "version": ">=2.0"},
-        ],
-    )
-"""
+"""Strict Helix External Mod manifest 1.0.0 contract."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import json
+import re
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from jsonschema import Draft202012Validator
+
+_SCHEMA_PATH = Path(__file__).with_name("manifest_schema.json")
+_SCHEMA = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+_SEMVER = re.compile(
+    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+    r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
+)
+_COMPARATOR = re.compile(r"^(<=|>=|<|>|=)?\s*(\d+)(?:\.(\d+|x|X|\*))?(?:\.(\d+|x|X|\*))?(?:-([0-9A-Za-z.-]+))?$")
 
 
-@dataclass
+@dataclass(frozen=True)
+class Dependency:
+    id: str
+    version: str
+
+
+def _version(value: str) -> tuple[int, int, int, tuple[str, ...]]:
+    match = _SEMVER.fullmatch(value)
+    if not match:
+        raise ValueError(f"Invalid SemVer: {value!r}")
+    prerelease = tuple(match.group(4).split(".")) if match.group(4) else ()
+    return int(match.group(1)), int(match.group(2)), int(match.group(3)), prerelease
+
+
+def _compare(left: tuple[int, int, int, tuple[str, ...]], right: tuple[int, int, int, tuple[str, ...]]) -> int:
+    if left[:3] != right[:3]:
+        return (left[:3] > right[:3]) - (left[:3] < right[:3])
+    if not left[3] and not right[3]:
+        return 0
+    if not left[3]:
+        return 1
+    if not right[3]:
+        return -1
+    for a, b in zip(left[3], right[3]):
+        if a == b:
+            continue
+        if a.isdigit() and b.isdigit():
+            return (int(a) > int(b)) - (int(a) < int(b))
+        if a.isdigit() != b.isdigit():
+            return -1 if a.isdigit() else 1
+        return (a > b) - (a < b)
+    return (len(left[3]) > len(right[3])) - (len(left[3]) < len(right[3]))
+
+
+def _valid_range(value: str) -> bool:
+    if not value.strip():
+        return False
+    if _SEMVER.fullmatch(value.strip()):
+        return True
+    for alternative in value.split("||"):
+        tokens = alternative.strip().split()
+        if not tokens:
+            return False
+        for token in tokens:
+            if token in {"*", "x", "X"}:
+                continue
+            if token.startswith("^") or token.startswith("~"):
+                token = token[1:]
+            match = _COMPARATOR.fullmatch(token)
+            if not match:
+                return False
+            if match.group(2) is None:
+                return False
+            if match.group(5):
+                _version(f"{match.group(2)}.{match.group(3) or 0}.{match.group(4) or 0}-{match.group(5)}")
+            elif match.group(3) not in (None, "x", "X", "*") and match.group(4) not in (None, "x", "X", "*"):
+                _version(f"{match.group(2)}.{match.group(3)}.{match.group(4)}")
+    return True
+
+
+def validate_manifest(data: Any) -> None:
+    """Validate a raw manifest against the schema and npm-compatible grammar."""
+    errors = sorted(Draft202012Validator(_SCHEMA).iter_errors(data), key=lambda e: list(e.path))
+    if errors:
+        raise ValueError(errors[0].message)
+    if len(data["artifacts"]) != len(set(data["artifacts"])):
+        raise ValueError("artifacts must not contain duplicates")
+    dependency_ids = [dependency["id"] for dependency in data["dependsOn"]]
+    if len(dependency_ids) != len(set(dependency_ids)):
+        raise ValueError("dependsOn must not contain duplicate IDs")
+    if not _valid_range(data["version"]):
+        raise ValueError("version must be a valid SemVer")
+    if not _valid_range(data["requiresHelix"]):
+        raise ValueError("requiresHelix must be a valid npm range")
+    for dependency in data["dependsOn"]:
+        if not _valid_range(dependency["version"]):
+            raise ValueError(f"dependency {dependency['id']} has an invalid npm range")
+
+
+@dataclass(frozen=True)
 class ModManifest:
-    """Declares a mod's identity and dependencies.
-
-    Fields:
-        id: Unique mod identifier (e.g. ``"eln"``).  Must be a non-empty
-            string.
-        display_name: Human-readable name shown in settings and admin.
-        version: Semver string (e.g. ``"0.1.0"``).  Optional — Bundled Mods
-            inherit the platform version when omitted.
-        depends_on: Direct dependencies of this mod.  Non-transitive — a
-            mod only declares what it directly uses.  Entries can be bare
-            mod ID strings or dicts with ``id`` (required) and optional
-            ``version`` constraint.
-        core_version: Minimum platform version required by this mod.
-        icon: Legacy icon name.  Temporary; kept for compatibility.
-        description: Short description for settings and mod listing screens.
-
-    Raises:
-        TypeError: If any field has the wrong type.
-        ValueError: If ``id`` or ``display_name`` is empty, or if
-            ``depends_on`` contains invalid entries.
-    """
-
     id: str
     display_name: str
-    version: str | None = None
-    depends_on: list[str | dict[str, str]] = field(default_factory=list)
-    core_version: str | None = None
-    icon: str | None = None
+    version: str
+    requires_helix: str
+    artifacts: tuple[str, ...]
+    depends_on: tuple[Dependency, ...]
     description: str | None = None
+
+    def __post_init__(self) -> None:
+        raw = {
+            "id": self.id,
+            "displayName": self.display_name,
+            "version": self.version,
+            "requiresHelix": self.requires_helix,
+            "artifacts": list(self.artifacts),
+            "dependsOn": [{"id": dependency.id, "version": dependency.version} for dependency in self.depends_on],
+        }
+        if self.description is not None:
+            raw["description"] = self.description
+        validate_manifest(raw)
 
     @property
     def dependency_ids(self) -> list[str]:
-        """Extract just the mod ID strings from ``depends_on`` entries.
+        return [dependency.id for dependency in self.depends_on]
 
-        Each entry in ``depends_on`` can be either a bare string (the mod ID)
-        or a dict with an ``"id"`` key and optional ``"version"`` key.
-        This property returns just the IDs, suitable for topological sort
-        and dependency validation.
-        """
-        ids: list[str] = []
-        for dep in self.depends_on:
-            if isinstance(dep, str):
-                ids.append(dep)
-            else:
-                ids.append(dep["id"])
-        return ids
-
-    def __post_init__(self) -> None:
-        # --- id ---
-        if not isinstance(self.id, str):
-            raise TypeError(
-                f"ModManifest.id must be str, got {type(self.id).__name__}"
-            )
-        if not self.id:
-            raise ValueError("ModManifest.id must be a non-empty string")
-
-        # --- display_name ---
-        if not isinstance(self.display_name, str):
-            raise TypeError(
-                f"ModManifest.display_name must be str, "
-                f"got {type(self.display_name).__name__}"
-            )
-        if not self.display_name:
-            raise ValueError(
-                "ModManifest.display_name must be a non-empty string"
-            )
-
-        # --- version (optional) ---
-        if self.version is not None:
-            if not isinstance(self.version, str):
-                raise TypeError(
-                    f"ModManifest.version must be str or None, "
-                    f"got {type(self.version).__name__}"
-                )
-            if not self.version:
-                raise ValueError(
-                    "ModManifest.version must be a non-empty string "
-                    "when provided"
-                )
-
-        # --- depends_on ---
-        if not isinstance(self.depends_on, list):
-            raise TypeError(
-                f"ModManifest.depends_on must be a list, "
-                f"got {type(self.depends_on).__name__}"
-            )
-        for i, dep in enumerate(self.depends_on):
-            if isinstance(dep, str):
-                continue
-            if not isinstance(dep, dict):
-                raise TypeError(
-                    f"ModManifest.depends_on[{i}] must be str or dict, "
-                    f"got {type(dep).__name__}"
-                )
-            if "id" not in dep:
-                raise ValueError(
-                    f"ModManifest.depends_on[{i}] dict must have an 'id' key"
-                )
-            if not isinstance(dep["id"], str):
-                raise TypeError(
-                    f"ModManifest.depends_on[{i}].id must be str, "
-                    f"got {type(dep['id']).__name__}"
-                )
-            if "version" in dep and not isinstance(dep["version"], str):
-                raise TypeError(
-                    f"ModManifest.depends_on[{i}].version must be str, "
-                    f"got {type(dep['version']).__name__}"
-                )
-
-        # --- core_version (optional) ---
-        if self.core_version is not None and not isinstance(
-            self.core_version, str
-        ):
-            raise TypeError(
-                f"ModManifest.core_version must be str or None, "
-                f"got {type(self.core_version).__name__}"
-            )
-
-        # --- icon (optional) ---
-        if self.icon is not None and not isinstance(self.icon, str):
-            raise TypeError(
-                f"ModManifest.icon must be str or None, "
-                f"got {type(self.icon).__name__}"
-            )
-
-        # --- description (optional) ---
-        if self.description is not None and not isinstance(
-            self.description, str
-        ):
-            raise TypeError(
-                f"ModManifest.description must be str or None, "
-                f"got {type(self.description).__name__}"
-            )
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ModManifest":
+        validate_manifest(data)
+        return cls(
+            id=data["id"],
+            display_name=data["displayName"],
+            version=data["version"],
+            requires_helix=data["requiresHelix"],
+            artifacts=tuple(data["artifacts"]),
+            depends_on=tuple(Dependency(**dependency) for dependency in data["dependsOn"]),
+            description=data.get("description"),
+        )

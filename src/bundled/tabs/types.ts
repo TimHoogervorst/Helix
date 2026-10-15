@@ -1,9 +1,20 @@
 /** A user-pinned workspace bookmark as returned by the API. */
+import type { WorkspaceReference } from "../../shell/src/mod-system/references";
+
+export type WorkspaceIdentity = Pick<WorkspaceReference, "id" | "modId" | "localKey" | "kind"> & {
+  vendor: string;
+  mod: string;
+  workspace: string;
+};
+
 export interface PinnedWorkspace {
   id: number;
   display_id: string;
   label: string;
   url: string;
+  workspace_reference?: string;
+  /** Typed identity used for comparisons; URL is navigation only. */
+  workspace?: WorkspaceIdentity;
   icon: string;
   color: string;
   created_at: string;

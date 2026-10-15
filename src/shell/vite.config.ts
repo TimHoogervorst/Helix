@@ -4,6 +4,8 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { parseCatalog } from "./src/mod-system/catalog";
 
 const repoRoot = path.resolve(import.meta.dirname, "../..");
 const nodeModules = path.resolve(repoRoot, "node_modules");
@@ -89,9 +91,40 @@ function modResolutionPlugin() {
   };
 }
 
+/** Reject a catalog produced for a different installed package set. */
+function modCatalogPlugin() {
+  return {
+    name: "validate-mod-catalog",
+    configResolved() {
+      const catalogPath = process.env.HELIX_MOD_CATALOG;
+      if (!catalogPath) return;
+      const installedFingerprint =
+        process.env.HELIX_INSTALLATION_FINGERPRINT;
+      if (!installedFingerprint) {
+        throw new Error(
+          "HELIX_INSTALLATION_FINGERPRINT is required with HELIX_MOD_CATALOG.",
+        );
+      }
+      const catalog = JSON.parse(readFileSync(catalogPath, "utf-8"));
+      parseCatalog(catalog, installedFingerprint);
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [tailwindcss(), react(), useSyncExternalStorePlugin(), modResolutionPlugin()],
+  plugins: [
+    tailwindcss(),
+    react(),
+    useSyncExternalStorePlugin(),
+    modResolutionPlugin(),
+    modCatalogPlugin(),
+  ],
   resolve: {
+    alias: {
+      "@helix/mod-api": path.resolve(repoRoot, "src/mod-api/src/index.ts"),
+      "@helix/mod-api/Mod": path.resolve(repoRoot, "src/mod-api/src/Mod.ts"),
+      "@helix/mod-api/style.css": path.resolve(repoRoot, "src/mod-api/style.css"),
+    },
     // Prevent duplicate instances when modules are resolved via
     // different paths.  React dedupe avoids double React trees;
     // prosemirror dedupe prevents multiple copies of DecorationSet /
@@ -136,7 +169,7 @@ export default defineConfig({
     css: true,
     include: [
       "src/**/*.{test,spec}.?(c|m)[jt]s?(x)",
-      "../mods/**/*.{test,spec}.?(c|m)[jt]s?(x)",
+      "../mod-api/**/*.{test,spec}.?(c|m)[jt]s?(x)",
       "../bundled/**/*.{test,spec}.?(c|m)[jt]s?(x)",
     ],
     exclude: ["e2e/**", "node_modules/**"],

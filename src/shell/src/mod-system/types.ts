@@ -2,8 +2,9 @@ import type { ComponentType } from "react";
 import type { LucideIcon } from "lucide-react";
 import type { WorkspaceBus } from "../workspace/WorkspaceBus";
 import type { BlockEvent } from "./BlockEvent";
+import type { WorkspaceReference } from "./references";
 
-// ── Mod Manifest ──────────────────────────────────────────────────────────
+// ── Mod Manifest 1.0.0 ────────────────────────────────────────────────────
 
 /**
  * What each mod's index.ts exports as ``meta``.
@@ -13,35 +14,20 @@ import type { BlockEvent } from "./BlockEvent";
  * uniqueness anchor used across the entire mod system.  ``name`` alone is
  * the mod's local identifier within its vendor namespace.
  */
+export interface ModDependency {
+  id: string;
+  version: string;
+}
+
 export interface ModManifest {
-  /**
-   * Vendor namespace.  Core platform mods use ``"helix"``.
-   * Combined with ``name`` to form the globally-unique ``vendor.name`` key.
-   */
-  vendor: string;
-  /**
-   * Local mod name within the vendor namespace, e.g. ``"eln"``, ``"lims"``.
-   * The compound key ``vendor.name`` (e.g. ``"helix.eln"``) is used as the
-   * unique mod identity everywhere in the system.
-   */
-  name: string;
+  /** Canonical lowercase ASCII vendor.name identity. */
+  id: string;
   /** Human-readable name, e.g. 'LIMS', 'Electronic Lab Notebook'. */
   displayName: string;
-  /** Semver version string. Optional — core mods inherit the platform version when omitted. */
-  version?: string;
-  /**
-   * Fully-qualified ``vendor.name`` strings identifying mods that must load
-   * before this mod.  Each entry can be either a bare ``"vendor.name"``
-   * string or an object with an ``id`` (also ``vendor.name``) and optional
-   * ``version`` constraint.
-   *
-   * Example: ``["helix.lims", { id: "helix.tags", version: ">=2.0" }]``
-   */
-  dependsOn: (string | { id: string; version?: string })[];
-  /** Minimum platform version required by this mod. */
-  coreVersion?: string;
-  /** Legacy Lucide icon name. Temporary; kept for compatibility. */
-  icon?: string;
+  version: string;
+  requiresHelix: string;
+  artifacts: ("frontend" | "backend")[];
+  dependsOn: ModDependency[];
   /** Short description for settings and mod listing screens. */
   description?: string;
 }
@@ -84,7 +70,7 @@ export interface SlotHandle {
   /** Fully-qualified mod identity, e.g. ``"helix.eln"``. */
   readonly modId: string;
   /** What can be bound into this slot. */
-  readonly accepts: "block" | "button";
+  readonly accepts: "block" | "button" | string[];
 }
 
 /**
@@ -106,6 +92,8 @@ export interface ButtonHandle {
 
 export interface HubConfig {
   id: string;
+  /** Internal provenance stamp written by the owner-bound registrar. */
+  provider?: string;
   label: string;
   icon: ComponentType<any>;
   route: string;
@@ -119,6 +107,7 @@ export interface HubConfig {
 
 export interface SettingsSectionConfig {
   id: string;
+  provider?: string;
   modId: string;
   label: string;
   icon?: ComponentType<any>;
@@ -135,6 +124,7 @@ export interface SchemaComponentProps {
 export interface SchemaComponentRegistration {
   /** Globally unique identifier, e.g. "lims.results". */
   id: string;
+  provider?: string;
   /** Human-readable label shown in schema settings and workspace tabs. */
   label: string;
   /** Icon displayed beside the component label. */
@@ -149,11 +139,14 @@ export interface SchemaComponentRegistration {
 
 export interface RouteConfig {
   id: string;
+  provider?: string;
   modId: string;
   path: string;
   component: ComponentType<any>;
   /** When true, the route renders outside the Layout shell (no sidebar). */
   public?: boolean;
+  /** Workspace route metadata used to generate legacy redirects. */
+  workspace?: WorkspaceReference;
 }
 
 // ── Block ──────────────────────────────────────────────────────────────────
@@ -163,6 +156,29 @@ export interface RouteConfig {
 export interface ServiceConfig {
   id: string;
   handler: (...args: unknown[]) => Promise<unknown>;
+}
+
+/** A live metric contributed by a mod and displayed on a surface. */
+export interface MetricProviderConfig {
+  id: string;
+  label: string;
+  service: string;
+  refreshMs?: number;
+  refreshPolicy?: string;
+  sourceKind?: string;
+  aggregate?: "count" | "sum" | "avg" | "min" | "max";
+}
+
+/** Frontend capabilities contributed by a Library content source. */
+export interface ContentSourceConfig {
+  kind: string;
+  label: string;
+  create?: (input: { sourceId: number | null; projectId: number | null }) => Promise<{
+    display_id: string;
+  }>;
+  edit?: (displayId: string, changes: Record<string, unknown>) => Promise<unknown>;
+  lock?: (displayId: string) => Promise<{ locked: boolean; held_by_username?: string | null }>;
+  navigate?: (displayId: string, params: URLSearchParams) => string;
 }
 
 // ── Workspace ──────────────────────────────────────────────────────────────
@@ -197,6 +213,8 @@ export interface SchemaTypeConfig {
   columns?: SchemaColumnDef[];
   /** Icon-library key for the schema's default icon. */
   icon?: string;
+  /** Backend-declared capabilities used by generic consumers. */
+  capabilities?: string[];
 }
 
 /**
@@ -208,6 +226,8 @@ export interface SchemaTypeConfig {
 export interface WorkspaceConfig {
   /** Unique workspace identifier, also used as the URL namespace. */
   id: string;
+  /** Typed vendor/mod/workspace identity. */
+  reference: WorkspaceReference;
   /** Human-readable name, e.g. 'LIMS', 'Electronic Lab Notebook'. */
   displayName: string;
   /** Optional Lucide icon. Falls back to a generic default when absent. */
@@ -230,10 +250,17 @@ export interface WorkspaceConfig {
  * creating an inverted dependency (core importing from a mods package).
  */
 export interface CurrentWorkspace {
+  reference: WorkspaceReference;
   displayId: string;
   url: string;
   /** Workspace ID — used to look up the workspace config for an icon. */
   icon: string;
+}
+
+/** Payload envelope required when an event crosses workspace boundaries. */
+export interface WorkspaceEventPayload<T = unknown> {
+  workspace: WorkspaceReference;
+  payload: T;
 }
 
 // ── Slot System — Forward-Declaring Interfaces ────────────────────────────────
@@ -330,6 +357,7 @@ export interface BlockComponentProps {
 export interface BlockRegistration {
   /** Globally unique identifier, e.g. "eln.table". */
   id: string;
+  provider?: string;
   /** Human-readable label, e.g. "Table". */
   label: string;
   /** Lucide icon component. */
@@ -345,6 +373,8 @@ export interface BlockRegistration {
   /** Custom domain actions this block can emit via `context.emitAction()`. */
   emits?: BlockEvent[];
   tags?: string[];
+  /** Capabilities this block offers to capability-based slots. */
+  affinity?: string[];
   /** Layout role used by renderers for blocks that intentionally span the editor. */
   layout?: "default" | "dynamic-bleed";
   /** Serialize block state to a JSON string for persistence. */
@@ -366,6 +396,7 @@ export interface BlockRegistration {
 export interface ButtonRegistration {
   /** Globally unique identifier, e.g. "eln.export". */
   id: string;
+  provider?: string;
   /** Human-readable label, e.g. "Export". */
   label: string;
   /** Optional Lucide icon component. */
@@ -383,8 +414,10 @@ export interface ButtonRegistration {
 export interface SlotDeclaration {
   /** Unique slot identifier, e.g. "eln.editor" ({workspaceId}.{region}.{name}). */
   id: string;
+  provider?: string;
   /** What can be bound into this slot. */
-  accepts: "block" | "button";
+  /** Legacy block/button discriminator, or capabilities pulled by this slot. */
+  accepts: "block" | "button" | string[];
   /** The rendering strategy component. Determines how bound content is presented. */
   renderer: ComponentType<any>;
   /** How contents are arranged within the slot. */
@@ -404,6 +437,7 @@ export interface SlotDeclaration {
 export interface SlotBinding {
   /** The slot this binding targets, e.g. "eln.editor". */
   slotId: string;
+  provider?: string;
   /** The block or button ID to bind, e.g. "eln.table". */
   targetId: string;
   /** Per-binding overrides merged with slot defaults. */
@@ -449,6 +483,7 @@ export interface BlockBinding extends BaseBinding {
   getDisplayName?: (attrs: Record<string, unknown>) => string;
   /** Tags for block picker filtering. */
   tags?: string[];
+  affinity?: string[];
   /** Layout role copied from the block registration. */
   layout?: "default" | "dynamic-bleed";
   /** Custom domain actions this block can emit via `context.emitAction()`. */

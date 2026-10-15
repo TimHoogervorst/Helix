@@ -1,16 +1,8 @@
-from helix_core.mod_system.registry import registry
-
-
-def register():
+def register(mod):
     """Called by ModLoader after topological sort. Populates the backend registry."""
-    from .models import CoreAction
+    from helix_core.core.models import User
 
-    registry.register_action_model("core", CoreAction)
-
-    registry.register_custom_action(
-        mod_id="core",
-        action_id="core.user.deactivated",
-        label="User Deactivated",
-        core="edited",
-        target_model="bundled.access.users.models.User",
+    target = mod.register_model("user", User)
+    mod.register_custom_action(
+        "core.user.deactivated", "User Deactivated", "edited", target
     )

@@ -13,6 +13,7 @@ Covers:
 
 from __future__ import annotations
 
+import unittest
 from datetime import date, datetime
 
 from django.db.models import Q
@@ -32,7 +33,7 @@ from helix_core.query_builder import (
 # ── FilterSpec tests ───────────────────────────────────────────────────────
 
 
-class FilterSpecTests(TestCase):
+class FilterSpecTests(unittest.TestCase):
     def test_filter_spec_creation(self):
         spec = FilterSpec(column="name", operator="contains", value="PCR")
         self.assertEqual(spec.column, "name")
@@ -55,7 +56,7 @@ class FilterSpecTests(TestCase):
 # ── parse_filter_params tests ──────────────────────────────────────────────
 
 
-class ParseFilterParamsTests(TestCase):
+class ParseFilterParamsTests(unittest.TestCase):
     def test_parses_new_format(self):
         """?f=name:contains:PCR → structured filter spec."""
         structured, legacy = parse_filter_params(["name:contains:PCR"])
@@ -108,7 +109,7 @@ class ParseFilterParamsTests(TestCase):
 # ── _resolve_field_path tests ─────────────────────────────────────────────
 
 
-class ResolveFieldPathTests(TestCase):
+class ResolveFieldPathTests(unittest.TestCase):
     def test_system_column_name(self):
         self.assertEqual(_resolve_field_path("name"), "name")
 
@@ -143,7 +144,7 @@ class ResolveFieldPathTests(TestCase):
 # ── _is_system_column tests ───────────────────────────────────────────────
 
 
-class IsSystemColumnTests(TestCase):
+class IsSystemColumnTests(unittest.TestCase):
     def test_known_system_columns(self):
         for col in ["display_id", "name", "schema_type_id", "status",
                      "author", "created_at", "updated_at"]:
@@ -157,7 +158,7 @@ class IsSystemColumnTests(TestCase):
 # ── build_filter_q tests: text operators ──────────────────────────────────
 
 
-class TextFilterQTests(TestCase):
+class TextFilterQTests(unittest.TestCase):
     """Test each text-type operator produces the correct Q object."""
 
     def test_text_eq(self):
@@ -224,7 +225,7 @@ class TextFilterQTests(TestCase):
 # ── build_filter_q tests: number operators ────────────────────────────────
 
 
-class NumberFilterQTests(TestCase):
+class NumberFilterQTests(unittest.TestCase):
     def test_number_eq(self):
         spec = FilterSpec(column="concentration", operator="eq", value="50")
         q = build_filter_q(spec)
@@ -290,7 +291,7 @@ class NumberFilterQTests(TestCase):
 # ── build_filter_q tests: date/datetime operators ──────────────────────────
 
 
-class DateFilterQTests(TestCase):
+class DateFilterQTests(unittest.TestCase):
     def test_date_eq(self):
         spec = FilterSpec(column="created_at", operator="eq", value="2025-01-15")
         q = build_filter_q(spec)
@@ -317,7 +318,7 @@ class DateFilterQTests(TestCase):
 # ── build_filter_q tests: boolean operators ────────────────────────────────
 
 
-class BooleanFilterQTests(TestCase):
+class BooleanFilterQTests(unittest.TestCase):
     def test_boolean_eq(self):
         spec = FilterSpec(column="is_sterile", operator="eq", value="true")
         q = build_filter_q(spec)
@@ -336,7 +337,7 @@ class BooleanFilterQTests(TestCase):
 # ── build_filter_q tests: select operators ─────────────────────────────────
 
 
-class SelectFilterQTests(TestCase):
+class SelectFilterQTests(unittest.TestCase):
     def test_select_eq(self):
         spec = FilterSpec(column="status", operator="eq", value="in_progress")
         q = build_filter_q(spec)
@@ -376,7 +377,7 @@ class SelectFilterQTests(TestCase):
 # ── build_filter_q tests: reference operators ──────────────────────────────
 
 
-class ReferenceFilterQTests(TestCase):
+class ReferenceFilterQTests(unittest.TestCase):
     def test_reference_eq(self):
         spec = FilterSpec(column="parent_sample", operator="eq", value="BLOOD1")
         q = build_filter_q(spec)
@@ -402,7 +403,7 @@ class ReferenceFilterQTests(TestCase):
 # ── build_filter_q tests: user operators ───────────────────────────────────
 
 
-class UserFilterQTests(TestCase):
+class UserFilterQTests(unittest.TestCase):
     def test_user_eq(self):
         spec = FilterSpec(column="author", operator="eq", value="testuser")
         q = build_filter_q(spec)
@@ -428,7 +429,7 @@ class UserFilterQTests(TestCase):
 # ── build_entity_hub_filters tests ─────────────────────────────────────────
 
 
-class BuildEntityHubFiltersTests(TestCase):
+class BuildEntityHubFiltersTests(unittest.TestCase):
     def test_empty_filters_returns_empty_q(self):
         from django.db.models import Q
         q = build_entity_hub_filters([])
@@ -485,7 +486,7 @@ class BuildEntityHubFiltersTests(TestCase):
 # ── Integration: System column registry mapping ────────────────────────────
 
 
-class SystemColumnMappingTests(TestCase):
+class SystemColumnMappingTests(unittest.TestCase):
     """Verify the system column → model field mapping is complete."""
 
     def test_all_common_columns_have_mappings(self):
@@ -497,7 +498,7 @@ class SystemColumnMappingTests(TestCase):
                           f"'{key}' missing from _SYSTEM_COLUMN_FIELDS")
 
     def test_system_columns_resolve_to_model_fields(self):
-        """Each system column maps to a valid EntityHubView field."""
+        """Each system column maps to a valid fixture entity field."""
         for key, field in _SYSTEM_COLUMN_FIELDS.items():
             self.assertTrue(_is_system_column(key))
             self.assertEqual(_resolve_field_path(key), field)
@@ -506,7 +507,7 @@ class SystemColumnMappingTests(TestCase):
 # ── Direct column type resolution via column_type_map ────────────────────
 
 
-class ColumnTypeMapResolutionTests(TestCase):
+class ColumnTypeMapResolutionTests(unittest.TestCase):
     """Tests for direct column type resolution using a column_type_map.
 
     When a ``{property_key: type_id}`` map is provided, property columns
@@ -646,16 +647,13 @@ class ColumnTypeMapResolutionTests(TestCase):
 
 
 class QueryBuilderIntegrationTests(TestCase):
-    """Integration tests that apply Q objects to the EntityHubView queryset.
-
-    These tests verify that the Q objects produced by the query builder
-    actually work when applied via Django's ORM against the entity_hub_view.
-    """
+    """Apply generated filters to the Platform fixture entity queryset."""
 
     @classmethod
     def setUpTestData(cls):
         from helix_core.core.models import Folder, Project, User
         from helix_core.models import Schema, SchemaType
+        from helix_core.tests.fixtures.external_mod.models import ConcreteTestEntity
 
         cls.user = User.objects.create_user(
             username="testuser", password="pass"
@@ -667,64 +665,59 @@ class QueryBuilderIntegrationTests(TestCase):
         )
 
         eln_type = SchemaType.objects.create(
-            display_name="Entry",
-            workspace_id="eln",
-            model="mods.eln.models.NotebookEntry",
+            display_name="Fixture Entity",
+            workspace_id="fixture",
+            model=("helix_core.tests.fixtures.external_mod.models."
+                   "ConcreteTestEntity"),
+            columns=[
+                {"name": "sample_type", "type": "text"},
+                {"name": "concentration", "type": "number"},
+            ],
         )
-        lims_type = SchemaType.objects.create(
-            display_name="Entity",
-            workspace_id="lims",
-            model="bundled.lims.models.Entity",
-        )
-        cls.eln_schema = Schema.objects.create(
+        cls.schema = Schema.objects.create(
             name="Default",
-            prefix="E",
+            prefix="FIX",
             schema_type=eln_type,
             is_default=True,
-        )
-        cls.lims_schema = Schema.objects.create(
-            name="Default",
-            prefix="LIMS",
-            schema_type=lims_type,
-            is_default=True,
+            columns=[
+                {"name": "sample_type", "type": "text"},
+                {"name": "concentration", "type": "number"},
+            ],
         )
 
-        from mods.eln.models import NotebookEntry
-        from bundled.lims.models import Entity
-
-        cls.eln_entry = NotebookEntry.objects.create(
+        cls.entry = ConcreteTestEntity.objects.create(
             name="PCR Experiment",
             author=cls.user,
-            schema=cls.eln_schema,
+            schema=cls.schema,
             source=cls.folder,
-            content={"type": "doc", "content": []},
+            properties={},
         )
-        cls.lims_entity = Entity.objects.create(
+        cls.entity = ConcreteTestEntity.objects.create(
             name="Blood Sample A",
             author=cls.user,
-            schema=cls.lims_schema,
+            schema=cls.schema,
             source=cls.folder,
             properties={"sample_type": "A", "concentration": 50},
         )
-        Entity.objects.create(
+        ConcreteTestEntity.objects.create(
             name="Blood Sample B",
             author=cls.user,
-            schema=cls.lims_schema,
+            schema=cls.schema,
             source=cls.folder,
             properties={"sample_type": "B", "concentration": 100},
         )
-        Entity.objects.create(
+        ConcreteTestEntity.objects.create(
             name="Blood Sample C",
             author=cls.user,
-            schema=cls.lims_schema,
+            schema=cls.schema,
             source=cls.folder,
             properties={"sample_type": "C", "concentration": 200},
         )
 
     def _apply_q(self, q):
-        """Apply a Q object to EntityHubView queryset and return results."""
-        from helix_core.models import EntityHubView
-        return EntityHubView.objects.filter(q)
+        """Apply a Q object to the fixture model queryset and return results."""
+        from helix_core.tests.fixtures.external_mod.models import ConcreteTestEntity
+        return ConcreteTestEntity.objects.filter(q)
 
     def test_text_contains_system_column(self):
         """?f=name:contains:PCR finds entities with 'PCR' in name."""
@@ -844,7 +837,7 @@ class QueryBuilderIntegrationTests(TestCase):
         self.assertEqual(len(results), 0)
 
     def test_batch_build_and_apply(self):
-        """build_entity_hub_filters produces a valid Q for EntityHubView."""
+        """build_entity_hub_filters produces a valid Q for fixture entities."""
         from django.db.models import Q
         q = build_entity_hub_filters([
             FilterSpec("name", "contains", "Blood"),
@@ -878,23 +871,23 @@ class QueryBuilderIntegrationTests(TestCase):
         """contains on display_id uses icontains."""
         from django.db.models import Q
         q = build_filter_q(FilterSpec("display_id", "contains",
-                                       self.eln_entry.display_id[:3]))
+                                       self.entry.display_id[:3]))
         results = self._apply_q(q)
         display_ids = [r.display_id for r in results]
-        self.assertIn(self.eln_entry.display_id, display_ids)
+        self.assertIn(self.entry.display_id, display_ids)
 
 
 # ── Project filter tests ────────────────────────────────────────────────────
 
 
 class ProjectFilterQueryTests(TestCase):
-    """Integration tests for project filter operators applied to EntityHubView."""
+    """Integration tests for project filters on the fixture entity queryset."""
 
     @classmethod
     def setUpTestData(cls):
         from helix_core.core.models import Folder, Project, User
         from helix_core.models import Schema, SchemaType
-        from bundled.lims.models import Entity
+        from helix_core.tests.fixtures.external_mod.models import ConcreteTestEntity
 
         cls.user = User.objects.create_user(
             username="projfilter", password="pass"
@@ -902,12 +895,13 @@ class ProjectFilterQueryTests(TestCase):
 
         lims_type = SchemaType.objects.create(
             display_name="Entity",
-            workspace_id="lims",
-            model="bundled.lims.models.Entity",
+            workspace_id="fixture",
+            model=("helix_core.tests.fixtures.external_mod.models."
+                   "ConcreteTestEntity"),
         )
         cls.lims_schema = Schema.objects.create(
             name="Default",
-            prefix="LIMS",
+            prefix="FIX",
             schema_type=lims_type,
             is_default=True,
         )
@@ -923,21 +917,21 @@ class ProjectFilterQueryTests(TestCase):
             name="root", parent=None, project=cls.project_b,
         )
 
-        cls.entity_a1 = Entity.objects.create(
+        cls.entity_a1 = ConcreteTestEntity.objects.create(
             name="Sample A1",
             author=cls.user,
             schema=cls.lims_schema,
             source=cls.folder_a,
             properties={},
         )
-        cls.entity_a2 = Entity.objects.create(
+        cls.entity_a2 = ConcreteTestEntity.objects.create(
             name="Sample A2",
             author=cls.user,
             schema=cls.lims_schema,
             source=cls.folder_a,
             properties={},
         )
-        cls.entity_b1 = Entity.objects.create(
+        cls.entity_b1 = ConcreteTestEntity.objects.create(
             name="Sample B1",
             author=cls.user,
             schema=cls.lims_schema,
@@ -946,8 +940,8 @@ class ProjectFilterQueryTests(TestCase):
         )
 
     def _apply_q(self, q):
-        from helix_core.models import EntityHubView
-        return EntityHubView.objects.filter(q)
+        from helix_core.tests.fixtures.external_mod.models import ConcreteTestEntity
+        return ConcreteTestEntity.objects.filter(q)
 
     def test_project_eq(self):
         """project:eq:<pk> matches entities in that project only."""
@@ -1019,9 +1013,3 @@ class ProjectFilterQueryTests(TestCase):
         self.assertEqual(structured[0].column, "project")
         self.assertEqual(structured[0].operator, "in")
         self.assertEqual(structured[0].value, "1,2,3")
-
-    def test_missing_project_filter_means_all(self):
-        """Absence of the project filter means all projects — build_entity_hub_filters
-        with no project filter returns empty Q (always-true)."""
-        q = build_entity_hub_filters([])
-        self.assertEqual(q, Q())

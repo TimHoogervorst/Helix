@@ -15,7 +15,7 @@ from django.db.models import F, FloatField, Q
 from django.db.models.functions import Cast
 from rest_framework import serializers, viewsets, mixins, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -28,8 +28,7 @@ from helix_core.serializers import (
     SchemaTypeListSerializer,
 )
 
-from helix_core.models import EntityHubView
-from bundled.access.access.permissions import IsOrganizationAdminForWrites
+from bundled.access.access.permissions import IsOrganizationAdmin, IsOrganizationAdminForWrites
 from helix_core.serializers import EntityHubSerializer, EntityHubPaginator
 from helix_core.column_types import registry as column_type_registry
 from helix_core.formulas import evaluate_formula
@@ -57,15 +56,14 @@ def _resolve_content_target_model(target_type):
     app and the content mods.
     """
     from helix_core.core.models import Folder
-    from mods.eln.models import NotebookEntry
-    from bundled.lims.models import Entity
-
-    return {
-        "core.folder": Folder,
-        "eln.entry": NotebookEntry,
-        "lims.entities": Entity,
-        "lims.entity": Entity,
-    }.get(target_type)
+    from helix_core.mod_system.registry import registry
+    if target_type == "core.folder":
+        return Folder
+    for provider, model in registry.content_source_models():
+        short = provider.kind.rsplit(":", 1)[-1]
+        if target_type.rsplit(".", 1)[-1] in (short, f"{short}s"):
+            return model
+    return None
 
 # ── Common column descriptors ─────────────────────────────────────────────
 #
@@ -217,11 +215,44 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
     pagination_class = EntityHubPaginator
 
     def get_queryset(self):
-        qs = EntityHubView.objects.select_related(
-            "author", "schema__schema_type", "project", "source_type"
-        ).all()
-        qs = qs.filter(visible_rows_q(self.request.user))
-        return self._apply_filters(qs)
+        from helix_core.mod_system.registry import registry
+
+        rows = []
+        self._source_providers = {}
+        params = self._parse_filter_params()
+        for provider, model in registry.content_source_models():
+            if not provider.hub_visible:
+                continue
+            qs = model.objects.select_related(
+                "author", "schema__schema_type", "project", "source_type"
+            ).all()
+            qs = registry.query_content_sources(provider.kind, self.request, qs)
+            qs = self._apply_filters(qs)
+            if params["schema_type"]:
+                wanted = params["schema_type"]
+                qs = [row for row in qs if self._schema_type_id(row, provider) == wanted]
+            rows.extend(qs)
+            self._source_providers.update({model: provider})
+        sort = params["sort"] or "-updated_at"
+        descending = sort.startswith("-")
+        key = sort[1:] if descending else sort
+        rows.sort(key=lambda row: self._sort_value(row, key), reverse=descending)
+        return rows
+
+    @staticmethod
+    def _schema_type_id(row, provider):
+        schema_type = getattr(getattr(row, "schema", None), "schema_type", None)
+        metadata = provider.display_metadata
+        if not schema_type:
+            return None
+        return metadata.get("schema_type_id") or f"{metadata.get('workspace_id', schema_type.workspace_id)}.{type(row)._meta.model_name}"
+
+    @staticmethod
+    def _sort_value(row, key):
+        value = getattr(row, key, None)
+        if value is None and key not in SORTABLE_FIELDS:
+            value = (getattr(row, "properties", {}) or {}).get(key)
+        return (value is None, value)
 
     def _parse_filter_params(self):
         """Return a dict of parsed filter params, cached on the viewset.
@@ -264,9 +295,6 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
             )
 
         # ── Schema type filter ─────────────────────────────────────────
-        if params["schema_type"]:
-            qs = qs.filter(schema_type_id=params["schema_type"])
-
         # ── Schema filter ──────────────────────────────────────────────
         if params["schema"]:
             qs = qs.filter(schema_id=params["schema"])
@@ -302,24 +330,14 @@ class EntityHubListView(mixins.ListModelMixin, viewsets.GenericViewSet):
                 ordering = f"-{sort}" if descending else sort
                 qs = qs.order_by(ordering)
             elif property_type:
-                field_path = f"properties__{sort}"
-                if property_type == "number":
-                    qs = qs.annotate(
-                        _hub_sort_value=Cast(F(field_path), output_field=FloatField())
-                    )
-                    field_path = "_hub_sort_value"
-                ordering = f"-{field_path}" if descending else field_path
-                qs = qs.order_by(ordering)
-            else:
-                qs = qs.order_by("-updated_at")
-        else:
-            qs = qs.order_by("-updated_at")
-
+                # Property sorting is applied after source querysets are merged.
+                return qs
         return qs
 
     def get_serializer_context(self):
         """Add schema_columns to context so _expanded can be populated."""
         context = super().get_serializer_context()
+        context["source_providers"] = getattr(self, "_source_providers", {})
         params = self._parse_filter_params()
         if params["schema"]:
             try:
@@ -408,58 +426,28 @@ class EntityHubQueryView(APIView):
         if errors:
             raise drf_serializers.ValidationError(errors)
 
-        # ── Build the filtered queryset ────────────────────────────────
-        qs = EntityHubView.objects.select_related("author", "schema", "project").all()
-        qs = qs.filter(visible_rows_q(request.user))
-
-        # Search
-        search = request.data.get("search", "").strip()
-        if search:
-            qs = qs.filter(
-                Q(name__icontains=search)
-                | Q(display_id__icontains=search)
-            )
-
-        # Schema type
-        schema_type = request.data.get("schema_type", "").strip()
-        if schema_type:
-            qs = qs.filter(schema_type_id=schema_type)
-
-        # Schema
-        schema = request.data.get("schema", "").strip()
-        if schema:
-            qs = qs.filter(schema_id=schema)
-
-        # Status
-        status_val = request.data.get("status", "").strip()
-        if status_val in ("in_progress", "finished"):
-            qs = qs.filter(status=status_val)
-
-        # Structured filters from POST body
-        if filter_specs:
-            column_type_map = _build_column_type_map(schema, schema_type)
-            qs = qs.filter(
-                build_entity_hub_filters(filter_specs, column_type_map=column_type_map)
-            )
-
-        # Sort
-        sort = request.data.get("sort", "").strip()
-        if sort:
-            descending = False
-            if sort.startswith("-"):
-                descending = True
-                sort = sort[1:]
-            if sort in SORTABLE_FIELDS:
-                ordering = f"-{sort}" if descending else sort
-                qs = qs.order_by(ordering)
-        else:
-            qs = qs.order_by("-updated_at")
+        # Reuse the GET implementation so POST and GET cannot diverge.
+        list_view = EntityHubListView()
+        list_view.request = request
+        schema_type = str(request.data.get("schema_type", "")).strip()
+        schema = str(request.data.get("schema", "")).strip()
+        list_view._filter_params = {
+            "search": str(request.data.get("search", "")).strip(),
+            "schema_type": schema_type,
+            "schema": schema,
+            "status": str(request.data.get("status", "")).strip(),
+            "sort": str(request.data.get("sort", "")).strip(),
+            "filter_specs": filter_specs,
+            "field_filters": [],
+            "column_type_map": _build_column_type_map(schema, schema_type),
+        }
+        qs = list_view.get_queryset()
 
         # ── Paginate ───────────────────────────────────────────────────
         paginator = EntityHubPaginator()
         page = paginator.paginate_queryset(qs, request)
         serializer = EntityHubSerializer(
-            page, many=True, context={"request": request}
+            page, many=True, context={"request": request, "source_providers": list_view._source_providers}
         )
 
         response = paginator.get_paginated_response(serializer.data)
@@ -540,12 +528,9 @@ class SchemaViewSet(viewsets.ModelViewSet):
         """
         from django.db.utils import OperationalError
 
-        from bundled.lims.models import Entity
-        from mods.eln.models import NotebookEntry
-
-        # Delete entities first (they have FK to Schema)
-        Entity.objects.all().delete()
-        NotebookEntry.objects.all().delete()
+        from helix_core.mod_system.registry import registry
+        for _provider, model in registry.content_source_models():
+            model.objects.all().delete()
 
         try:
             count, _ = Schema.objects.all().delete()
@@ -627,10 +612,8 @@ class ActionCreateView(APIView):
 
     def post(self, request):
         from helix_core.actions.serializers import ActionCreateSerializer
-        from helix_core.actions.registry import (
-            get_action_catalog,
-            get_action_model,
-        )
+        from helix_core.actions.registry import get_action_catalog
+        from helix_core.models import ActionLogEntry
 
         # ── validate input ──────────────────────────────────────────────
         serializer = ActionCreateSerializer(data=request.data)
@@ -657,8 +640,7 @@ class ActionCreateView(APIView):
         if not catalog:
             raise serializers.ValidationError(
                 f"No action model registered for workspace "
-                f"'{workspace_id}'. Did you forget to call "
-                f"register_action_model()?"
+                f"'{workspace_id}'. No Platform Action definitions are registered."
             )
 
         catalog_action_ids = {entry["id"] for entry in catalog}
@@ -674,13 +656,6 @@ class ActionCreateView(APIView):
             raise serializers.ValidationError(
                 f"Unknown action '{action}' for workspace "
                 f"'{workspace_id}'. Available action types: {available}"
-            )
-
-        # ── route to the correct mod action model ────────────────────────
-        model_class = get_action_model(workspace_id)
-        if model_class is None:
-            raise serializers.ValidationError(
-                f"No action model registered for workspace '{workspace_id}'."
             )
 
         # ── enforce Edit on content targets ───────────────────────────────
@@ -713,12 +688,20 @@ class ActionCreateView(APIView):
         request_id = validated.get("request_id", uuid.uuid4())
 
         # ── create the action row ────────────────────────────────────────
-        row = model_class.objects.create(
+        from helix_core.mod_system.registry import registry
+        manifest = registry._manifests.get(workspace_id)
+        row = ActionLogEntry.objects.create(
             performed_by=request.user,
             action=action,
             action_type=action_type,
-            target_type=target_type,
-            target_id=target_id,
+            target_model_reference=target_type,
+            target_object_id=str(target_id),
+            initiating_mod_id=workspace_id,
+        initiating_mod_version=(
+            manifest.version
+            if manifest
+            else registry._action_providers.get(workspace_id, (workspace_id, "unknown"))[1]
+        ),
             metadata=metadata,
             client_ip=client_ip,
             request_id=request_id,
@@ -774,41 +757,114 @@ class ModRegistryView(APIView):
     and registered action models.
     """
 
+    # ModLoader hydrates the frontend registry before CurrentUserProvider has
+    # established the session. This payload contains Mod metadata only.
+    permission_classes = [AllowAny]
+
     def get(self, request):
         from helix_core.mod_system.registry import registry
 
         payload = registry.get_registry_payload()
         return Response(payload)
 
-    def post(self, request):
-        """Sync frontend block action IDs into the backend action catalog.
+class ModBootView(APIView):
+    """Serve the completed backend boot barrier to the frontend.
 
-        ``POST /api/mod-registry/sync-actions/`` accepts a mod ID and a
-        list of action objects (``{"id": str, "core": str}``), atomically
-        replaces all custom actions for the mod, derives human-readable
-        labels, and validates that every provided action ID exists in the
-        catalog after upsert.
+    This endpoint is intentionally separate from the organization-admin
+    lifecycle surface: normal users need the active graph, but must not be
+    able to change it.
+    """
 
-        Hard-fails (400) when any action IDs are missing from the catalog
-        after the sync — the frontend treats this as a boot error.
-        """
+    # ModLoader runs before CurrentUserProvider has established the session.
+    # Boot data contains only public Mod metadata and activation state.
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.conf import settings
+        from helix_core.models import ModInstallation
         from helix_core.mod_system.registry import registry
 
-        mod_id = request.data.get("mod_id")
-        actions = request.data.get("actions", [])
+        catalog = None
+        catalog_path = getattr(settings, "HELIX_MOD_CATALOG", None)
+        if catalog_path:
+            from helix_core.mod_system.catalog import read_catalog
 
-        if not mod_id:
-            return Response(
-                {"status": "error", "error": "mod_id is required"},
-                status=400,
+            catalog = read_catalog(catalog_path)
+
+        active = ModInstallation.objects.filter(
+            state=ModInstallation.State.ACTIVE,
+        ).values_list("mod_id", flat=True)
+        return Response(
+            {
+                "activeMods": sorted(active),
+                "catalog": catalog,
+                "registry": registry.get_registry_payload(),
+            }
+        )
+
+
+class ModLifecycleView(APIView):
+    """Org-admin API for persisted External Mod activation intent."""
+
+    permission_classes = [IsOrganizationAdmin]
+
+    def get(self, request):
+        from helix_core.models import ModInstallation
+
+        rows = ModInstallation.objects.filter(tier="External")
+        return Response(
+            {
+                "mods": [
+                    {
+                        "id": row.mod_id,
+                        "displayName": row.display_name,
+                        "version": row.version,
+                        "requiresHelix": row.requires_helix,
+                        "artifacts": row.artifacts,
+                        "dependsOn": row.dependencies,
+                        "state": row.state,
+                        "desiredState": row.desired_state,
+                        "restartRequired": row.state != row.desired_state,
+                        "available": row.state != ModInstallation.State.REMOVED,
+                    }
+                    for row in rows
+                ]
+            }
+        )
+
+    def post(self, request):
+        from helix_core.mod_system.lifecycle import activate_mod, deactivate_mod
+
+        mod_id = request.data.get("modId")
+        operation = request.data.get("operation")
+        if not isinstance(mod_id, str) or operation not in {"activate", "deactivate"}:
+            raise serializers.ValidationError(
+                {"detail": "modId and operation (activate or deactivate) are required."}
             )
-
-        result = registry.sync_actions(mod_id, actions)
-
-        if result["status"] == "error":
-            return Response(result, status=400)
-
-        return Response(result)
+        try:
+            if operation == "activate":
+                changed = activate_mod(
+                    mod_id,
+                    request.user,
+                    activate_dependencies=bool(request.data.get("activateDependencies", True)),
+                )
+            else:
+                changed = deactivate_mod(
+                    mod_id,
+                    request.user,
+                    cascade=bool(request.data.get("cascade", False)),
+                )
+        except ValueError as exc:
+            logger.warning(
+                "Mod lifecycle operation failed for mod_id=%r operation=%r",
+                mod_id,
+                operation,
+                exc_info=True,
+            )
+            raise serializers.ValidationError(
+                {"detail": "Invalid mod lifecycle request."}
+            ) from exc
+        return Response({"changed": sorted(changed), "restartRequired": True})
 
 
 class ColorTokenViewSet(viewsets.ModelViewSet):

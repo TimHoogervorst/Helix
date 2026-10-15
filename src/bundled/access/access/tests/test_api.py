@@ -4,10 +4,11 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from bundled.access.access.models import Organization
+from bundled.access.access.tests.api_base import AccessApiTestCase
 from bundled.access.access.tests.factories import make_org, make_user
 
 
-class OrganizationApiTests(TestCase):
+class OrganizationApiTests(AccessApiTestCase):
     @classmethod
     def setUpTestData(cls):
         cls.org = make_org()
@@ -58,7 +59,7 @@ class OrganizationApiTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
 
-class PeopleApiTests(TestCase):
+class PeopleApiTests(AccessApiTestCase):
     @classmethod
     def setUpTestData(cls):
         cls.org = make_org()

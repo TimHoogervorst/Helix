@@ -23,6 +23,7 @@ from bundled.access.access.models import (
     Team,
 )
 from bundled.access.access.tests.factories import add_child_folder, make_org, make_project, make_user
+from bundled.access.access.tests.api_base import AccessApiTestCase
 
 LOG_ACTION_PATH = "bundled.access.access.views.log_action"
 
@@ -35,7 +36,7 @@ def _log_kwargs(mock_log):
     return mock_log.call_args.kwargs
 
 
-class _AuditTestBase(TestCase):
+class _AuditTestBase(AccessApiTestCase):
     @classmethod
     def setUpTestData(cls):
         cls.org = make_org()
@@ -452,6 +453,12 @@ class FolderShareAuditTests(_AuditTestBase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.mock_log.assert_not_called()
+        self.assertFalse(
+            FolderShare.objects.filter(
+                source_folder=self.folder,
+                target_project=self.project_b,
+            ).exists(),
+        )
 
 
 # ── Fail-open ──────────────────────────────────────────────────────────────

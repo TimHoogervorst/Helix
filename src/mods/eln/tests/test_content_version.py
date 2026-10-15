@@ -6,7 +6,8 @@ ContentVersion creation, save_mode via X-Save-Mode header, version-number
 sequencing, and action-log metadata enrichment.
 """
 from helix_core.core.tests.base import BaseTestCase
-from mods.eln.models import NotebookEntry, ContentVersion, ElnAction
+from helix_core.models import ActionLogEntry
+from mods.eln.models import NotebookEntry, ContentVersion
 
 from .factories import TEXT_DOC, ALT_DOC, _CreateEntryMixin
 
@@ -152,7 +153,7 @@ class HashBasedNoOpTests(_CreateEntryMixin, BaseTestCase):
         self.assertEqual(ContentVersion.objects.count(), 1)
 
         # Second update with same content → no-op.
-        action_count_before = ElnAction.objects.count()
+        action_count_before = ActionLogEntry.objects.count()
         self.client.put(
             f"/api/eln/entries/{display_id}/",
             {"name": "Test", "content": ALT_DOC},
@@ -161,7 +162,7 @@ class HashBasedNoOpTests(_CreateEntryMixin, BaseTestCase):
         # Still only 1 ContentVersion — second was a no-op.
         self.assertEqual(ContentVersion.objects.count(), 1)
         # No action logged for the no-op.
-        self.assertEqual(ElnAction.objects.count(), action_count_before)
+        self.assertEqual(ActionLogEntry.objects.count(), action_count_before)
 
     def test_unchanged_content_with_title_change_still_saves(self):
         """Hash match on content BUT title changed → save proceeds, no new CV."""
@@ -187,7 +188,7 @@ class HashBasedNoOpTests(_CreateEntryMixin, BaseTestCase):
         # ContentVersion count unchanged — content didn't change.
         self.assertEqual(ContentVersion.objects.count(), 1)
         # Action was still logged (title change).
-        self.assertEqual(ElnAction.objects.filter(action="eln.entry.edited").count(), 2)
+        self.assertEqual(ActionLogEntry.objects.filter(action="eln.entry.edited").count(), 2)
 
     def test_noop_before_any_content_version(self):
         """When no ContentVersion exists yet, update always proceeds.
@@ -245,7 +246,7 @@ class TitleOnlyStatusOnlyTests(_CreateEntryMixin, BaseTestCase):
         self.assertEqual(ContentVersion.objects.count(), 1)
         # Action was logged for the title change.
         self.assertGreaterEqual(
-            ElnAction.objects.filter(action="eln.entry.edited").count(), 2
+            ActionLogEntry.objects.filter(action="eln.entry.edited").count(), 2
         )
 
     def test_status_only_update_no_content_version(self):
@@ -277,7 +278,7 @@ class TitleOnlyStatusOnlyTests(_CreateEntryMixin, BaseTestCase):
         self.assertEqual(ContentVersion.objects.count(), 1)
         # Action logged (status changed).
         self.assertGreaterEqual(
-            ElnAction.objects.filter(action="eln.entry.edited").count(), 2
+            ActionLogEntry.objects.filter(action="eln.entry.edited").count(), 2
         )
 
 
@@ -362,7 +363,7 @@ class ActionLoggingEnrichmentTests(_CreateEntryMixin, BaseTestCase):
             format="json",
         )
 
-        action = ElnAction.objects.filter(action="eln.entry.edited").first()
+        action = ActionLogEntry.objects.filter(action="eln.entry.edited").first()
         self.assertIsNotNone(action)
         self.assertEqual(action.metadata["version_number"], 1)
         self.assertEqual(action.metadata["save_mode"], "manual")
@@ -388,7 +389,7 @@ class ActionLoggingEnrichmentTests(_CreateEntryMixin, BaseTestCase):
         )
 
         # The second "edited" action should have empty metadata (no new CV).
-        actions = list(ElnAction.objects.filter(action="eln.entry.edited").order_by("created_at"))
+        actions = list(ActionLogEntry.objects.filter(action="eln.entry.edited").order_by("created_at"))
         self.assertEqual(len(actions), 2)
         # First action has version metadata.
         self.assertIn("version_number", actions[0].metadata)

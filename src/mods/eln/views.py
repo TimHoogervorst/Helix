@@ -14,6 +14,7 @@ from rest_framework.exceptions import APIException, PermissionDenied, Validation
 from rest_framework.response import Response
 
 from helix_core.actions.logger import bulk_log_actions, log_action
+from helix_core.actions import VersionTarget
 from helix_core.actions.mixins import ActionLoggingMixin, logs_action
 from helix_core.source_deletion import delete_source_descendants
 
@@ -21,9 +22,10 @@ from bundled.labelling.tags.models import Tag
 from bundled.access.access.permissions import IsOrganizationAdmin, IsOrganizationAdminForWrites
 from bundled.access.access.scoping import visible_rows_q
 
-from helix_core.models import Schema
+from helix_core.models import ActionLogEntry, Schema
 
-from .models import NotebookEntry, ContentVersion, ElnAction, EntryLock, Protocol
+from .models import NotebookEntry, ContentVersion, EntryLock, Protocol
+from .config import CONTENT_VERSION_REFERENCE
 from .serializers import (
     NotebookEntrySerializer,
     NotebookEntryCreateSerializer,
@@ -313,6 +315,16 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         # actions exist for this save cycle (X-Block-Actions header). Block
         # actions are the canonical audit record for content changes.
         instance._version_metadata = version_metadata
+        instance._version_target = (
+            VersionTarget(
+                reference=CONTENT_VERSION_REFERENCE,
+                object_id=str(cv.pk),
+                label=str(cv.version_number),
+                content_hash=cv.content_hash,
+            )
+            if content_changed
+            else None
+        )
         if not self.request.headers.get("X-Block-Actions"):
             self._maybe_log(
                 self.action,
@@ -408,9 +420,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     def _list_actions(self, request, display_id):
         entry = self.get_object()
-        qs = ElnAction.objects.filter(
-            target_type="eln.entry",
-            target_id=entry.id,
+        qs = ActionLogEntry.objects.filter(
+            target_model_reference="eln.entry",
+            target_object_id=str(entry.id),
         ).select_related("performed_by").order_by("-created_at")
 
         # Filter by action_type (e.g. "edited", "created")

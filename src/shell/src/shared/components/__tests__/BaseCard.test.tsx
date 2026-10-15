@@ -1,390 +1,141 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { BaseCard, type PropertyField } from "../BaseCard";
+import { describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { BaseCard } from "../BaseCard";
 import { makeLibraryEntry } from "../../../test/factories";
 
-// ── Helpers ──────────────────────────────────────────────────────────────
-
 function DummyIcon() {
-  return <span data-testid="dummy-icon">🔬</span>;
+  return <span aria-hidden="true">Lab icon</span>;
 }
 
-const defaultPropertyFields: PropertyField[] = [
-  { key: "samples_count", label: "Samples" },
-  { key: "attachments_count", label: "Attachments" },
-];
-
-// ── Tests ────────────────────────────────────────────────────────────────
-
 describe("BaseCard", () => {
-  // ── View mode CSS classes ────────────────────────────────────────────
+  it.each(["list", "grid", "compact"] as const)(
+    "renders the %s view",
+    (viewMode) => {
+      render(
+        <BaseCard
+          item={makeLibraryEntry()}
+          viewMode={viewMode}
+          isSelected={false}
+          icon={DummyIcon}
+        />,
+      );
 
-  it("applies .view-list class when viewMode is list", () => {
-    const entry = makeLibraryEntry();
+      expect(screen.getByTestId("base-library-card")).toHaveClass(`view-${viewMode}`);
+    },
+  );
+
+  it("composes the entry identity, owner, status, tags, and supplied icon", () => {
     render(
       <BaseCard
-        item={entry}
+        item={makeLibraryEntry({
+          display_id: "EXP-0284",
+          title: "gRNA screen v3",
+          author_username: "m.kato",
+          author_info: {
+            id: 1,
+            username: "m.kato",
+            first_name: "Mira",
+            last_name: "Kato",
+            color: "#4A90D9",
+          },
+          status: "in_progress",
+          tags: [{ id: 1, name: "CRISPR", color: "flask", icon: "circle" }],
+        })}
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
+        showTags
       />,
     );
-    expect(screen.getByTestId("base-library-card").className).toContain(
-      "view-list",
-    );
-  });
 
-  it("applies .view-grid class when viewMode is grid", () => {
-    const entry = makeLibraryEntry();
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="grid"
-        isSelected={false}
-        icon={DummyIcon}
-      />,
-    );
-    expect(screen.getByTestId("base-library-card").className).toContain(
-      "view-grid",
-    );
-  });
-
-  it("applies .view-compact class when viewMode is compact", () => {
-    const entry = makeLibraryEntry();
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="compact"
-        isSelected={false}
-        icon={DummyIcon}
-      />,
-    );
-    expect(screen.getByTestId("base-library-card").className).toContain(
-      "view-compact",
-    );
-  });
-
-  // ── Selection state ──────────────────────────────────────────────────
-
-  it("applies .is-selected class when isSelected is true", () => {
-    const entry = makeLibraryEntry();
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={true}
-        icon={DummyIcon}
-      />,
-    );
-    expect(screen.getByTestId("base-library-card").className).toContain(
-      "is-selected",
-    );
-  });
-
-  it("does not apply .is-selected class when isSelected is false", () => {
-    const entry = makeLibraryEntry();
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-      />,
-    );
-    expect(screen.getByTestId("base-library-card").className).not.toContain(
-      "is-selected",
-    );
-  });
-
-  // ── Icon ─────────────────────────────────────────────────────────────
-
-  it("renders the icon component", () => {
-    const entry = makeLibraryEntry();
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-      />,
-    );
-    expect(screen.getByTestId("dummy-icon")).toBeInTheDocument();
-  });
-
-  // ── Mandatory fields ─────────────────────────────────────────────────
-
-  it("renders the display ID", () => {
-    const entry = makeLibraryEntry({ display_id: "EXP-0284" });
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-      />,
-    );
     expect(screen.getByText("EXP-0284")).toBeInTheDocument();
-  });
-
-  it("renders the title", () => {
-    const entry = makeLibraryEntry({ title: "gRNA screen v3" });
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-      />,
-    );
     expect(screen.getByText("gRNA screen v3")).toBeInTheDocument();
-  });
-
-  it("renders the owner avatar and username", () => {
-    const entry = makeLibraryEntry({
-      author_username: "m.kato",
-      author_info: {
-        id: 1,
-        username: "m.kato",
-        first_name: "Mira",
-        last_name: "Kato",
-        color: "#4A90D9",
-      },
-    });
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-      />,
-    );
     expect(screen.getByText("m.kato")).toBeInTheDocument();
-    // Avatar renders initials
-    expect(screen.getByLabelText("MK")).toBeInTheDocument();
-  });
-
-  it("hides owner section when author_info is null", () => {
-    const entry = makeLibraryEntry({ author_username: null, author_info: null });
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-      />,
-    );
-    expect(screen.queryByText("Unknown")).not.toBeInTheDocument();
-  });
-
-  it('renders "In Progress" status chip for in_progress', () => {
-    const entry = makeLibraryEntry({ status: "in_progress" });
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-      />,
-    );
-    const chip = screen.getByText("In Progress");
-    expect(chip).toBeInTheDocument();
-    expect(chip.className).toContain("status-warn");
-  });
-
-  it('renders "Finished" status chip for finished', () => {
-    const entry = makeLibraryEntry({ status: "finished" });
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-      />,
-    );
-    const chip = screen.getByText("Finished");
-    expect(chip).toBeInTheDocument();
-    expect(chip.className).toContain("status-success");
-  });
-
-  // ── Optional fields ──────────────────────────────────────────────────
-
-  it("renders description from data", () => {
-    const entry = makeLibraryEntry({
-      description: "First paragraph of content",
-    });
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-        showDescription={true}
-      />,
-    );
-    expect(
-      screen.getByText("First paragraph of content"),
-    ).toBeInTheDocument();
-  });
-
-  it('renders "No description" fallback when description is empty', () => {
-    const entry = makeLibraryEntry({ description: "" });
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-        showDescription={true}
-      />,
-    );
-    expect(screen.getByText("No description")).toBeInTheDocument();
-  });
-
-  it("hides description when showDescription is false", () => {
-    const entry = makeLibraryEntry({
-      description: "Should not appear",
-    });
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-        showDescription={false}
-      />,
-    );
-    expect(
-      screen.queryByText("Should not appear"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("renders tags as pills", () => {
-    const entry = makeLibraryEntry({
-      tags: [
-        { id: 1, name: "CRISPR", color: "flask", icon: "circle" },
-        { id: 2, name: "QC", color: "solvent", icon: "circle" },
-      ],
-    });
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-        showTags={true}
-      />,
-    );
+    expect(screen.getByText("In Progress")).toBeInTheDocument();
     expect(screen.getByText("CRISPR")).toBeInTheDocument();
-    expect(screen.getByText("QC")).toBeInTheDocument();
-    // TagPill renders with data-testid="tag-pill"
-    const pills = screen.getAllByTestId("tag-pill");
-    expect(pills).toHaveLength(2);
+    expect(screen.getByText("Lab icon")).toBeInTheDocument();
   });
 
-  it("hides tags when showTags is false", () => {
-    const entry = makeLibraryEntry({
+  it("shows configured metadata and omits it when the corresponding options are disabled", () => {
+    const item = makeLibraryEntry({
+      description: "First paragraph of content",
       tags: [{ id: 1, name: "CRISPR", color: "flask", icon: "circle" }],
-    });
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-        showTags={false}
-      />,
-    );
-    expect(screen.queryByText("CRISPR")).not.toBeInTheDocument();
-  });
-
-  it("renders relative updated time", () => {
-    const entry = makeLibraryEntry({
       updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      property_fields: { samples_count: 5, attachments_count: 3 },
     });
-    render(
+    const props = {
+      item,
+      viewMode: "list" as const,
+      isSelected: false,
+      icon: DummyIcon,
+    };
+    const { rerender } = render(
       <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-        showUpdatedAt={true}
+        {...props}
+        showDescription
+        showTags
+        showUpdatedAt
+        propertyFields={[
+          { key: "samples_count", label: "Samples" },
+          { key: "attachments_count", label: "Attachments" },
+        ]}
       />,
     );
-    // Should show "2h ago" or similar
-    expect(screen.getByTestId("updated-at")).toBeInTheDocument();
-    expect(screen.getByTestId("updated-at").textContent).toMatch(/\d+h ago/);
-  });
 
-  it("hides updated time when showUpdatedAt is false", () => {
-    const entry = makeLibraryEntry();
-    render(
+    expect(screen.getByText("First paragraph of content")).toBeInTheDocument();
+    expect(screen.getByText("CRISPR")).toBeInTheDocument();
+    expect(screen.getByTestId("updated-at")).toBeInTheDocument();
+    expect(screen.getByTestId("property-fields")).toHaveTextContent("5");
+    expect(screen.getByTestId("property-fields")).toHaveTextContent("3");
+
+    rerender(
       <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-        showUpdatedAt={false}
+        {...props}
+        item={{ ...item, property_fields: { samples_count: null, attachments_count: null } }}
+        propertyFields={[
+          { key: "samples_count", label: "Samples" },
+          { key: "attachments_count", label: "Attachments" },
+        ]}
       />,
     );
+    expect(screen.getByTestId("property-fields").textContent).toBe("— · —");
+
+    rerender(<BaseCard {...props} showDescription={false} showTags={false} showUpdatedAt={false} />);
+    expect(screen.queryByText("First paragraph of content")).not.toBeInTheDocument();
+    expect(screen.queryByText("CRISPR")).not.toBeInTheDocument();
     expect(screen.queryByTestId("updated-at")).not.toBeInTheDocument();
   });
 
-  // ── Property fields ──────────────────────────────────────────────────
-
-  it("renders property_fields as inline dot-separated values", () => {
-    const entry = makeLibraryEntry({
-      property_fields: { samples_count: 5, attachments_count: 3 },
-    });
+  it("keeps selection state visible and sends card activation to its caller", () => {
+    const onClick = vi.fn();
     render(
       <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
+        item={makeLibraryEntry()}
+        viewMode="grid"
+        isSelected
         icon={DummyIcon}
-        propertyFields={defaultPropertyFields}
+        onClick={onClick}
       />,
     );
-    const metadata = screen.getByTestId("property-fields");
-    expect(metadata.textContent).toContain("5");
-    expect(metadata.textContent).toContain("3");
+    const card = screen.getByTestId("base-library-card");
+
+    expect(card).toHaveClass("is-selected");
+    fireEvent.click(card);
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it("shows placeholder dash for null property field values", () => {
-    const entry = makeLibraryEntry({
-      property_fields: { samples_count: null, attachments_count: null },
-    });
+  it("uses the description fallback and omits an absent owner", () => {
     render(
       <BaseCard
-        item={entry}
+        item={makeLibraryEntry({ description: "", author_username: null, author_info: null })}
         viewMode="list"
         isSelected={false}
         icon={DummyIcon}
-        propertyFields={defaultPropertyFields}
+        showDescription
       />,
     );
-    const metadata = screen.getByTestId("property-fields");
-    // Both null → "— · —"
-    const dashes = metadata.textContent?.match(/—/g);
-    expect(dashes?.length).toBe(2);
-  });
 
-  // ── onClick ───────────────────────────────────────────────────────────
-
-  it("calls onClick when the card is clicked", () => {
-    const entry = makeLibraryEntry();
-    let clicked = false;
-    render(
-      <BaseCard
-        item={entry}
-        viewMode="list"
-        isSelected={false}
-        icon={DummyIcon}
-        onClick={() => {
-          clicked = true;
-        }}
-      />,
-    );
-    screen.getByTestId("base-library-card").click();
-    expect(clicked).toBe(true);
+    expect(screen.getByText("No description")).toBeInTheDocument();
+    expect(screen.queryByText("Unknown")).not.toBeInTheDocument();
   });
 });

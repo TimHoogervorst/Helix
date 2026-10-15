@@ -2,8 +2,10 @@
 
 from unittest.mock import patch
 
+from django.test import TestCase
+from rest_framework.test import APIClient
+
 from helix_core.core.models import User
-from helix_core.core.tests.base import BaseTestCase
 from bundled.access.access.models import (
     Organization,
     OrganizationMembership,
@@ -18,11 +20,11 @@ def _log_kwargs(mock_log):
     return mock_log.call_args.kwargs
 
 
-class UserManagementAuditTests(BaseTestCase):
+class UserManagementAuditTests(TestCase):
     """Every user-management mutation logs exactly one core.user entry."""
 
     def setUp(self):
-        super().setUp()
+        self.client = APIClient()
         self.org = Organization.objects.create(name="Test Lab")
         self.admin = User.objects.create_user(
             username="orgadmin", password="pass",
@@ -124,6 +126,8 @@ class UserManagementAuditTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 403)
         self.mock_log.assert_not_called()
+        target.refresh_from_db()
+        self.assertEqual(target.first_name, "")
 
     def test_denied_delete_writes_nothing(self):
         self.client.force_authenticate(user=self.regular)

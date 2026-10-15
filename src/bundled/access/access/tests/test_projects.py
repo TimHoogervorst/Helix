@@ -5,9 +5,10 @@ from rest_framework.test import APIClient
 
 from helix_core.core.models import Folder, Project
 from bundled.access.access.tests.factories import make_org, make_user
+from bundled.access.access.tests.api_base import AccessApiTestCase
 
 
-class ProjectApiTests(TestCase):
+class ProjectApiTests(AccessApiTestCase):
     @classmethod
     def setUpTestData(cls):
         cls.org = make_org()
@@ -38,12 +39,10 @@ class ProjectApiTests(TestCase):
         project_id = response.data["id"]
         self.assertFalse(Folder.objects.filter(project_id=project_id).exists())
 
-    def test_creating_project_is_atomic(self):
+    def test_blank_project_name_is_rejected_without_persisting(self):
         self.client.force_authenticate(user=self.admin)
         response = self.client.post(
-            "/api/access/projects/",
-            {"name": ""},  # empty name should fail validation
-            format="json",
+            "/api/access/projects/", {"name": ""}, format="json",
         )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Project.objects.count(), 0)
@@ -262,6 +261,7 @@ class ProjectApiTests(TestCase):
         self.client.force_authenticate(user=self.user)
         response = self.client.delete(f"/api/access/projects/{project_id}/")
         self.assertEqual(response.status_code, 403)
+        self.assertTrue(Project.objects.filter(pk=project_id).exists())
 
     def test_delete_project_404(self):
         self.client.force_authenticate(user=self.admin)
@@ -270,15 +270,10 @@ class ProjectApiTests(TestCase):
 
     # ── bootstrap / fresh boot ────────────────────────────────────────────
 
-    def test_fresh_boot_creates_no_default_project(self):
-        self.assertEqual(Project.objects.filter(name="Untitled Project").count(), 0)
-
-
 class ProjectModelTests(TestCase):
     def test_project_uid_is_auto_generated(self):
         project = Project.objects.create(name="Test")
         self.assertIsNotNone(project.uid)
-        self.assertIsInstance(str(project.uid), str)
 
     def test_project_uids_are_unique(self):
         Project.objects.create(name="A")

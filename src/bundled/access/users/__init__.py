@@ -1,1 +1,3 @@
-default_app_config = "bundled.access.users.apps.UsersConfig"
+from .mod import register
+
+__all__ = ["register"]

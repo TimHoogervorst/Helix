@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { WorkspaceBus, createTestBus } from "../WorkspaceBus";
+import { WorkspaceReference } from "../../mod-system/references";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -11,6 +12,19 @@ function freshBus(): WorkspaceBus {
 // ── Tests ────────────────────────────────────────────────────────────────
 
 describe("WorkspaceBus", () => {
+  it("wraps cross-workspace events with a typed workspace reference", () => {
+    const bus = freshBus();
+    const handler = vi.fn();
+    const workspace = new WorkspaceReference("acme.samples", "detail");
+    bus.on("sample.updated", handler);
+
+    bus.emitWorkspace("sample.updated", workspace, { displayId: "SAMPLE1" });
+
+    expect(handler).toHaveBeenCalledWith({
+      workspace,
+      payload: { displayId: "SAMPLE1" },
+    });
+  });
   // ── createTestBus ─────────────────────────────────────────────────────
 
   describe("createTestBus", () => {

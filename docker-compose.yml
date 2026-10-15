@@ -26,8 +26,13 @@ services:
       - ./src/server:/app
       # Platform, External Mod, and Bundled Mod package tiers
       - ./src/helix_core:/app/helix_core
+      - ./src/bundled:/app/bundled
       - ./src/mods:/mods
       - ./src/bundled:/bundled
+      - ./src/shell:/src/shell
+      # Canonical pytest configuration and fixture lifecycle for container runs
+      - ./src/pytest.ini:/app/pytest.ini:ro
+      - ./src/conftest.py:/app/conftest.py:ro
     environment:
       DATABASE_URL: postgres://openscience:openscience@db:5432/openscience
       SECRET_KEY: dev-secret-key-change-in-production

@@ -59,22 +59,7 @@ _RECREATE_CONSTRAINTS_SQL = """
         ALTER TABLE eln_entry ALTER COLUMN folder_id SET NOT NULL;
         ALTER TABLE eln_entry ALTER COLUMN project_id SET NOT NULL;
 
-        DROP VIEW IF EXISTS entity_hub_view;
-        CREATE VIEW entity_hub_view AS
-        SELECT
-            id, name, display_id, author_id, last_editor_id, status,
-            folder_id, project_id, schema_id, properties, created_at, updated_at,
-            'eln.notebookentry' AS schema_type_id,
-            'eln' AS workspace_id
-        FROM eln_entry
-        UNION ALL
-        SELECT
-            id, name, display_id, author_id, last_editor_id, status,
-            folder_id, project_id, schema_id, properties, created_at, updated_at,
-            'lims.entity' AS schema_type_id,
-            'lims' AS workspace_id
-        FROM lims_entity;
-    """
+"""
 
 _RECREATE_CONSTRAINTS_REVERSE_SQL = """
         DO $$
@@ -122,22 +107,7 @@ _RECREATE_CONSTRAINTS_REVERSE_SQL = """
         ALTER TABLE eln_entry ALTER COLUMN folder_id DROP NOT NULL;
         ALTER TABLE eln_entry ALTER COLUMN project_id DROP NOT NULL;
 
-        DROP VIEW IF EXISTS entity_hub_view;
-        CREATE VIEW entity_hub_view AS
-        SELECT
-            id, name, display_id, author_id, last_editor_id, status,
-            folder_id, project_id, schema_id, properties, created_at, updated_at,
-            'eln.notebookentry' AS schema_type_id,
-            'eln' AS workspace_id
-        FROM eln_entry
-        UNION ALL
-        SELECT
-            id, name, display_id, author_id, last_editor_id, status,
-            folder_id, project_id, schema_id, properties, created_at, updated_at,
-            'lims.entity' AS schema_type_id,
-            'lims' AS workspace_id
-        FROM lims_entity;
-    """
+"""
 
 
 class Migration(migrations.Migration):

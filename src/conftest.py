@@ -1,25 +1,20 @@
-"""Session-level setup for backend tests (server + mods).
-
-Ensures the ConcreteTestEntity table from test_abstracts.py exists before
-*any* test runs.  The model class is registered in Django's app registry
-at import time (module-level), so every Schema.objects.delete() cascade
-collector discovers it.  Without this table, tests that run before
-AbstractEntityFieldTests fail with "no such table".
-
-This conftest lives at ``src/`` — the common ancestor of ``src/server`` and
-``src/mods`` — so the fixture applies to both test trees.
+"""Test models share the database lifecycle without forcing pure tests
+to create a database. Model registration precedes cascade collection.
 """
 
 import pytest
 from django.db import connection
 
+from helix_core.tests.fixtures.external_mod.models import ConcreteTestEntity
 
-@pytest.fixture(autouse=True, scope="session")
-def _ensure_concrete_test_entity_table(django_db_setup, django_db_blocker):
-    """Create the helix_test_concrete_entity table once for the session."""
-    from helix_core.tests.test_abstracts import ConcreteTestEntity
 
+@pytest.fixture(scope="session")
+def django_db_setup(django_db_setup, django_db_blocker):
+    """Create and drop the fixture table only when a suite needs a database."""
     with django_db_blocker.unblock():
         with connection.schema_editor() as schema_editor:
             schema_editor.create_model(ConcreteTestEntity)
     yield
+    with django_db_blocker.unblock():
+        with connection.schema_editor() as schema_editor:
+            schema_editor.delete_model(ConcreteTestEntity)

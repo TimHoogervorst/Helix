@@ -52,14 +52,13 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('action_type', models.CharField(max_length=100)),
-                ('target_type', models.CharField(help_text="Namespaced target type, e.g. 'eln.entry' or 'lims.entity'.", max_length=100)),
+                ('target_type', models.CharField(help_text="Namespaced target type, e.g. 'provider.entity' or 'lims.entity'.", max_length=100)),
                 ('target_id', models.IntegerField(help_text='PK of the target record.')),
                 ('request_id', models.UUIDField(blank=True, help_text='Correlation ID tying together action rows from the same HTTP request.', null=True)),
                 ('client_ip', models.GenericIPAddressField(blank=True, help_text='Client IP auto-captured from the request.', null=True)),
                 ('metadata', models.JSONField(blank=True, default=dict)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('performed_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='%(class)s_actions', to=settings.AUTH_USER_MODEL)),
-                ('version', models.ForeignKey(blank=True, help_text='Content version produced by this action. Null for non-versioned targets.', null=True, on_delete=django.db.models.deletion.SET_NULL, to='eln.contentversion')),
             ],
             options={
                 'db_table': 'eln_action',

@@ -1,11 +1,10 @@
 """Synchronous action logger.
 
-``log_action()`` derives the mod from ``target_type`` (the part before
-the first dot) and dispatches to the correct concrete action table via
-the registry.
+``log_action()`` writes directly to the Platform-owned Action Log Entry
+store and records the initiating Mod derived from the action reference.
 
-``bulk_log_actions()`` batch-creates action rows grouped by mod table
-using ``bulk_create`` for efficiency.  One INSERT per mod table.
+``bulk_log_actions()`` batch-creates central action rows using
+``bulk_create`` for efficiency.
 """
 
 from __future__ import annotations
@@ -18,7 +17,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
-from .registry import get_action_model
+from .version_target import VersionTarget
 
 User = get_user_model()
 
@@ -43,7 +42,7 @@ def resolve_action_type(action: str) -> str:
         return verb
 
     # Custom action — consult the catalog.
-    mod_id = action.split(".")[0]
+    mod_id = action.split(":", 1)[0] if ":" in action else action.split(".")[0]
     from .registry import get_action_catalog
 
     catalog = get_action_catalog(mod_id)
@@ -71,7 +70,7 @@ def bulk_log_actions(
     request_id: Optional[UUID] = None,
     client_ip: Optional[str] = None,
 ) -> list:
-    """Batch-create action rows grouped by mod table.
+    """Batch-create action rows in the central Platform store.
 
     Groups *actions* by their derived mod (first segment of
     ``action``), then does one ``bulk_create`` per mod table.
@@ -97,6 +96,8 @@ def bulk_log_actions(
     if not actions:
         return []
 
+    from helix_core.models import ActionLogEntry
+
     # Group by mod_id derived from action (not target_type).
     # We derive the mod from action rather than target_type
     # because block actions (e.g. "eln.table.edited") may target a
@@ -105,19 +106,11 @@ def bulk_log_actions(
     grouped: dict[str, list[dict]] = defaultdict(list)
     for entry in actions:
         action = entry["action"]
-        mod_id = action.split(".")[0]
+        mod_id = action.split(":", 1)[0] if ":" in action else action.split(".")[0]
         grouped[mod_id].append(entry)
 
     results: list = []
     for mod_id, entries in grouped.items():
-        model_class = get_action_model(mod_id)
-        if model_class is None:
-            raise ValueError(
-                f"No action model registered for mod '{mod_id}'. "
-                f"Did you forget to call register_action_model() "
-                f"in the mod's AppConfig.ready()?"
-            )
-
         instances = []
         for entry in entries:
             action = entry["action"]
@@ -133,19 +126,27 @@ def bulk_log_actions(
                 )
 
             instances.append(
-                model_class(
+                ActionLogEntry(
                     performed_by=user,
                     action=action,
                     action_type=action_type,
-                    target_type=target_type,
-                    target_id=target_id,
+                    target_model_reference=target_type,
+                    target_object_id=str(target_id),
+                    initiating_mod_id=mod_id,
+                    initiating_mod_version=_initiator_version(mod_id),
                     metadata=entry.get("metadata", {}),
                     request_id=request_id,
                     client_ip=client_ip,
                 )
             )
+            target = entry.get("version_target")
+            if target is not None:
+                instances[-1].target_version_reference = target.reference
+                instances[-1].target_version_object_id = str(target.object_id)
+                instances[-1].target_version_label = target.label
+                instances[-1].target_version_hash = target.content_hash
 
-        model_class.objects.bulk_create(instances)  # type: ignore[attr-defined]
+        ActionLogEntry.objects.bulk_create(instances)
         results.extend(instances)
 
     return results
@@ -159,10 +160,11 @@ def log_action(
     action_type: Optional[str] = None,
     metadata: Optional[dict] = None,
     version: Optional[models.Model] = None,
+    version_target: Optional[VersionTarget] = None,
     request_id: Optional[UUID] = None,
     client_ip: Optional[str] = None,
 ):
-    """Create an action row in the correct mod-specific table.
+    """Create an action row in the Platform-owned central store.
 
     Derives the mod identifier from *target_type* (the segment before
     the first dot).  For example ``"eln.entry"`` dispatches to
@@ -200,6 +202,8 @@ def log_action(
     if action_type is None:
         action_type = resolve_action_type(action)
 
+    from helix_core.models import ActionLogEntry
+
     # Read is authorization-only — never persist.
     if action_type == "read":
         raise ValueError(
@@ -208,26 +212,41 @@ def log_action(
             "an Action Log Entry."
         )
 
-    mod_id = target_type.split(".")[0]
-    model_class = get_action_model(mod_id)
-    if model_class is None:
-        raise ValueError(
-            f"No action model registered for mod '{mod_id}'. "
-            f"Did you forget to call register_action_model() "
-            f"in the mod's AppConfig.ready()?"
-        )
+    mod_id = action.split(":", 1)[0] if ":" in action else action.split(".")[0]
     kwargs: dict[str, Any] = dict(
         performed_by=user,
         action=action,
         action_type=action_type,
-        target_type=target_type,
-        target_id=target_id,
+        target_model_reference=target_type,
+        target_object_id=str(target_id),
+        initiating_mod_id=mod_id,
+        initiating_mod_version=_initiator_version(mod_id),
         metadata=metadata or {},
     )
-    if version is not None:
-        kwargs["version"] = version
+    if version_target is None and version is not None:
+        version_target = VersionTarget(
+            reference=getattr(version, "version_reference", "unknown:version"),
+            object_id=str(version.pk),
+            label=str(getattr(version, "version_number", version.pk)),
+            content_hash=getattr(version, "content_hash", None),
+        )
+    if version_target is not None:
+        kwargs["target_version_reference"] = version_target.reference
+        kwargs["target_version_object_id"] = str(version_target.object_id)
+        kwargs["target_version_label"] = version_target.label
+        kwargs["target_version_hash"] = version_target.content_hash
     if request_id is not None:
         kwargs["request_id"] = request_id
     if client_ip is not None:
         kwargs["client_ip"] = client_ip
-    return model_class.objects.create(**kwargs)  # type: ignore[attr-defined]
+    return ActionLogEntry.objects.create(**kwargs)
+
+
+def _initiator_version(mod_id: str) -> str:
+    from helix_core.mod_system.registry import registry
+
+    manifest = registry._manifests.get(mod_id)
+    if manifest is not None:
+        return manifest.version
+    provider = registry._action_providers.get(mod_id)
+    return provider[1] if provider is not None else "unknown"

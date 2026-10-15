@@ -518,7 +518,7 @@ Every mod follows this structure:
 
 | Entry | Purpose | Required? |
 |-------|---------|-----------|
-| `modManifest.json` | Mod identity (vendor, name, displayName, version, dependsOn) — single source of truth | ✅ Required |
+| `modManifest.json` | Strict Mod identity (`id`, `displayName`, `version`, `requiresHelix`, `artifacts`, `dependsOn`) — single source of truth | ✅ Required |
 | `index.ts` | Frontend `register*()` calls — the entry point loaded during boot | ✅ Required |
 | `types.ts` | Mod's TypeScript interfaces | ✅ Required |
 | `package.json` | npm package identity (`@helix/<id>`) | ✅ Required |
@@ -542,15 +542,17 @@ Every mod follows this structure:
 
 ## Future: External Mod API
 
-External Mods may eventually live in separate repositories and be installed via npm (frontend) and pip (backend). They use the same `register*()` API and `modManifest.json` schema as Bundled Mods; repository External Mod discovery is already exercised by ELN.
+External Mods may eventually live in separate repositories and be installed via npm (frontend) and pip (backend). They use the same `register*()` API and strict `modManifest.json` schema as Bundled Mods; repository External Mod discovery is already exercised by ELN. See [External Mod Concepts](mod-concepts.md) and [External Mod Packaging](mod-packaging.md).
 
-**Future concerns (not yet designed):**
+**Future concerns (not yet implemented in this repository):**
 
 - **Discovery**: `src/mods/` is scanned and `helix.mods.json` can add explicit paths
 - **Loading**: External Mods are loaded with Bundled Mods, respecting the same dependency graph
 - **`@helix/core` npm package**: External mods will depend on `@helix/core`, which exports all registration functions and shared components
 - **`helix_core` Python package**: External backend mods will depend on `helix_core` (pip-installable), which provides `ModManifest`, `BackendModRegistry`, `AbstractBaseAction`
 - **Python entry points**: External mods declare a `helix_mod` entry point pointing to their `mod.py`
+
+The hello-world repository from [#615](https://github.com/TimHoogervorst/Helix/issues/615) is the canonical tutorial at [`src/mods/hello_world`](../src/mods/hello_world).
 
 ---
 

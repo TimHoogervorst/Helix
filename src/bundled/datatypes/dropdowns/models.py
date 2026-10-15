@@ -4,14 +4,10 @@ Dropdown (formerly "controlled vocabulary") provides the canonical list
 of allowed values for Dropdown columns.  A dropdown column references a
 dropdown by ``dropdownId`` in its column definition.
 
-:class:`DropdownsAction` is the concrete action-log table for dropdown
-CRUD operations.
+Action records are written to the Platform action log.
 """
 
 from django.db import models
-
-from helix_core.actions.base import AbstractBaseAction
-
 
 class Dropdown(models.Model):
     """A named, ordered list of options for dropdown-column validation.
@@ -36,12 +32,3 @@ class Dropdown(models.Model):
 
     def __str__(self):
         return self.name
-
-
-class DropdownsAction(AbstractBaseAction):
-    """Concrete action table for dropdown CRUD operations."""
-
-    class Meta:
-        db_table = "dropdowns_action"
-        verbose_name = "Dropdowns action"
-        verbose_name_plural = "Dropdowns actions"

@@ -3,7 +3,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import LimsWorkspacePage from "./LimsWorkspacePage";
-import "../index";
+import { Mod } from "../../../shell/src/mod-system/Mod";
+import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import manifest from "../modManifest.json";
+import { register } from "../index";
+
+ModRegistry.getInstance().registerMod(manifest.id);
+register(new Mod(manifest));
 
 const mockGet = vi.fn();
 

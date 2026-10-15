@@ -19,7 +19,7 @@ function WorkspaceHistorySidebar() {
   const { isCollapsed } = useSidebar();
 
   function renderIcon(item: WorkspaceHistoryItem) {
-    const workspaceId = extractWorkspaceId(item.url);
+    const workspaceId = item.workspace?.workspace ?? extractWorkspaceId(item.url);
     return workspaceId ? <WorkspaceIcon workspaceId={workspaceId} /> : <Box className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />;
   }
 

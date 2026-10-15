@@ -3,6 +3,7 @@ import logging
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Q
+from django_filters import rest_framework as filters
 from rest_framework import serializers, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -10,11 +11,11 @@ from rest_framework.response import Response
 from helix_core.actions.logger import log_action
 from helix_core.actions.mixins import ActionLoggingMixin, logs_action
 from helix_core.source_deletion import delete_source_descendants
-from helix_core.models import SchemaType
+from helix_core.models import ActionLogEntry, SchemaType
 from bundled.access.access.permissions import IsOrganizationAdmin
 from bundled.access.access.scoping import visible_rows_q
 
-from .models import Entity, Action, LimsView, Metric
+from .models import Entity, LimsView, Metric
 from bundled.labelling.tags.models import Tag
 from .serializers import (
     EntitySerializer,
@@ -199,8 +200,8 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         entity = self.get_object()
         result_schema_type_ids = [
             schema_type.pk
-            for schema_type in SchemaType.objects.only("pk", "tags")
-            if "ResultTable" in (schema_type.tags or [])
+            for schema_type in SchemaType.objects.only("pk", "capabilities")
+            if "ResultTable" in (schema_type.capabilities or [])
         ]
         result_entities = (
             Entity.objects.filter(
@@ -349,11 +350,19 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         containing_entry = None
         if entry_id is not None:
-            from mods.eln.models import NotebookEntry
+            from helix_core.mod_system.registry import registry
+
+            entry_provider = registry.get_content_source("entry")
+            if entry_provider is None:
+                return Response(
+                    {"entry_id": "The entry source is not available."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            entry_model = registry.resolve_content_source_model("entry")
 
             try:
-                containing_entry = NotebookEntry.objects.get(pk=entry_id)
-            except NotebookEntry.DoesNotExist:
+                containing_entry = entry_model.objects.get(pk=entry_id)
+            except entry_model.DoesNotExist:
                 return Response(
                     {"detail": f"Entry with id {entry_id} not found."},
                     status=status.HTTP_404_NOT_FOUND,
@@ -418,7 +427,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             for name, definition in _column_defs.items()
             if definition.get("type") == "formula"
         }
-        is_result_schema = "ResultTable" in (schema.schema_type.tags or [])
+        is_result_schema = "ResultTable" in (schema.schema_type.capabilities or [])
 
         results = []
         errors = []
@@ -845,40 +854,48 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return Response({"results": results, "errors": errors})
 
 
+class ActionLogFilter(filters.FilterSet):
+    """Keep the LIMS action query aliases over the shared action log."""
+
+    entity = filters.CharFilter(field_name="target_object_id")
+    target_type = filters.CharFilter(field_name="target_model_reference")
+    target_id = filters.CharFilter(field_name="target_object_id")
+
+    class Meta:
+        model = ActionLogEntry
+        fields = ["action_type"]
+
+
 class ActionViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint for LIMS actions (read-only for Phase 1).
     """
 
     serializer_class = ActionSerializer
-    filterset_fields = ["entity", "action_type", "target_type", "target_id"]
+    filterset_class = ActionLogFilter
 
     def get_queryset(self):
+        from helix_core.mod_system.registry import registry
+
         visible_entities = Entity.objects.filter(
             visible_rows_q(self.request.user)
-        ).values("pk")
-        from mods.eln.models import NotebookEntry
-
-        visible_entries = NotebookEntry.objects.filter(
-            visible_rows_q(self.request.user)
-        ).values("pk")
-
-        visible_related_targets = (
-            Q(entity_id__in=visible_entities)
+        ).values_list("pk", flat=True)
+        query = Q(
+            target_model_reference__in=("lims.entity", "lims.entities"),
+            target_object_id__in=[str(pk) for pk in visible_entities],
         )
-        visible_generic_targets = (
-            Q(entity__isnull=True)
-            & (
-                Q(
-                    target_type__in=("lims.entity", "lims.entities"),
-                    target_id__in=visible_entities,
-                )
-                | Q(target_type="eln.entry", target_id__in=visible_entries)
+        entry_provider = registry.get_content_source("entry")
+        if entry_provider is not None:
+            entry_model = registry.resolve_content_source_model("entry")
+            visible_entries = entry_model.objects.filter(
+                visible_rows_q(self.request.user)
+            ).values_list("pk", flat=True)
+            entry_ref = getattr(entry_provider.model_reference, "id", entry_provider.model_reference)
+            query |= Q(
+                target_model_reference__in=(entry_ref, "eln.entry"),
+                target_object_id__in=[str(pk) for pk in visible_entries],
             )
-        )
-        return Action.objects.filter(
-            visible_related_targets | visible_generic_targets
-        ).select_related("entity", "performed_by")
+        return ActionLogEntry.objects.filter(query).select_related("performed_by")
 
 
 class LimsViewViewSet(viewsets.ModelViewSet):

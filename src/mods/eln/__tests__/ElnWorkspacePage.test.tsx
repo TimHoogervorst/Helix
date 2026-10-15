@@ -16,7 +16,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import React from "react";
-import "../index";
+import { Mod } from "../../../shell/src/mod-system/Mod";
+import manifest from "../modManifest.json";
+import { register } from "../index";
+
+const registryMod = new Mod(manifest);
+register(registryMod);
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
@@ -34,6 +39,7 @@ vi.mock("../api", () => ({
   fetchActions: mockFetchActions,
   acquireLock: vi.fn().mockResolvedValue({}),
   releaseLock: vi.fn().mockResolvedValue(undefined),
+  getLockStatus: vi.fn().mockResolvedValue({ locked: false }),
   attachTags: vi.fn(),
   detachTag: vi.fn(),
 }));

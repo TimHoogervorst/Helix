@@ -895,7 +895,7 @@ class ColumnTypesContractTests(TestCase):
         """All built-in column types plus mod-registered types are present."""
         response = self.client.get("/api/mod-registry/")
         type_ids = {ct["id"] for ct in response.data["columnTypes"]}
-        expected = {"text", "number", "date", "datetime", "boolean", "dropdown", "reference", "user", "project", "formula", "tiptap_content"}
+        expected = {"text", "number", "date", "datetime", "boolean", "dropdown", "reference", "user", "project", "formula"}
         self.assertEqual(type_ids, expected)
 
     def test_builtin_operators_have_correct_shape(self):

@@ -10,7 +10,6 @@
  */
 import { useMemo } from "react";
 import { createSendAction } from "./sendAction";
-import { ModRegistry } from "../mod-system/ModRegistry";
 
 /**
  * Return a memoized ``sendAction`` function for the given workspace.
@@ -28,7 +27,6 @@ export function useSendAction(
   requestId?: string,
 ) => Promise<void> {
   return useMemo(() => {
-    const catalog = ModRegistry.getInstance().getActions(workspaceId);
-    return createSendAction(workspaceId, catalog);
+    return createSendAction(workspaceId, []);
   }, [workspaceId]);
 }

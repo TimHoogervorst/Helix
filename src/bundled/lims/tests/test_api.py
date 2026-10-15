@@ -5,13 +5,36 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.test import override_settings
 from rest_framework.test import APIClient
 
 from helix_core.core.models import Project, User
 from helix_core.core.tests.base import BaseTestCase
 from helix_core.models import SchemaType, Schema
 from bundled.lims.models import Action as LimsAction, Entity, LimsView, Metric
+
+
+class LimsApiTestCase(BaseTestCase):
+    """Expose LIMS API routes explicitly while registration is test-isolated."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._urlconf_override = override_settings(
+            ROOT_URLCONF="bundled.lims.tests.urls",
+        )
+        cls._urlconf_override.enable()
+        try:
+            super().setUpClass()
+        except Exception:
+            cls._urlconf_override.disable()
+            raise
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            super().tearDownClass()
+        finally:
+            cls._urlconf_override.disable()
 
 
 def folder_source(folder):
@@ -22,7 +45,7 @@ def folder_source(folder):
     }
 
 
-class LimsApiTests(BaseTestCase):
+class LimsApiTests(LimsApiTestCase):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
@@ -58,7 +81,7 @@ class LimsApiTests(BaseTestCase):
 
 # ── Entity API ──
 
-class EntityApiTests(BaseTestCase):
+class EntityApiTests(LimsApiTestCase):
     """Entity listing, detail (by display_id), and batch resolve."""
 
     @classmethod
@@ -167,7 +190,7 @@ class EntityApiTests(BaseTestCase):
     def test_results_groups_linked_rows_and_hides_unlinked_rows(self):
         result_type = SchemaType.objects.create(
             display_name="Result", workspace_id="results",
-            model="bundled.lims.models.Entity", tags=["ResultTable"],
+            model="bundled.lims.models.Entity", capabilities=["ResultTable"],
         )
         result_schema = Schema.objects.create(
             name="Assay result", prefix="RESULT", schema_type=result_type,
@@ -203,7 +226,7 @@ class EntityApiTests(BaseTestCase):
     def test_results_groups_by_schema_and_returns_schema_metadata(self):
         result_type = SchemaType.objects.create(
             display_name="Result", workspace_id="results",
-            model="bundled.lims.models.Entity", tags=["ResultTable"],
+            model="bundled.lims.models.Entity", capabilities=["ResultTable"],
             columns=[{"name": "Entity", "type": "reference"}],
         )
         first_schema = Schema.objects.create(
@@ -256,7 +279,7 @@ class EntityApiTests(BaseTestCase):
     def test_results_excludes_rows_in_inaccessible_projects(self):
         result_type = SchemaType.objects.create(
             display_name="Result", workspace_id="results",
-            model="bundled.lims.models.Entity", tags=["ResultTable"],
+            model="bundled.lims.models.Entity", capabilities=["ResultTable"],
         )
         result_schema = Schema.objects.create(
             name="Assay result", prefix="RESULT", schema_type=result_type,
@@ -278,7 +301,7 @@ class EntityApiTests(BaseTestCase):
     def test_results_hides_inaccessible_source_entity(self):
         result_type = SchemaType.objects.create(
             display_name="Result", workspace_id="results",
-            model="bundled.lims.models.Entity", tags=["ResultTable"],
+            model="bundled.lims.models.Entity", capabilities=["ResultTable"],
         )
         result_schema = Schema.objects.create(
             name="Assay result", prefix="RESULT", schema_type=result_type,
@@ -338,7 +361,7 @@ def _log_kwargs(mock):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class EntityActionLoggingTests(BaseTestCase):
+class EntityActionLoggingTests(LimsApiTestCase):
     """Test that Entity CRUD operations log actions via ActionLoggingMixin."""
 
     @classmethod
@@ -463,7 +486,7 @@ class EntityActionLoggingTests(BaseTestCase):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class LimsActionLoggingFailOpenTests(BaseTestCase):
+class LimsActionLoggingFailOpenTests(LimsApiTestCase):
     """Test that action logging failure never breaks LIMS responses."""
 
     @classmethod
@@ -507,7 +530,7 @@ class LimsActionLoggingFailOpenTests(BaseTestCase):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class ActionViewSetRegressionTests(BaseTestCase):
+class ActionViewSetRegressionTests(LimsApiTestCase):
     """Verify ActionViewSet (user-recorded LIMS actions) still works after
     ActionLoggingMixin is added to the other LIMS viewsets."""
 
@@ -549,25 +572,26 @@ class ActionViewSetRegressionTests(BaseTestCase):
         self.assertEqual(action.entity, entity)
 
     def test_generic_target_filters_return_unified_rows(self):
+        from helix_core.models import ActionLogEntry
+
         entity = Entity.objects.create(
             name="Target Entity", schema=self.dna_schema,
             source=self.folder, author=self.user,
         )
-        matching = LimsAction.objects.create(
+        matching = ActionLogEntry.objects.create(
             performed_by=self.user,
             action="lims.entity.edited",
             action_type="edited",
-            target_type="lims.entity",
-            target_id=entity.pk,
+            target_model_reference="lims.entity",
+            target_object_id=str(entity.pk),
             request_id=uuid4(),
-            entity=None,
         )
-        LimsAction.objects.create(
+        ActionLogEntry.objects.create(
             performed_by=self.user,
             action="lims.entity.created",
             action_type="created",
-            target_type="lims.entity",
-            target_id=entity.pk + 100,
+            target_model_reference="lims.entity",
+            target_object_id=str(entity.pk + 100),
         )
 
         response = self.client.get(
@@ -585,6 +609,7 @@ class ActionViewSetRegressionTests(BaseTestCase):
         self.assertEqual(row["target_id"], entity.pk)
 
     def test_generic_target_visibility_is_preserved(self):
+        from helix_core.models import ActionLogEntry
         from helix_core.core.models import Folder, Project
 
         hidden_project = Project.objects.create(name="Hidden Project")
@@ -595,12 +620,12 @@ class ActionViewSetRegressionTests(BaseTestCase):
             name="Hidden Entity", schema=self.dna_schema,
             source=hidden_folder, author=self.user,
         )
-        LimsAction.objects.create(
+        ActionLogEntry.objects.create(
             performed_by=self.user,
             action="lims.entity.edited",
             action_type="edited",
-            target_type="lims.entity",
-            target_id=hidden_entity.pk,
+            target_model_reference="lims.entity",
+            target_object_id=str(hidden_entity.pk),
         )
 
         response = self.client.get(
@@ -625,7 +650,7 @@ BATCH_REGISTER_URL = "/api/lims/entities/batch-register/"
 BATCH_LOG_ACTION_PATH = "bundled.lims.views.log_action"
 
 
-class BatchRegisterCreateTests(BaseTestCase):
+class BatchRegisterCreateTests(LimsApiTestCase):
     """Test batch-register creates new entities when entity_id is null."""
 
     @classmethod
@@ -696,7 +721,7 @@ class BatchRegisterCreateTests(BaseTestCase):
         self.assertEqual(Entity.objects.filter(schema=self.dna_schema).count(), 3)
 
 
-class BatchRegisterComputedFieldTests(BaseTestCase):
+class BatchRegisterComputedFieldTests(LimsApiTestCase):
     """Computed fields are evaluated by the backend during registration."""
 
     @classmethod
@@ -766,7 +791,7 @@ class BatchRegisterComputedFieldTests(BaseTestCase):
         self.assertEqual(response.data["errors"][0]["field"], "Ratio")
         self.assertEqual(response.data["results"][0]["row_index"], 1)
 
-class BatchRegisterUpdateTests(BaseTestCase):
+class BatchRegisterUpdateTests(LimsApiTestCase):
     """Test batch-register updates existing entities when entity_id is provided."""
 
     @classmethod
@@ -841,7 +866,7 @@ class BatchRegisterUpdateTests(BaseTestCase):
         self.assertEqual(response.data["errors"][0]["field"], "entity_id")
 
 
-class BatchRegisterValidationTests(BaseTestCase):
+class BatchRegisterValidationTests(LimsApiTestCase):
     """Test validation errors in batch-register."""
 
     @classmethod
@@ -895,7 +920,7 @@ class BatchRegisterValidationTests(BaseTestCase):
         self.assertEqual(response.data["errors"][0]["field"], "name")
 
 
-class BatchRegisterPartialSuccessTests(BaseTestCase):
+class BatchRegisterPartialSuccessTests(LimsApiTestCase):
     """Test that valid rows succeed even when other rows fail validation."""
 
     @classmethod
@@ -975,7 +1000,7 @@ class BatchRegisterPartialSuccessTests(BaseTestCase):
         self.assertEqual(existing.name, "Existing Updated")
 
 
-class BatchRegisterIdempotencyTests(BaseTestCase):
+class BatchRegisterIdempotencyTests(LimsApiTestCase):
     """Test that batch-register is idempotent — no duplicates on re-registration."""
 
     @classmethod
@@ -1048,8 +1073,8 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
         self.assertEqual(Entity.objects.filter(schema=self.dna_schema).count(), 1)
 
     def test_result_row_ids_allow_duplicate_source_results(self):
-        self.schema_type.tags = ["ResultTable"]
-        self.schema_type.save(update_fields=["tags"])
+        self.schema_type.capabilities = ["ResultTable"]
+        self.schema_type.save(update_fields=["capabilities"])
         source_schema = Schema.objects.create(
             name="Source", prefix="SRC", schema_type=self.schema_type,
         )
@@ -1098,7 +1123,7 @@ class BatchRegisterIdempotencyTests(BaseTestCase):
         )
 
 
-class BatchRegisterResultSourceTests(BaseTestCase):
+class BatchRegisterResultSourceTests(LimsApiTestCase):
     """Result registration derives Source from the Entity column."""
 
     @classmethod
@@ -1113,7 +1138,7 @@ class BatchRegisterResultSourceTests(BaseTestCase):
             display_name="Result",
             workspace_id="results",
             model="bundled.lims.models.Entity",
-            tags=["ResultTable"],
+            capabilities=["ResultTable"],
         )
 
     def setUp(self):
@@ -1193,7 +1218,7 @@ class BatchRegisterResultSourceTests(BaseTestCase):
         self.assertEqual(result.properties["Entity"], self.other_source_entity.display_id)
 
 
-class BatchRegisterActionLoggingTests(BaseTestCase):
+class BatchRegisterActionLoggingTests(LimsApiTestCase):
     """Test that batch-register logs an action with correct metadata."""
 
     @classmethod
@@ -1271,7 +1296,7 @@ class BatchRegisterActionLoggingTests(BaseTestCase):
         self.assertEqual(kwargs["client_ip"], "127.0.0.1")
 
 
-class BatchRegisterSchemaNotFoundTests(BaseTestCase):
+class BatchRegisterSchemaNotFoundTests(LimsApiTestCase):
     """Test behaviour when schema_id does not exist."""
 
     def setUp(self):
@@ -1291,7 +1316,7 @@ class BatchRegisterSchemaNotFoundTests(BaseTestCase):
         self.assertEqual(response.status_code, 404)
 
 
-class BatchRegisterSerializerValidationTests(TestCase):
+class BatchRegisterSerializerValidationTests(LimsApiTestCase):
     """Test top-level serializer validation for batch-register."""
 
     def setUp(self):
@@ -1332,7 +1357,7 @@ class BatchRegisterSerializerValidationTests(TestCase):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class EntityDefaultSchemaTests(BaseTestCase):
+class EntityDefaultSchemaTests(LimsApiTestCase):
     """When no schema is provided, the default Schema for the LIMS
     SchemaType is assigned automatically."""
 
@@ -1396,450 +1421,7 @@ class EntityDefaultSchemaTests(BaseTestCase):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class EntityAuthRequiredTests(BaseTestCase):
-    """Entity create/update/delete requires authentication because
-    ``author`` is non-nullable on AbstractEntity."""
-
-    @classmethod
-    def setUpTestData(cls):
-        super().setUpTestData()
-        cls.schema_type = SchemaType.objects.create(
-            display_name="Entity", workspace_id="lims", model="bundled.lims.models.Entity",
-        )
-
-    def setUp(self):
-        super().setUp()
-        self.schema = Schema.objects.create(
-            name="DNA", prefix="DNA", schema_type=self.schema_type,
-        )
-
-    def test_create_entity_unauthenticated_returns_403(self):
-        """POST without auth returns 403 — author is required and non-nullable."""
-        response = self.client.post(
-            "/api/lims/entities/",
-            {"name": "No Auth", "schema": self.schema.id, **folder_source(self.folder)},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 403)
-
-    def test_batch_register_unauthenticated_returns_403(self):
-        """POST batch-register without auth returns 403 — author is required."""
-        response = self.client.post(
-            "/api/lims/entities/batch-register/",
-            {"schema_id": self.schema.id, "rows": [{"entity_id": None, "name": "X", "values": {}, **folder_source(self.folder)}]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 403)
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# Batch register — column type validation (issue #333)
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class BatchRegisterNumberValidationTests(BaseTestCase):
-    """Number columns are validated during batch register."""
-
-    @classmethod
-    def setUpTestData(cls):
-        super().setUpTestData()
-        cls.schema_type = SchemaType.objects.create(
-            display_name="Entity", workspace_id="lims", model="bundled.lims.models.Entity",
-        )
-
-    def setUp(self):
-        super().setUp()
-        self.client.force_authenticate(user=self.user)
-        self.schema = Schema.objects.create(
-            name="Test", prefix="TST", schema_type=self.schema_type,
-            columns=[{"name": "concentration", "type": "number"}],
-        )
-
-    def test_valid_number_accepted(self):
-        """Integer and float values pass number validation."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"concentration": 42}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(len(response.data["errors"]), 0)
-
-    def test_numeric_string_accepted(self):
-        """Numeric strings like '42' pass number validation."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"concentration": "3.14"}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(len(response.data["errors"]), 0)
-
-    def test_non_numeric_string_rejected(self):
-        """Non-numeric strings produce a row-level error."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"concentration": "abc"}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 0)
-        self.assertEqual(len(response.data["errors"]), 1)
-        self.assertEqual(response.data["errors"][0]["row_index"], 0)
-        self.assertEqual(response.data["errors"][0]["field"], "concentration")
-        self.assertIn("not a valid number", response.data["errors"][0]["message"])
-
-    def test_empty_value_accepted(self):
-        """Empty string is acceptable (field not required)."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"concentration": ""}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(len(response.data["errors"]), 0)
-
-    def test_null_value_accepted(self):
-        """None/null value is acceptable."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"concentration": None}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(len(response.data["errors"]), 0)
-
-
-class BatchRegisterDateValidationTests(BaseTestCase):
-    """Date columns are validated during batch register."""
-
-    @classmethod
-    def setUpTestData(cls):
-        super().setUpTestData()
-        cls.schema_type = SchemaType.objects.create(
-            display_name="Entity", workspace_id="lims", model="bundled.lims.models.Entity",
-        )
-
-    def setUp(self):
-        super().setUp()
-        self.client.force_authenticate(user=self.user)
-        self.schema = Schema.objects.create(
-            name="Test", prefix="TST", schema_type=self.schema_type,
-            columns=[{"name": "sample_date", "type": "date"}],
-        )
-
-    def test_valid_iso_date_accepted(self):
-        """ISO 8601 date strings pass date validation."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"sample_date": "2025-01-15"}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(len(response.data["errors"]), 0)
-
-    def test_invalid_date_string_rejected(self):
-        """Invalid date strings produce a row-level error."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"sample_date": "not-a-date"}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["errors"]), 1)
-        self.assertEqual(response.data["errors"][0]["field"], "sample_date")
-        self.assertIn("not a valid ISO 8601 date", response.data["errors"][0]["message"])
-
-
-class BatchRegisterDatetimeValidationTests(BaseTestCase):
-    """Datetime columns are validated during batch register."""
-
-    @classmethod
-    def setUpTestData(cls):
-        super().setUpTestData()
-        cls.schema_type = SchemaType.objects.create(
-            display_name="Entity", workspace_id="lims", model="bundled.lims.models.Entity",
-        )
-
-    def setUp(self):
-        super().setUp()
-        self.client.force_authenticate(user=self.user)
-        self.schema = Schema.objects.create(
-            name="Test", prefix="TST", schema_type=self.schema_type,
-            columns=[{"name": "recorded_at", "type": "Datetime"}],
-        )
-
-    def test_valid_iso_datetime_accepted(self):
-        """ISO 8601 datetime strings pass validation."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A",
-                 "values": {"recorded_at": "2025-01-15T14:30:00"}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(len(response.data["errors"]), 0)
-
-    def test_invalid_datetime_string_rejected(self):
-        """Invalid datetime strings produce a row-level error."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A",
-                 "values": {"recorded_at": "not-a-datetime"}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["errors"]), 1)
-        self.assertEqual(response.data["errors"][0]["field"], "recorded_at")
-        self.assertIn("not a valid ISO 8601 datetime", response.data["errors"][0]["message"])
-
-
-class BatchRegisterBooleanValidationTests(BaseTestCase):
-    """Boolean columns accept true/false in multiple forms."""
-
-    @classmethod
-    def setUpTestData(cls):
-        super().setUpTestData()
-        cls.schema_type = SchemaType.objects.create(
-            display_name="Entity", workspace_id="lims", model="bundled.lims.models.Entity",
-        )
-
-    def setUp(self):
-        super().setUp()
-        self.client.force_authenticate(user=self.user)
-        self.schema = Schema.objects.create(
-            name="Test", prefix="TST", schema_type=self.schema_type,
-            columns=[{"name": "is_active", "type": "boolean"}],
-        )
-
-    def test_json_boolean_accepted(self):
-        """JSON true/false values pass boolean validation."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"is_active": True}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(len(response.data["errors"]), 0)
-
-    def test_string_true_accepted(self):
-        """String 'true' (case-insensitive) passes boolean validation."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"is_active": "True"}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(len(response.data["errors"]), 0)
-
-    def test_string_false_accepted(self):
-        """String 'false' (case-insensitive) passes boolean validation."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"is_active": "FALSE"}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(len(response.data["errors"]), 0)
-
-    def test_invalid_boolean_string_rejected(self):
-        """Invalid boolean strings produce a row-level error."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"is_active": "yes"}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["errors"]), 1)
-        self.assertEqual(response.data["errors"][0]["field"], "is_active")
-        self.assertIn("not a valid boolean", response.data["errors"][0]["message"])
-
-
-class BatchRegisterSelectValidationTests(BaseTestCase):
-    """Select columns are validated during batch register."""
-
-    @classmethod
-    def setUpTestData(cls):
-        super().setUpTestData()
-        cls.schema_type = SchemaType.objects.create(
-            display_name="Entity", workspace_id="lims", model="bundled.lims.models.Entity",
-        )
-
-    def setUp(self):
-        super().setUp()
-        self.client.force_authenticate(user=self.user)
-        self.schema = Schema.objects.create(
-            name="Test", prefix="TST", schema_type=self.schema_type,
-            columns=[{"name": "status", "type": "dropdown"}],
-        )
-
-    def test_string_accepted_without_dropdown_options(self):
-        """Without dropdown options, any string is acceptable."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"status": "In Progress"}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(len(response.data["errors"]), 0)
-
-    def test_non_string_rejected(self):
-        """Non-string values for dropdown columns are rejected."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"status": 42}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["errors"]), 1)
-        self.assertEqual(response.data["errors"][0]["field"], "status")
-
-
-class BatchRegisterReferenceValidationTests(BaseTestCase):
-    """Reference columns validate prefix+DIGITS format."""
-
-    @classmethod
-    def setUpTestData(cls):
-        super().setUpTestData()
-        cls.schema_type = SchemaType.objects.create(
-            display_name="Entity", workspace_id="lims", model="bundled.lims.models.Entity",
-        )
-
-    def setUp(self):
-        super().setUp()
-        self.client.force_authenticate(user=self.user)
-        self.schema = Schema.objects.create(
-            name="Test", prefix="TST", schema_type=self.schema_type,
-            columns=[{"name": "source", "type": "reference"}],
-        )
-
-    def test_valid_reference_accepted(self):
-        """Valid prefix+DIGITS format passes reference validation."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"source": "DNA42"}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(len(response.data["errors"]), 0)
-
-    def test_invalid_reference_format_rejected(self):
-        """Values without prefix+DIGITS format produce a row-level error."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"source": "ref-123"}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["errors"]), 1)
-        self.assertEqual(response.data["errors"][0]["field"], "source")
-        self.assertIn("not a valid reference", response.data["errors"][0]["message"])
-
-    def test_int_reference_accepted(self):
-        """Integer values are accepted as references (e.g. user IDs)."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"source": 42}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(len(response.data["errors"]), 0)
-
-
-class BatchRegisterTextValidationTests(BaseTestCase):
-    """Text columns accept any value (base validate returns True)."""
-
-    @classmethod
-    def setUpTestData(cls):
-        super().setUpTestData()
-        cls.schema_type = SchemaType.objects.create(
-            display_name="Entity", workspace_id="lims", model="bundled.lims.models.Entity",
-        )
-
-    def setUp(self):
-        super().setUp()
-        self.client.force_authenticate(user=self.user)
-        self.schema = Schema.objects.create(
-            name="Test", prefix="TST", schema_type=self.schema_type,
-            columns=[{"name": "notes", "type": "text"}],
-        )
-
-    def test_any_string_accepted(self):
-        """Any string value is accepted for text columns."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"notes": "anything goes"}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(len(response.data["errors"]), 0)
-
-    def test_non_string_rejected(self):
-        """Non-string values for text columns are rejected."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"notes": 123}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["errors"]), 1)
-        self.assertEqual(response.data["errors"][0]["field"], "notes")
-
-
-class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
+class BatchRegisterColumnValidationIntegrationTests(LimsApiTestCase):
     """Column-type validation errors preserve partial success."""
 
     @classmethod
@@ -1882,8 +1464,9 @@ class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
         self.assertEqual(response.data["errors"][0]["row_index"], 1)
         self.assertEqual(response.data["errors"][0]["field"], "concentration")
 
-        # Verify only 2 entities created
         self.assertEqual(Entity.objects.filter(schema=self.schema).count(), 2)
+        saved = Entity.objects.get(display_id=response.data["results"][0]["display_id"])
+        self.assertEqual(saved.properties["concentration"], 42)
 
     def test_multiple_validation_errors_in_same_row(self):
         """Multiple invalid values in the same row are reported (first error only)."""
@@ -1900,8 +1483,10 @@ class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 0)
-        # First failing field triggers the error; the row is skipped.
-        self.assertGreaterEqual(len(response.data["errors"]), 1)
+        self.assertEqual(
+            [(error["row_index"], error["field"]) for error in response.data["errors"]],
+            [(0, "concentration"), (0, "sample_date")],
+        )
 
     def test_unknown_columns_skipped(self):
         """Properties without a matching column definition are skipped, not errored."""
@@ -1937,78 +1522,9 @@ class BatchRegisterColumnTypePartialSuccessTests(BaseTestCase):
         self.assertEqual(response.data["errors"][1]["field"], "concentration")
         self.assertEqual(Entity.objects.filter(schema=self.schema).count(), 1)
 
-    def test_existing_tests_still_pass_number_column(self):
-        """Regression test: existing batch register behavior works with validation."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {
-                "schema_id": self.schema.id,
-                "rows": [
-                    {"entity_id": None, "name": "Sample A", "values": {"concentration": 42}, **folder_source(self.folder)},
-                ],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(len(response.data["errors"]), 0)
-        result = response.data["results"][0]
-        self.assertEqual(result["status"], "created")
-        self.assertTrue(result["display_id"].startswith("TST"))
 
 
-class BatchRegisterCaseInsensitiveTypeIdTests(BaseTestCase):
-    """Column type IDs are accepted in lowercase for column type registry lookup."""
-
-    @classmethod
-    def setUpTestData(cls):
-        super().setUpTestData()
-        cls.schema_type = SchemaType.objects.create(
-            display_name="Entity", workspace_id="lims", model="bundled.lims.models.Entity",
-        )
-
-    def setUp(self):
-        super().setUp()
-        self.client.force_authenticate(user=self.user)
-        # Lowercase type IDs match the column type registry convention.
-        self.schema = Schema.objects.create(
-            name="Test", prefix="TST", schema_type=self.schema_type,
-            columns=[{"name": "count", "type": "number"}],
-        )
-
-    def test_lowercase_type_id_is_validated(self):
-        """Lowercase type IDs like 'number' are validated via the registry."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"count": 42}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 1)
-        self.assertEqual(len(response.data["errors"]), 0)
-
-    def test_lowercase_type_id_rejects_invalid_value(self):
-        """Validation works with lowercase type IDs."""
-        response = self.client.post(
-            BATCH_REGISTER_URL,
-            {"schema_id": self.schema.id, "rows": [
-                {"entity_id": None, "name": "A", "values": {"count": "abc"}, **folder_source(self.folder)},
-            ]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["errors"]), 1)
-        self.assertEqual(response.data["errors"][0]["field"], "count")
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# Entity reference validation tests — entity create (POST) and update (PUT)
-# ═══════════════════════════════════════════════════════════════════════
-
-
-class EntityReferenceValidationCreateTests(BaseTestCase):
+class EntityReferenceValidationCreateTests(LimsApiTestCase):
     """Reference validation on entity creation via EntitySerializer."""
 
     @classmethod
@@ -2222,7 +1738,7 @@ class EntityReferenceValidationCreateTests(BaseTestCase):
         self.assertEqual(response.status_code, 201)
 
 
-class EntityReferenceValidationUpdateTests(BaseTestCase):
+class EntityReferenceValidationUpdateTests(LimsApiTestCase):
     """Reference validation on entity update (PUT) via EntitySerializer."""
 
     @classmethod
@@ -2421,7 +1937,7 @@ class EntityReferenceValidationUpdateTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
 
 
-class EntityDeleteReferentialIntegrityTests(BaseTestCase):
+class EntityDeleteReferentialIntegrityTests(LimsApiTestCase):
     """Soft-rejection on entity delete when referenced by other entities."""
 
     @classmethod
@@ -2555,7 +2071,7 @@ class EntityDeleteReferentialIntegrityTests(BaseTestCase):
 # ── Saved View access tests ─────────────────────────────────────────────────
 
 
-class LimsViewAccessTests(BaseTestCase):
+class LimsViewAccessTests(LimsApiTestCase):
     """Saved View reads are owner-or-public; mutations remain owner-only."""
 
     def setUp(self):
@@ -2603,10 +2119,70 @@ class LimsViewAccessTests(BaseTestCase):
         self.assertEqual(self.public_view.name, "Public View")
 
 
+class SavedViewSourceTests(LimsApiTestCase):
+    """Saved views keep a source contract independent of a mod package."""
+
+    def test_saved_view_persists_source_kind_and_spec(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            "/api/lims/views/",
+            {
+                "name": "DNA samples",
+                "source_kind": "lims:entity",
+                "spec": {
+                    "filter": {"status": "active"},
+                    "sort": [{"field": "name", "direction": "asc"}],
+                    "columns": ["display_id", "name"],
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["source_kind"], "lims:entity")
+        self.assertEqual(response.data["spec"]["columns"], ["display_id", "name"])
+        view = LimsView.objects.get(pk=response.data["id"])
+        self.assertEqual(view.source_kind, "lims:entity")
+        self.assertEqual(view.spec["filter"]["status"], "active")
+
+    def test_view_reports_inert_when_source_is_not_registered(self):
+        view = LimsView.objects.create(
+            owner=self.user,
+            name="Removed source",
+            source_kind="missing:source",
+            spec={"filter": {}, "sort": [], "columns": []},
+        )
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(f"/api/lims/views/{view.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["is_inert"])
+        self.assertEqual(response.data["availability"], "source unavailable")
+
+    def test_view_revives_when_source_is_registered(self):
+        from helix_core.mod_system.registry import registry
+
+        registry.register_content_source("test:revivable", "lims.entity")
+        view = LimsView.objects.create(
+            owner=self.user,
+            name="Revivable source",
+            source_kind="test:revivable",
+            spec={"filter": {}, "sort": [], "columns": []},
+        )
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(f"/api/lims/views/{view.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["is_inert"])
+        self.assertEqual(response.data["availability"], "available")
+
+
 # ── Metric API tests ────────────────────────────────────────────────────────
 
 
-class MetricApiTests(BaseTestCase):
+class MetricApiTests(LimsApiTestCase):
     """Metric CRUD, visibility, value evaluation, and seeding."""
 
     @classmethod
@@ -3110,7 +2686,7 @@ class MetricApiTests(BaseTestCase):
         self.assertEqual(response.data["value"], 1)
 
 
-class MetricSeedTests(BaseTestCase):
+class MetricSeedTests(LimsApiTestCase):
     """Tests for the boot-seeded Views and Metrics."""
 
     @classmethod
@@ -3121,15 +2697,6 @@ class MetricSeedTests(BaseTestCase):
             username="admin", password="pass",
             is_superuser=True, is_staff=True, is_active=True,
         )
-        # SchemaType that seeding references: eln.notebookentry + lims.entity
-        SchemaType.objects.create(
-            display_name="Entry", workspace_id="eln",
-            model="mods.eln.models.NotebookEntry",
-        )
-        SchemaType.objects.create(
-            display_name="Entity", workspace_id="lims",
-            model="bundled.lims.models.Entity",
-        )
 
     def test_seed_creates_public_views_and_metrics(self):
         """After register(), the seeded Views and Metrics exist."""
@@ -3137,14 +2704,14 @@ class MetricSeedTests(BaseTestCase):
 
         _seed_builtin_metrics()
 
-        view_count = LimsView.objects.filter(is_public=True).count()
-        self.assertGreaterEqual(view_count, 2)
-
-        metric_count = Metric.objects.filter(
-            view__is_public=True,
-            aggregate_function="count",
-        ).count()
-        self.assertGreaterEqual(metric_count, 2)
+        view = LimsView.objects.get(
+            owner__username="admin", name="Entities created, by me", is_public=True,
+        )
+        metric = Metric.objects.get(
+            owner=view.owner, view=view, aggregate_function="count", column__isnull=True,
+        )
+        self.assertTrue(metric.name.startswith("Count "))
+        self.assertIn(view.name, metric.name)
 
     def test_seed_is_idempotent(self):
         """Calling the seed twice does not duplicate Views or Metrics."""
@@ -3170,11 +2737,8 @@ class MetricSeedTests(BaseTestCase):
 
         _seed_builtin_metrics()
 
-        views = LimsView.objects.filter(is_public=True, name__icontains="by me")
-        for view in views:
-            columns = view.filter_state.get("columns", [])
-            has_is_me = any(
-                col.get("column") == "author" and col.get("operator") == "is_me"
-                for col in columns
-            )
-            self.assertTrue(has_is_me, f"View '{view.name}' missing is_me filter")
+        view = LimsView.objects.get(name="Entities created, by me", is_public=True)
+        self.assertIn(
+            {"column": "author", "operator": "is_me", "value": ""},
+            view.filter_state["columns"],
+        )

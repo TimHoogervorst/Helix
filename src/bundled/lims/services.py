@@ -6,14 +6,12 @@ def cascade_source_status(*, source_type_id: int, source_id: int, status: str) -
     keep the cascade synchronous without recursively re-entering this service.
     """
     from django.contrib.contenttypes.models import ContentType
-
-    from mods.eln.models import NotebookEntry
-
-    from .models import Entity
+    from helix_core.mod_system.registry import registry
 
     source_types = {
-        ContentType.objects.get_for_model(NotebookEntry).pk: NotebookEntry,
-        ContentType.objects.get_for_model(Entity).pk: Entity,
+        ContentType.objects.get_for_model(model).pk: model
+        for _provider, model in registry.content_source_models()
+        if hasattr(model, "source_type_id") and hasattr(model, "status")
     }
     pending = [(source_type_id, source_id)]
     visited = set()

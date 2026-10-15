@@ -1,0 +1,18 @@
+{
+  "valid": [
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": ["frontend", "backend"],
+      "dependsOn": [{"id": "helix.lims", "version": "^1.4.0"}]
+    }
+  ],
+  "invalid": [
+    {"id": "Acme.sample", "displayName": "Bad", "version": "1.0.0", "requiresHelix": ">=1.0.0", "artifacts": ["frontend"], "dependsOn": []},
+    {"id": "acme.sample", "displayName": "Bad", "version": "1.0.0", "requiresHelix": ">=1.0.0", "artifacts": ["fullstack"], "dependsOn": []},
+    {"id": "acme.sample", "displayName": "Bad", "version": "1.0.0", "requiresHelix": ">=1.0.0", "artifacts": ["frontend"], "dependsOn": ["helix.lims"]},
+    {"id": "acme.sample", "displayName": "Bad", "version": "1.0.0", "requiresHelix": ">=1.0.0", "artifacts": ["frontend"], "dependsOn": [], "coreVersion": "1.0.0"}
+  ]
+}

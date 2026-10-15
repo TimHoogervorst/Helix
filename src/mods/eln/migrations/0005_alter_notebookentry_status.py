@@ -2,26 +2,6 @@
 
 from django.db import migrations, models
 
-# The entity_hub_view VIEW selects from eln_entry and must be dropped before
-# any ALTER COLUMN on its source tables, then recreated afterwards.
-_VIEW_SQL = """
-    CREATE VIEW entity_hub_view AS
-    SELECT
-        id, name, display_id, author_id, last_editor_id, status,
-        folder_id, project_id, schema_id, properties, created_at, updated_at,
-        'eln.notebookentry' AS schema_type_id,
-        'eln' AS workspace_id
-    FROM eln_entry
-    UNION ALL
-    SELECT
-        id, name, display_id, author_id, last_editor_id, status,
-        folder_id, project_id, schema_id, properties, created_at, updated_at,
-        'lims.entity' AS schema_type_id,
-        'lims' AS workspace_id
-    FROM lims_entity;
-"""
-
-
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -31,10 +11,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunSQL(
-            sql="DROP VIEW IF EXISTS entity_hub_view;",
-            reverse_sql="DROP VIEW IF EXISTS entity_hub_view;",
-        ),
         migrations.AlterField(
             model_name="notebookentry",
             name="status",
@@ -47,9 +23,5 @@ class Migration(migrations.Migration):
                 ),
                 max_length=100,
             ),
-        ),
-        migrations.RunSQL(
-            sql=_VIEW_SQL,
-            reverse_sql=_VIEW_SQL,
         ),
     ]

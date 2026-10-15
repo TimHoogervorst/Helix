@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { Wrench, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { del } from "../../shell/src/api/client";
 import { Button } from "../../shell/src/shared/primitives/Button";
 import { SettingsPageLayout } from "../../shell/src/shared/components/SettingsPageLayout";
 import { SettingsHeroHeader } from "../../shell/src/shared/components/SettingsHeroHeader";
 import { SettingsSectionCard } from "../../shell/src/shared/components/SettingsSectionCard";
 
-type ActionKey = "entities" | "entries" | "schemas" | "everything";
+type ActionKey = "entities" | "schemas" | "everything";
 
 interface Action {
   key: ActionKey;
@@ -21,12 +21,6 @@ const ACTIONS: Action[] = [
     label: "DELETE ALL ENTITIES",
     description: "Hard-deletes every LIMS entity. Does not delete schemas or notebook entries.",
     endpoint: "/lims/entities/delete_all/",
-  },
-  {
-    key: "entries",
-    label: "DELETE ALL ENTRIES",
-    description: "Hard-deletes every ELN notebook entry. Does not delete entities or schemas.",
-    endpoint: "/eln/entries/delete_all/",
   },
   {
     key: "schemas",

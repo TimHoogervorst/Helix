@@ -8,7 +8,7 @@ from rest_framework.response import Response
 
 from helix_core.column_types import registry as column_type_registry
 from helix_core.formulas import validate_formula_columns
-from helix_core.models import ColorToken, IconLibraryEntry, Schema, SchemaType, EntityHubView
+from helix_core.models import ColorToken, IconLibraryEntry, Schema, SchemaType
 from helix_core.svg_sanitizer import sanitize_svg, SvgSanitizationError
 
 
@@ -87,7 +87,7 @@ class SchemaTypeListSerializer(serializers.ModelSerializer):
             "workspace_id",
             "is_active",
             "schema_type_id",
-            "tags",
+            "capabilities",
         ]
 
     def get_schema_type_id(self, obj):
@@ -113,7 +113,7 @@ class SchemaListSerializer(serializers.ModelSerializer):
     schema_type_display = serializers.CharField(
         source="schema_type.display_name", read_only=True
     )
-    tags = serializers.JSONField(source="schema_type.tags", read_only=True)
+    capabilities = serializers.JSONField(source="schema_type.capabilities", read_only=True)
 
     class Meta:
         model = Schema
@@ -123,7 +123,7 @@ class SchemaListSerializer(serializers.ModelSerializer):
             "prefix",
             "schema_type",
             "schema_type_display",
-            "tags",
+            "capabilities",
             "columns",
             "is_default",
             "is_active",
@@ -145,7 +145,7 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
     schema_type_display = serializers.CharField(
         source="schema_type.display_name", read_only=True
     )
-    tags = serializers.JSONField(source="schema_type.tags", read_only=True)
+    capabilities = serializers.JSONField(source="schema_type.capabilities", read_only=True)
 
     class Meta:
         model = Schema
@@ -155,7 +155,7 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
             "prefix",
             "schema_type",
             "schema_type_display",
-            "tags",
+            "capabilities",
             "columns",
             "is_default",
             "is_active",
@@ -192,8 +192,8 @@ class SchemaWriteSerializer(serializers.ModelSerializer):
 # ── Entity Hub ────────────────────────────────────────────────────────────
 
 
-class EntityHubSerializer(serializers.ModelSerializer):
-    """Serializer for rows from the entity_hub_view — read-only UNION ALL view."""
+class EntityHubSerializer(serializers.Serializer):
+    """Common projection for registered, hub-visible content sources."""
 
     author_username = serializers.CharField(
         source="author.username", read_only=True
@@ -204,12 +204,8 @@ class EntityHubSerializer(serializers.ModelSerializer):
     schema_prefix = serializers.CharField(
         source="schema.prefix", read_only=True
     )
-    icon = serializers.CharField(
-        source="schema.icon", read_only=True, default=""
-    )
-    color = serializers.CharField(
-        source="schema.color", read_only=True, default=""
-    )
+    icon = serializers.SerializerMethodField()
+    color = serializers.SerializerMethodField()
     project_id = serializers.IntegerField(source="project.id", read_only=True, default=None)
     project_uid = serializers.UUIDField(source="project.uid", read_only=True, default=None)
     project_name = serializers.CharField(source="project.name", read_only=True, default="")
@@ -219,8 +215,22 @@ class EntityHubSerializer(serializers.ModelSerializer):
     schema_type_display = serializers.SerializerMethodField()
     _expanded = serializers.SerializerMethodField()
 
+    id = serializers.IntegerField(read_only=True)
+    display_id = serializers.CharField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    schema_type_id = serializers.SerializerMethodField()
+    schema_id = serializers.IntegerField(source="schema.id", read_only=True)
+    status = serializers.CharField(read_only=True)
+    author = serializers.IntegerField(source="author.id", read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+    workspace_id = serializers.SerializerMethodField()
+    source_type = serializers.IntegerField(source="source_type_id", read_only=True)
+    source_id = serializers.IntegerField(read_only=True)
+    source_path = serializers.JSONField(read_only=True)
+    properties = serializers.JSONField(read_only=True)
+
     class Meta:
-        model = EntityHubView
         fields = [
             "id",
             "display_id",
@@ -249,7 +259,38 @@ class EntityHubSerializer(serializers.ModelSerializer):
             "source",
             "_expanded",
         ]
-        read_only_fields = fields
+
+    def _provider(self, obj):
+        return self.context.get("source_providers", {}).get(type(obj))
+
+    def _schema_type(self, obj):
+        schema_type = getattr(getattr(obj, "schema", None), "schema_type", None)
+        return schema_type
+
+    def get_schema_type_id(self, obj):
+        schema_type = self._schema_type(obj)
+        provider = self._provider(obj)
+        metadata = provider.display_metadata if provider else {}
+        return metadata.get("schema_type_id") or (
+            f"{metadata.get('workspace_id', schema_type.workspace_id)}."
+            f"{type(obj)._meta.model_name}"
+            if schema_type else None
+        )
+
+    def get_icon(self, obj):
+        provider = self._provider(obj)
+        return (provider.display_metadata.get("icon") if provider else None) or getattr(obj.schema, "icon", "")
+
+    def get_color(self, obj):
+        provider = self._provider(obj)
+        return (provider.display_metadata.get("color") if provider else None) or getattr(obj.schema, "color", "")
+
+    def get_workspace_id(self, obj):
+        provider = self._provider(obj)
+        schema_type = self._schema_type(obj)
+        return (provider.display_metadata.get("workspace_id") if provider else None) or (
+            schema_type.workspace_id if schema_type else None
+        )
 
     def get_schema_type_display(self, obj):
         """Human-readable label for the schema_type_id."""
@@ -263,8 +304,7 @@ class EntityHubSerializer(serializers.ModelSerializer):
             return None
 
         from helix_core.core.models import Folder, Project
-        from mods.eln.models import NotebookEntry
-        from bundled.lims.models import Entity
+        from helix_core.mod_system.registry import registry
 
         if isinstance(source, Project):
             return {
@@ -285,15 +325,22 @@ class EntityHubSerializer(serializers.ModelSerializer):
                 "path": source.path,
                 "uid": str(source.project.uid),
             }
-        if isinstance(source, (NotebookEntry, Entity)):
+        source_provider = next(
+            ((provider, model) for provider, model in registry.content_source_models()
+             if isinstance(source, model)),
+            None,
+        )
+        if source_provider is not None:
+            provider, _model = source_provider
             schema = source.schema
+            provider_metadata = provider.display_metadata
             return {
-                "kind": "entry" if isinstance(source, NotebookEntry) else "entity",
+                "kind": provider.kind.rsplit(":", 1)[-1],
                 "id": source.pk,
                 "name": source.name,
                 "display_id": source.display_id,
-                "icon": (schema.icon if schema else None) or "file-text",
-                "color": (schema.color if schema else None) or "muted",
+                "icon": provider_metadata.get("icon") or (schema.icon if schema else None) or "file-text",
+                "color": provider_metadata.get("color") or (schema.color if schema else None) or "muted",
             }
         return None
 

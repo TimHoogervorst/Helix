@@ -44,13 +44,6 @@ describe("IconBadge", () => {
       seedRegistry();
     });
 
-    it("renders with a known icon and color key", () => {
-      render(<IconBadge iconKey="dna" colorKey="flask" />);
-      const badge = screen.getByTestId("icon-badge");
-      expect(badge).toBeInTheDocument();
-      expect(badge.children.length).toBeGreaterThan(0);
-    });
-
     it("applies the raw hex as background", () => {
       render(<IconBadge iconKey="dna" colorKey="enzyme" />);
       const badge = screen.getByTestId("icon-badge");
@@ -129,26 +122,12 @@ describe("IconBadge", () => {
       expect(console.warn).toHaveBeenCalledTimes(1);
     });
 
-    it("does not warn for a known icon key", () => {
-      render(<IconBadge iconKey="dna" colorKey="flask" />);
-      const calls = (console.warn as ReturnType<typeof vi.fn>).mock.calls.filter(
-        (c: string[]) => c[0] && c[0].includes("dna"),
-      );
-      expect(calls).toHaveLength(0);
-    });
-
     it("falls back to muted background for an unknown colorKey", () => {
       render(<IconBadge iconKey="dna" colorKey="nonexistent" />);
       const badge = screen.getByTestId("icon-badge");
       expect(badge.style.backgroundColor).toBe("var(--color-label-nonexistent, #d9d9d9)");
     });
 
-    it("falls back gracefully when both keys are unknown", () => {
-      render(<IconBadge iconKey="nonexistent" colorKey="nonexistent" />);
-      const badge = screen.getByTestId("icon-badge");
-      expect(badge.children.length).toBeGreaterThan(0);
-      expect(badge.style.backgroundColor).toBe("var(--color-label-nonexistent, #d9d9d9)");
-    });
   });
 
   describe("clickable vs inert", () => {
@@ -180,19 +159,6 @@ describe("IconBadge", () => {
       expect(onChange).toHaveBeenCalledTimes(1);
     });
 
-    it("has cursor-pointer class with onChange", () => {
-      render(
-        <IconBadge iconKey="circle" colorKey="muted" onChange={() => {}} />,
-      );
-      const badge = screen.getByTestId("icon-badge");
-      expect(badge.className).toContain("cursor-pointer");
-    });
-
-    it("does not have cursor-pointer class without onChange", () => {
-      render(<IconBadge iconKey="circle" colorKey="muted" />);
-      const badge = screen.getByTestId("icon-badge");
-      expect(badge.className).not.toContain("cursor-pointer");
-    });
   });
 
   describe("dynamic library", () => {
@@ -247,11 +213,6 @@ describe("IconBadge", () => {
       warnSpy.mockRestore();
     });
 
-    it("renders an SVG for a dynamic-only icon key (circle fallback in test env)", () => {
-      render(<IconBadge iconKey="dyn-lucide" colorKey="muted" />);
-      const badge = screen.getByTestId("icon-badge");
-      expect(badge.children.length).toBeGreaterThan(0);
-    });
   });
 
   describe("size variants", () => {

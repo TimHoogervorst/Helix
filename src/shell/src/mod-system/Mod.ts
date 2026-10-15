@@ -1,4 +1,5 @@
 import { ModRegistry } from "./ModRegistry";
+import type { ComponentType } from "react";
 import type { FormulaFunctionImplementation } from "../shared/formulas/formulaEngine";
 import type {
   ModManifest,
@@ -12,14 +13,18 @@ import type {
   RouteConfig,
   SettingsSectionConfig,
   SchemaComponentRegistration,
+  WorkspaceConfig,
+  ContentSourceConfig,
+  MetricProviderConfig,
 } from "./types";
+import { externalRoutePath, registrationId, WorkspaceReference } from "./references";
 
 /**
  * Public registration API for a mod.
  *
  * Each mod creates one ``Mod`` instance at module scope from its own
  * ``modManifest.json``.  All ``register*()`` methods derive global IDs
- * automatically from ``manifest.name + "." + localName`` and delegate
+ * automatically from the canonical manifest ID and localName and delegate
  * storage to the internal {@link ModRegistry}.
  *
  * Mods import ``Mod`` directly; ``ModRegistry`` and the standalone
@@ -31,7 +36,7 @@ import type {
  * .. code-block:: ts
  *
  *    import modManifest from "./modManifest.json";
- *    const mod = new Mod(modManifest as ModManifest);
+   *    const mod = new Mod(modManifest);
  *
  *    const tableBlock = mod.registerBlock("table", {
  *      label: "Table",
@@ -57,7 +62,16 @@ export class Mod {
    * duplicate detection, topological sort, and cross-mod references.
    */
   get id(): string {
-    return `${this.manifest.vendor}.${this.manifest.name}`;
+    return this.manifest.id;
+  }
+
+  private get localName(): string {
+    const segments = this.manifest.id.split(".");
+    return segments[segments.length - 1];
+  }
+
+  private idFor(name: string): string {
+    return registrationId(this.id, name);
   }
 
   /** Register a client implementation for a namespaced formula function. */
@@ -66,7 +80,7 @@ export class Mod {
     implementation: FormulaFunctionImplementation,
   ): void {
     ModRegistry.getInstance().registerFormulaFunction(
-      `${this.manifest.name}.${name}`,
+      `${this.localName}.${name}`,
       implementation,
     );
   }
@@ -82,10 +96,10 @@ export class Mod {
    */
   registerBlock(
     name: string,
-    config: Omit<BlockRegistration, "id">,
+    config: Omit<BlockRegistration, "id" | "provider">,
   ): BlockHandle {
-    const globalId = `${this.manifest.name}.${name}`;
-    ModRegistry.getInstance().registerBlock({ ...config, id: globalId });
+    const globalId = this.idFor(name);
+    ModRegistry.getInstance().registerBlock({ ...config, id: globalId, provider: this.id });
 
     // Build typed emitters from the emits array.
     // Not wired to the bus yet — fire() constructs the payload shape only.
@@ -120,10 +134,10 @@ export class Mod {
    */
   declareSlot(
     name: string,
-    config: Omit<SlotDeclaration, "id">,
+    config: Omit<SlotDeclaration, "id" | "provider">,
   ): SlotHandle {
-    const globalId = `${this.manifest.name}.${name}`;
-    ModRegistry.getInstance().declareSlot({ ...config, id: globalId });
+    const globalId = this.idFor(name);
+    ModRegistry.getInstance().declareSlot({ ...config, id: globalId, provider: this.id });
 
     return {
       __brand: "SlotHandle" as const,
@@ -144,10 +158,10 @@ export class Mod {
    */
   registerButton(
     name: string,
-    config: Omit<ButtonRegistration, "id">,
+    config: Omit<ButtonRegistration, "id" | "provider">,
   ): ButtonHandle {
-    const globalId = `${this.manifest.name}.${name}`;
-    ModRegistry.getInstance().registerButton({ ...config, id: globalId });
+    const globalId = this.idFor(name);
+    ModRegistry.getInstance().registerButton({ ...config, id: globalId, provider: this.id });
 
     return {
       __brand: "ButtonHandle" as const,
@@ -175,11 +189,15 @@ export class Mod {
     overrides?: Record<string, unknown>,
     order?: number,
   ): void {
+    if (target.modId !== this.id) {
+      throw new Error(`Mod '${this.id}' cannot register a handle owned by another mod.`);
+    }
     ModRegistry.getInstance().registerIntoSlot(
       slot.globalId,
       target.globalId,
       overrides,
       order,
+      this.id,
     );
   }
 
@@ -191,14 +209,11 @@ export class Mod {
    * The ``qualifiedModId`` is the fully-qualified ``vendor.name`` identity
    * (e.g. ``"helix.eln"``).  The ``slotName`` is the local slot name within
    * that mod (e.g. ``"editor"``).  Together they resolve to the global slot
-   * ID ``"eln.editor"``.
+    * ID ``"helix.eln:editor"``.
    *
-   * Returns a {@link SlotHandle} when the slot exists so the caller can pass
-   * it to {@link registerIntoSlot}.  Returns ``undefined`` when the target
-   * mod or slot is not found, or when the slot hasn't been declared yet.
-   *
-   * The ``dependsOn`` manifest field guarantees the target mod loads first,
-   * so the slot is always registered before the consumer queries it.
+   * Returns a {@link SlotHandle} even when the target has not registered yet.
+   * The registry resolves the binding after all mods have declared their
+   * contributions, making this lookup independent of registration order.
    *
    * **Example:**
    *
@@ -209,23 +224,16 @@ export class Mod {
    *      mod.registerIntoSlot(editorSlot, myBlock);
    *    }
    */
-  resolveSlot(qualifiedModId: string, slotName: string): SlotHandle | undefined {
-    // Derive the target mod's manifest name from the qualified ID.
-    // Qualified mod ID is "vendor.name" (e.g. "helix.eln"); the manifest
-    // name is everything after the first dot (e.g. "eln").
-    const targetModName = qualifiedModId.substring(
-      qualifiedModId.indexOf(".") + 1,
-    );
-    const globalSlotId = `${targetModName}.${slotName}`;
+   resolveSlot(qualifiedModId: string, slotName: string): SlotHandle {
+     const globalSlotId = registrationId(qualifiedModId, slotName);
 
-    const slot = ModRegistry.getInstance().getSlots().get(globalSlotId);
-    if (!slot) return undefined;
+     const slot = ModRegistry.getInstance().getSlots().get(globalSlotId);
 
-    return {
+     return {
       __brand: "SlotHandle" as const,
-      globalId: slot.id,
-      modId: qualifiedModId,
-      accepts: slot.accepts,
+       globalId: slot?.id ?? globalSlotId,
+       modId: qualifiedModId,
+       accepts: slot?.accepts ?? "block",
     };
   }
 
@@ -239,10 +247,31 @@ export class Mod {
    */
   registerHub(
     name: string,
-    config: Omit<HubConfig, "id">,
+    config: Omit<HubConfig, "id" | "provider">,
   ): void {
-    const globalId = `${this.manifest.name}.${name}`;
-    ModRegistry.getInstance().registerHub({ ...config, id: globalId });
+    const globalId = this.idFor(name);
+    ModRegistry.getInstance().registerHub({ ...config, id: globalId, provider: this.id });
+  }
+
+  /** Register a frontend service that can back a provider or other consumer. */
+  registerService(
+    name: string,
+    handler: (...args: unknown[]) => Promise<unknown>,
+  ): string {
+    const id = this.idFor(name);
+    ModRegistry.getInstance().registerService({ id, handler });
+    return id;
+  }
+
+  /** Register a live metric whose value is fetched through a frontend service. */
+  registerMetricProvider(
+    name: string,
+    config: Omit<MetricProviderConfig, "id" | "service"> & { service: string },
+  ): string {
+    const id = this.idFor(name);
+    const service = config.service.includes(":") ? config.service : this.idFor(config.service);
+    ModRegistry.getInstance().registerMetricProvider({ ...config, id, service });
+    return id;
   }
 
   // ── Route ─────────────────────────────────────────────────────────────
@@ -255,14 +284,51 @@ export class Mod {
    */
   registerRoute(
     name: string,
-    config: Omit<RouteConfig, "id" | "modId">,
+    config: Omit<RouteConfig, "id" | "modId" | "provider">,
   ): void {
-    const globalId = `${this.manifest.name}.${name}`;
+    const globalId = this.idFor(name);
     ModRegistry.getInstance().registerRoute({
       ...config,
       id: globalId,
-      modId: this.manifest.name,
+      modId: this.id,
+      provider: this.id,
     });
+  }
+
+  /** Register a non-workspace route in the mod-owned external namespace. */
+  registerExternalRoute(
+    name: string,
+    config: Omit<RouteConfig, "id" | "modId" | "provider" | "path"> & { path: string },
+  ): void {
+    this.registerRoute(name, {
+      ...config,
+      path: externalRoutePath(this.id, config.path),
+    });
+  }
+
+  /** Register a workspace and its canonical collision-safe route. */
+  registerWorkspace(
+    name: string,
+    config: {
+      component: ComponentType<any>;
+      icon?: WorkspaceConfig["icon"];
+      displayName?: string;
+    },
+  ): WorkspaceReference {
+    const reference = new WorkspaceReference(this.id, name);
+    const displayName = config.displayName ?? this.manifest.displayName;
+    ModRegistry.getInstance().registerWorkspace({
+      id: name,
+      displayName,
+      icon: config.icon,
+      reference,
+    });
+    this.registerRoute(`${name}-workspace`, {
+      path: reference.urlFor(":displayId"),
+      component: config.component,
+      workspace: reference,
+    });
+    return reference;
   }
 
   // ── Settings section ──────────────────────────────────────────────────
@@ -275,22 +341,30 @@ export class Mod {
    */
   registerSettingsSection(
     name: string,
-    config: Omit<SettingsSectionConfig, "id" | "modId">,
+    config: Omit<SettingsSectionConfig, "id" | "modId" | "provider">,
   ): void {
-    const globalId = `${this.manifest.name}.${name}`;
+    const globalId = this.idFor(name);
     ModRegistry.getInstance().registerSettingsSection({
       ...config,
       id: globalId,
-      modId: this.manifest.name,
+      modId: this.id,
+      provider: this.id,
     });
+  }
+
+  registerContentSource(
+    kind: string,
+    config: Omit<ContentSourceConfig, "kind">,
+  ): void {
+    ModRegistry.getInstance().registerContentSource({ kind, ...config });
   }
 
   /** Register an optional entity workspace tab for this mod. */
   registerSchemaComponent(
     name: string,
-    config: Omit<SchemaComponentRegistration, "id">,
+    config: Omit<SchemaComponentRegistration, "id" | "provider">,
   ): void {
-    const globalId = `${this.manifest.name}.${name}`;
-    ModRegistry.getInstance().registerSchemaComponent({ ...config, id: globalId });
+    const globalId = `${this.localName}.${name}`;
+    ModRegistry.getInstance().registerSchemaComponent({ ...config, id: globalId, provider: this.id });
   }
 }

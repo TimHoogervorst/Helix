@@ -37,6 +37,12 @@ class PinnedWorkspace(models.Model):
         related_name="pinned_workspaces",
     )
     display_id = models.CharField(max_length=255)
+    workspace_reference = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        help_text="Canonical Workspace reference used independently of the URL.",
+    )
     label = models.CharField(max_length=255, blank=True, default="")
     url = models.CharField(max_length=500)
     created_at = models.DateTimeField(auto_now_add=True)

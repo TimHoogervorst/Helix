@@ -24,8 +24,8 @@ from bundled.access.access.scoping import visible_rows_q
 
 from helix_core.models import ActionLogEntry, Schema
 
+from .config import CONTENT_VERSION_REFERENCE, ENTRY_MODEL_REFERENCE
 from .models import NotebookEntry, ContentVersion, EntryLock, Protocol
-from .config import CONTENT_VERSION_REFERENCE
 from .serializers import (
     NotebookEntrySerializer,
     NotebookEntryCreateSerializer,
@@ -246,6 +246,18 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             )
         with transaction.atomic():
             delete_source_descendants(instance, actor=self.request.user)
+            if instance.platform_record_id:
+                from helix_core.record_persistence import delete_platform_record
+
+                delete_platform_record(
+                    instance.platform_record,
+                    actor=self.request.user,
+                    source={
+                        "kind": "eln-entry",
+                        "type": ENTRY_MODEL_REFERENCE,
+                        "id": str(instance.pk),
+                    },
+                )
             super().perform_destroy(instance)
 
     @transaction.atomic
@@ -406,6 +418,18 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 if not NotebookEntry.objects.filter(pk=entry.pk).exists():
                     continue
                 delete_source_descendants(entry, actor=request.user)
+                if entry.platform_record_id:
+                    from helix_core.record_persistence import delete_platform_record
+
+                    delete_platform_record(
+                        entry.platform_record,
+                        actor=request.user,
+                        source={
+                            "kind": "eln-entry",
+                            "type": ENTRY_MODEL_REFERENCE,
+                            "id": str(entry.pk),
+                        },
+                    )
                 entry.delete()
                 count += 1
         return Response({"deleted": count})

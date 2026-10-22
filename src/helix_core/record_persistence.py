@@ -192,8 +192,18 @@ def delete_source_entity(model, object_id, *, target_model_reference, actor=None
     """Retain an audit outcome and remove Platform history for a source entity."""
     from helix_core.models import ActionLogEntry, ActionParticipant, RecordRevisionGroup
 
+    entity = model.objects.select_for_update().filter(pk=object_id).first()
+    if entity is None:
+        return None
+
+    target_references = {target_model_reference}
+    if target_model_reference == "helix.eln:entry":
+        # ELN document groups created before its stable ModelReference was
+        # adopted stored the legacy short name. Include those rows while
+        # deleting through the canonical registry identity.
+        target_references.add("eln.entry")
     groups = list(RecordRevisionGroup.objects.select_for_update().filter(
-        target_model_reference=target_model_reference,
+        target_model_reference__in=target_references,
         target_object_id=str(object_id),
     ))
     revisions = [
@@ -223,6 +233,23 @@ def delete_source_entity(model, object_id, *, target_model_reference, actor=None
         group.current_revision = None
         group.save(update_fields=["current_revision"])
         group.delete()
+    linked_record_id = getattr(entity, "platform_record_id", None)
+    if linked_record_id:
+        from helix_core.models import PlatformRecord
+        try:
+            linked_record = PlatformRecord.objects.get(pk=linked_record_id)
+        except PlatformRecord.DoesNotExist:
+            linked_record = None
+        if linked_record is not None:
+            delete_platform_record(
+                linked_record,
+                actor=actor,
+                source=source or {
+                    "kind": "source-entity",
+                    "type": target_model_reference,
+                    "id": str(object_id),
+                },
+            )
     model.objects.filter(pk=object_id).delete()
     return action
 

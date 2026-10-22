@@ -19,6 +19,9 @@ from helix_core.views import (
     PlatformRecordFormView,
     RecordActionExecuteView,
     PlatformRecordRevisionsView,
+    PlatformRecordGroupHistoryView,
+    PlatformRecordActivityView,
+    PlatformRecordExportView,
 )
 
 # Router for schemas, schema-types, and colors
@@ -38,6 +41,10 @@ urlpatterns = [
     path("records/<uuid:record_id>/", PlatformRecordDetailView.as_view(), name="platform-record-detail"),
     path("records/<uuid:record_id>/form/", PlatformRecordFormView.as_view(), name="platform-record-form"),
     path("records/<uuid:record_id>/revisions/", PlatformRecordRevisionsView.as_view(), name="platform-record-revisions"),
+    path("records/<uuid:record_id>/groups/<uuid:group_id>/revisions/", PlatformRecordGroupHistoryView.as_view(), name="platform-record-group-history"),
+    path("records/<uuid:record_id>/groups/<uuid:group_id>/revisions/<uuid:revision_id>/", PlatformRecordGroupHistoryView.as_view(), name="platform-record-exact-revision"),
+    path("records/<uuid:record_id>/actions/", PlatformRecordActivityView.as_view(), name="platform-record-activity"),
+    path("records/<uuid:record_id>/export/", PlatformRecordExportView.as_view(), name="platform-record-export"),
     path("formulas/evaluate/", FormulaEvaluateView.as_view(), name="formula-evaluate"),
     path("actions/", ActionCreateView.as_view(), name="action-create"),
     path("", include(router.urls)),

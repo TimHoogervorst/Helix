@@ -95,6 +95,25 @@ export {
   isExactJsonNumber,
   parseExactContractJson,
 } from "./contracts";
+export {
+  exportPlatformRecord,
+  getExactRecordRevision,
+  getPlatformRecord,
+  listPlatformRecords,
+  listRecordActivity,
+  listRecordGroupRevisions,
+  RecordValueInspector,
+  UnavailableRecordCapability,
+} from "./records";
+export type {
+  PlatformRecord,
+  RecordActivity,
+  RecordExport,
+  RecordPage,
+  RecordQuery,
+  RecordRevision,
+  RecordValueInspectorProps,
+} from "./records";
 export type {
   ActionContractDefinition,
   ActionContractEnvelope,

@@ -8,6 +8,7 @@ import type { WorkspaceReference } from "../mod-system/references";
 import { legacyWorkspaceUrl } from "../mod-system/references";
 import Unavailable from "../shared/components/Unavailable";
 import ContractDefinitionPage from "../contracts/ContractDefinitionPage";
+import PlatformRecordsPage from "../records/PlatformRecordsPage";
 
 /** Shared loading fallback for lazy-loaded route components. */
 function RouteLoadingFallback() {
@@ -110,6 +111,8 @@ function Router() {
           path="/contracts/:kind/:contractId/:version"
           element={wrapRoute(ContractDefinitionPage)}
         />
+        <Route path="/records" element={wrapRoute(PlatformRecordsPage)} />
+        <Route path="/records/:recordId" element={wrapRoute(PlatformRecordsPage)} />
         {hubRoutes}
         {layoutRoutes}
         {legacyWorkspaceRoutes}

@@ -24,6 +24,9 @@ from helix_core.models import (
     ActionLogEntry,
     ActionParticipant,
     PlatformRecord,
+    PlatformAttachment,
+    PlatformRendition,
+    AttachmentRevisionLink,
     RetainedContract,
     Schema,
     SchemaType,
@@ -32,7 +35,7 @@ from helix_core.models import (
 from helix_core.mod_system.contracts import canonical_json, contract_fingerprint
 from helix_core.mod_system.registry import BackendModRegistry
 from helix_core.mod_system.manifest import ModManifest
-from helix_core.public import ModRegistrar, create_record, save_revision_group
+from helix_core.public import ModRegistrar, create_record, save_revision_group, retain_rendition
 from helix_core.record_persistence import ProposedEffects
 
 
@@ -150,6 +153,48 @@ class PlatformRecordApiTests(TestCase):
                 snapshot={"document": {"type": "doc", "content": []}},
                 target_model_reference="eln.entry", target_object_id="42",
             )
+
+    def test_platform_rendition_is_independent_of_eln_owned_tables(self):
+        created = create_record(actor=self.user, project=self.project, schema=self.schema,
+                                name="Retained document", field_values={}, request_id=uuid4())
+        saved = save_revision_group(actor=self.user, record_id=created["id"], group_key="document",
+                                    state_token=created["state_token"], request_id=uuid4(),
+                                    snapshot={"document": {"type": "doc", "content": []}},
+                                    target_model_reference="fixture.document", target_object_id="one")
+        from django.core.files.base import ContentFile
+        from helix_core.attachments import default_storage
+        storage_key = default_storage.save("platform-attachments/rendition-test.pdf", ContentFile(b"pdf"))
+        attachment = PlatformAttachment.objects.create(
+            project=self.project, created_by=self.user, storage_key=storage_key,
+            filename="review.pdf", media_type="application/pdf", size=3,
+            sha256=hashlib.sha256(b"pdf").hexdigest(), status="complete")
+        revision = ScientificRevision.objects.get(pk=saved["revision_id"])
+        AttachmentRevisionLink.objects.create(revision=revision, attachment=attachment)
+        rendition = retain_rendition(
+            record_id=created["id"], group_id=saved["group_id"], revision_id=revision.pk,
+            attachment_id=attachment.pk, source_hash=revision.content_hash, actor=self.user,
+            captured_at=revision.created_at, presentation_provider="fixture.renderer",
+            presentation_version="1.0.0", presentation_context={"format": "pdf"})
+
+        self.assertTrue(PlatformRendition.objects.filter(pk=rendition.pk).exists())
+        self.assertNotIn("eln", {field.related_model._meta.app_label for field in PlatformRendition._meta.fields
+                                 if field.is_relation and field.related_model})
+        from helix_core.attachments import rendition_metadata
+        result = rendition_metadata(record_id=created["id"], revision_id=revision.pk)
+        self.assertEqual(result[0]["source_hash"], revision.content_hash)
+        self.assertEqual(result[0]["presentation_provider"], "fixture.renderer")
+        self.assertEqual(result[0]["rendition_hash"], attachment.sha256)
+        from django.apps import apps
+        from django.db import connection
+        self.assertFalse(apps.is_installed("mods.eln"))
+        self.assertNotIn("eln_historical_rendition", connection.introspection.table_names())
+        self.assertEqual(rendition_metadata(record_id=created["id"], revision_id=revision.pk)[0]["id"], str(rendition.pk))
+        self.assertIn("revision_id=", result[0]["download_url"])
+        record = PlatformRecord.objects.get(pk=created["id"])
+        record.delete()
+        self.assertFalse(PlatformRendition.objects.filter(pk=rendition.pk).exists())
+        attachment.refresh_from_db()
+        self.assertIsNotNone(attachment.unreferenced_at)
 
     def test_attachment_upload_is_project_scoped_and_download_requires_retained_revision(self):
         from django.core.files.uploadedfile import SimpleUploadedFile

@@ -116,6 +116,46 @@ def _compose(checkout: Path, project: str, *args: str) -> None:
     subprocess.run(command, cwd=checkout, check=True)
 
 
+def preflight(checkout: Path, project: str) -> dict[str, Any]:
+    """Diagnose Docker/Compose readiness without starting or changing services."""
+    checkout = checkout.resolve()
+    required = (checkout / "docker-compose.yml", checkout / "docker-compose.lifecycle.yml")
+    missing = [str(path) for path in required if not path.is_file()]
+    if missing:
+        raise AcceptanceFailure(f"Preflight checkout is missing compose files: {', '.join(missing)}")
+
+    checks = (
+        (["docker", "--version"], "Docker CLI"),
+        (["docker", "compose", "version"], "Docker Compose"),
+        (["docker", "info", "--format", "{{.ServerVersion}}"], "Docker daemon"),
+        (["docker", "compose", "-p", project, "-f", "docker-compose.yml",
+          "-f", "docker-compose.lifecycle.yml", "config", "--quiet"], "Compose configuration"),
+    )
+    results = {}
+    for command, label in checks:
+        try:
+            result = subprocess.run(command, cwd=checkout, check=True, capture_output=True, text=True)
+        except FileNotFoundError as exc:
+            raise AcceptanceFailure(f"Preflight failed at {label}: Docker CLI is not installed or not on PATH.") from exc
+        except subprocess.CalledProcessError as exc:
+            detail = (exc.stderr or exc.stdout or str(exc)).strip()
+            raise AcceptanceFailure(f"Preflight failed at {label}: {detail}") from exc
+        results[label] = (result.stdout or result.stderr).strip()
+
+    try:
+        status = subprocess.run(
+            ["docker", "compose", "-p", project, "-f", "docker-compose.yml",
+             "-f", "docker-compose.lifecycle.yml", "ps", "--all", "--format", "json"],
+            cwd=checkout, check=True, capture_output=True, text=True,
+        )
+        results["existing_services"] = status.stdout.strip() or "none"
+    except subprocess.CalledProcessError as exc:
+        detail = (exc.stderr or exc.stdout or str(exc)).strip()
+        raise AcceptanceFailure(f"Preflight failed while inspecting existing services: {detail}") from exc
+    results["mutations"] = "none; only CLI, daemon, config, and service status were inspected"
+    return results
+
+
 def named_volume_inventory(checkout: Path, project: str) -> dict[str, str]:
     result: dict[str, str] = {}
     for service, wanted_destination in (
@@ -544,6 +584,9 @@ def read_table_inventory(path: Path) -> list[str]:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
+    readiness = subparsers.add_parser("preflight", help="Check Docker readiness without changing services or volumes")
+    readiness.add_argument("--checkout", required=True, type=Path, help="Independent disposable deployment checkout")
+    readiness.add_argument("--compose-project", required=True, help="Run-specific unchanged compose project name")
     for name in ("capture", "verify"):
         child = subparsers.add_parser(name)
         child.add_argument("--api", required=True, help="Platform API base URL, such as http://localhost:8000")
@@ -576,6 +619,9 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.command == "preflight":
+        print(json.dumps(preflight(args.checkout, args.compose_project), indent=2))
+        return 0
     if not args.token:
         raise AcceptanceFailure("Pass --token or set HELIX_ACCEPTANCE_TOKEN")
     client = PlatformClient(args.api, args.token)

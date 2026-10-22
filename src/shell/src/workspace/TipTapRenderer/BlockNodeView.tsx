@@ -20,7 +20,7 @@ import type { NodeViewProps } from "@tiptap/react";
 import type { BlockBinding, SlotContext, BlockInstance } from "../../mod-system/types";
 import type { WorkspaceBus } from "../WorkspaceBus";
 import type { LifecycleEventPayload } from "./useActionAccumulator";
-import { invokePlatformAction, unavailableActionContext } from "../../api/actionInvocations";
+import { invokePlatformAction, resolveActionContext } from "../../api/actionInvocations";
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -219,7 +219,7 @@ export function BlockNodeView(props: BlockNodeViewProps) {
   // ── Render ─────────────────────────────────────────────────────────────
 
   const BlockComponent = binding.component;
-  const actionContext = context.actionContext ?? unavailableActionContext();
+  const actionContext = resolveActionContext(context.actionContext);
   const invokeAction = context.invokeAction ?? invokePlatformAction;
 
   // ── Typed emitters ────────────────────────────────────────────────────

@@ -31,6 +31,7 @@ export interface RecordRevision {
   content_hash: string;
   snapshot: Record<string, unknown>;
   attachments?: AttachmentMetadata[];
+  renditions?: PlatformRenditionMetadata[];
   created_at: string;
 }
 
@@ -52,7 +53,29 @@ export interface RecordExport {
   state: { group_id: string | null; revision_id: string | null; snapshot: Record<string, unknown> | null };
   definitions: Array<{ kind: string; id: string; version: string; fingerprint: string; envelope: unknown }>;
   attachments: AttachmentMetadata[];
+  renditions?: PlatformRenditionMetadata[];
   capabilities: Record<string, { available: boolean; reason?: string }>;
+}
+
+export interface PlatformRenditionMetadata {
+  id: string;
+  record_id: string;
+  group_id: string;
+  revision_id: string;
+  revision_sequence?: number;
+  source_hash: string;
+  captured_by: Record<string, unknown> | null;
+  captured_at: string;
+  presentation_provider: string;
+  presentation_version: string;
+  presentation_context: Record<string, unknown>;
+  attachment_id: string;
+  filename: string;
+  media_type: string;
+  size: number;
+  rendition_hash: string;
+  download_url: string;
+  kind: "historical_rendition";
 }
 
 export interface AttachmentMetadata {

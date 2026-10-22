@@ -13,7 +13,7 @@ import { SidebarSection } from "./SidebarSection";
 import { useBlockInstance } from "../../../workspace/useBlockInstance";
 import type { WorkspaceBus } from "../../../workspace/WorkspaceBus";
 import type { IconStripGroup } from "./IconStrip";
-import { invokePlatformAction, unavailableActionContext } from "../../../api/actionInvocations";
+import { invokePlatformAction, resolveActionContext } from "../../../api/actionInvocations";
 
 // ── Props ────────────────────────────────────────────────────────────────
 
@@ -166,7 +166,7 @@ export function SlotSidebar(props: SlotSidebarProps) {
 
           // Standalone mode — static block instance, no bus subscriptions.
           const Component = binding.component;
-          const actionContext = context.actionContext ?? unavailableActionContext();
+          const actionContext = resolveActionContext(context.actionContext);
           const invokeAction = context.invokeAction ?? invokePlatformAction;
           const instance: BlockInstance = {
             id: `${binding.id}::static`,
@@ -223,7 +223,7 @@ function SlotSidebarBlock({
 }: SlotSidebarBlockProps) {
   const Component = binding.component;
   const instance = useBlockInstance(binding, slotId, bus);
-  const actionContext = context.actionContext ?? unavailableActionContext();
+  const actionContext = resolveActionContext(context.actionContext);
   const invokeAction = context.invokeAction ?? invokePlatformAction;
 
   // Augment context with a block-specific emitAction that derives the

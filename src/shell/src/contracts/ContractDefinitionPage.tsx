@@ -86,7 +86,7 @@ function DefinitionType({ value, path }: { value: CanonicalJsonValue; path: stri
         )}
         {additionalValues !== undefined && (
           <div className="mt-4">
-            <p className="font-label text-xs uppercase tracking-wide text-muted-foreground">Additional values</p>
+            <p className="font-[var(--font-label)] text-[length:var(--text-xs)] uppercase tracking-wide text-[var(--color-ink-muted-foreground)]">Additional values</p>
             <DefinitionType value={additionalValues} path={`${path} additional values`} />
           </div>
         )}
@@ -137,7 +137,7 @@ function DefinitionType({ value, path }: { value: CanonicalJsonValue; path: stri
     return (
       <section className="rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-5">
         <TypeHeading type={`quantity · ${stringField(value, "unit") ?? "unit unknown"}`} description={description} />
-        <p className="mt-2 text-sm text-muted-foreground">Numeric value</p>
+        <p className="mt-2 text-[length:var(--text-sm)] text-[var(--color-ink-muted-foreground)]">Numeric value</p>
       </section>
     );
   }
@@ -153,7 +153,7 @@ function DefinitionType({ value, path }: { value: CanonicalJsonValue; path: stri
     return (
       <section className="rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-5">
         <TypeHeading type="exact contract reference" description={description} />
-        <p className="mt-2 font-label text-sm">
+        <p className="mt-2 font-[var(--font-label)] text-[length:var(--text-sm)]">
           {stringField(value, "kind")} · {stringField(value, "id")} · {stringField(value, "version")}
         </p>
       </section>
@@ -166,8 +166,8 @@ function TypeHeading({ type, description }: { type: string; description?: string
   return (
     <div>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h3 className="font-label text-sm font-semibold text-ink">{type}</h3>
-        {description && <p className="text-sm text-muted-foreground">{description}</p>}
+        <h3 className="font-[var(--font-label)] text-[length:var(--text-sm)] font-semibold text-[var(--color-ink)]">{type}</h3>
+        {description && <p className="text-[length:var(--text-sm)] text-[var(--color-ink-muted-foreground)]">{description}</p>}
       </div>
     </div>
   );
@@ -186,8 +186,8 @@ function ConstraintList({
     <dl className="mt-4 grid gap-x-4 gap-y-2 border-t border-[var(--color-ink-hairline)] pt-3 sm:grid-cols-[auto_1fr]">
       {constraints.map(([name, constraint]) => (
         <div key={name} className="contents">
-          <dt className="font-label text-xs text-muted-foreground">{name}</dt>
-          <dd className="break-all font-label text-xs text-ink">{canonicalJson(constraint)}</dd>
+          <dt className="font-[var(--font-label)] text-[length:var(--text-xs)] text-[var(--color-ink-muted-foreground)]">{name}</dt>
+          <dd className="break-all font-[var(--font-label)] text-[length:var(--text-xs)] text-[var(--color-ink)]">{canonicalJson(constraint)}</dd>
         </div>
       ))}
     </dl>
@@ -197,8 +197,8 @@ function ConstraintList({
 function JsonFallback({ value, label }: { value: CanonicalJsonValue; label: string }) {
   return (
     <details className="rounded-lg border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-4">
-      <summary className="cursor-pointer font-label text-xs text-muted-foreground">{label}</summary>
-      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all font-label text-xs text-ink">
+      <summary className="cursor-pointer font-[var(--font-label)] text-[length:var(--text-xs)] text-[var(--color-ink-muted-foreground)]">{label}</summary>
+      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all font-[var(--font-label)] text-[length:var(--text-xs)] text-[var(--color-ink)]">
         {canonicalJson(value)}
       </pre>
     </details>
@@ -218,7 +218,7 @@ function DefinitionSection({
   if (["inputs", "parameters", "outputs"].includes(title) && isRecord(value)) {
     return (
       <section aria-labelledby={`definition-${title}`}>
-        <h2 id={`definition-${title}`} className="mb-3 font-label text-xs uppercase tracking-[0.14em] text-muted-foreground">
+        <h2 id={`definition-${title}`} className="mb-3 font-[var(--font-label)] text-[length:var(--text-xs)] uppercase tracking-[0.14em] text-[var(--color-ink-muted-foreground)]">
           {title}
         </h2>
         <div className="grid gap-3">
@@ -277,16 +277,16 @@ export default function ContractDefinitionPage() {
   if (state.status === "not-found") {
     return (
       <main className="mx-auto max-w-4xl px-6 py-12">
-        <h1 className="font-label text-xl font-semibold text-ink">Retained definition unavailable</h1>
-        <p className="mt-3 text-sm text-muted-foreground">No retained contract matches this exact kind, identifier, and version.</p>
+        <h1 className="font-[var(--font-label)] text-[length:var(--text-xl)] font-semibold text-[var(--color-ink)]">Retained definition unavailable</h1>
+        <p className="mt-3 text-[length:var(--text-sm)] text-[var(--color-ink-muted-foreground)]">No retained contract matches this exact kind, identifier, and version.</p>
       </main>
     );
   }
   if (state.status === "error") {
     return (
       <main className="mx-auto max-w-4xl px-6 py-12">
-        <h1 className="font-label text-xl font-semibold text-ink">Could not inspect retained definition</h1>
-        <p className="mt-3 text-sm text-muted-foreground">{state.message}</p>
+        <h1 className="font-[var(--font-label)] text-[length:var(--text-xl)] font-semibold text-[var(--color-ink)]">Could not inspect retained definition</h1>
+        <p className="mt-3 text-[length:var(--text-sm)] text-[var(--color-ink-muted-foreground)]">{state.message}</p>
       </main>
     );
   }
@@ -295,18 +295,18 @@ export default function ContractDefinitionPage() {
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10">
       <header className="border-b border-[var(--color-ink-hairline)] pb-6">
-        <p className="font-label text-xs uppercase tracking-[0.16em] text-muted-foreground">Retained {contract.kind} contract</p>
+        <p className="font-[var(--font-label)] text-[length:var(--text-xs)] uppercase tracking-[0.16em] text-[var(--color-ink-muted-foreground)]">Retained {contract.kind} contract</p>
         <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-2">
-          <h1 className="break-all font-label text-2xl font-semibold text-ink">{contract.id}</h1>
-          <span className="font-label text-sm text-muted-foreground">v{contract.version}</span>
+          <h1 className="break-all font-[var(--font-label)] text-[length:var(--text-2xl)] font-semibold text-[var(--color-ink)]">{contract.id}</h1>
+          <span className="font-[var(--font-label)] text-[length:var(--text-sm)] text-[var(--color-ink-muted-foreground)]">v{contract.version}</span>
         </div>
-        <p className="mt-4 max-w-2xl text-base leading-relaxed text-ink">{contract.description}</p>
+        <p className="mt-4 max-w-2xl text-[length:var(--text-base)] leading-relaxed text-[var(--color-ink)]">{contract.description}</p>
       </header>
 
       <section aria-labelledby="contract-definition-heading" className="flex flex-col gap-4">
         <div>
-          <p className="font-label text-xs uppercase tracking-[0.16em] text-muted-foreground">Meaning</p>
-          <h2 id="contract-definition-heading" className="mt-1 font-label text-lg font-semibold text-ink">Definition</h2>
+          <p className="font-[var(--font-label)] text-[length:var(--text-xs)] uppercase tracking-[0.16em] text-[var(--color-ink-muted-foreground)]">Meaning</p>
+          <h2 id="contract-definition-heading" className="mt-1 font-[var(--font-label)] text-[length:var(--text-lg)] font-semibold text-[var(--color-ink)]">Definition</h2>
         </div>
         {Object.entries(contract.definition).map(([name, value]) => (
           <DefinitionSection key={name} title={name} value={value} />

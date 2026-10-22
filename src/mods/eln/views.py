@@ -373,18 +373,20 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     "embeddedSource": "source-document.json",
                     "embeddedResourceCount": embedded_resource_count(source_snapshot),
                 }
-                rendition = HistoricalRendition.objects.create(
-                    entry=locked_entry,
-                    revision=locked_revision,
-                    attachment=uploaded,
+                from helix_core.public import VersionTarget, log_action, retain_rendition
+
+                rendition = retain_rendition(
+                    record_id=locked_record.pk,
+                    group_id=locked_group.pk,
+                    revision_id=locked_revision.pk,
+                    attachment_id=uploaded.pk,
                     source_hash=source_hash,
-                    captured_by=request.user,
+                    actor=request.user,
                     captured_at=captured_at,
                     presentation_provider=PRESENTATION_PROVIDER,
                     presentation_version=PRESENTATION_VERSION,
                     presentation_context=presentation_context,
                 )
-                from helix_core.public import VersionTarget, log_action
 
                 log_action(
                     user=request.user,
@@ -440,22 +442,8 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         if effective_role(request.user, entry) not in {"read", "edit"}:
             raise PermissionDenied("You do not have permission to read this entry's history.")
         results = []
-        for rendition in entry.historical_renditions.select_related(
-            "revision", "attachment"
-        ).all():
-            results.append({
-                "id": str(rendition.pk),
-                "revision_id": str(rendition.revision_id),
-                "revision_sequence": rendition.revision.sequence,
-                "source_hash": rendition.source_hash,
-                "captured_by": rendition.captured_by_snapshot,
-                "captured_at": rendition.captured_at.isoformat(),
-                "presentation_provider": rendition.presentation_provider,
-                "presentation_version": rendition.presentation_version,
-                "presentation_context": rendition.presentation_context,
-                "download_url": f"/api/records/{entry.platform_record_id}/attachments/{rendition.attachment_id}/content/?revision_id={rendition.revision_id}",
-                "kind": "historical_rendition",
-            })
+        from helix_core.public import list_renditions
+        results = list_renditions(record_id=entry.platform_record_id)
         return Response({"results": results})
 
     @transaction.atomic

@@ -13,11 +13,8 @@ dependencies = ["helix-core>=0.1.0"]
 "helix.eln" = "mods.eln"
 
 [tool.setuptools]
-package-dir = {"" = "../.."}
-
-[tool.setuptools.packages.find]
-where = ["../.."]
-include = ["mods.eln*"]
+packages = ["mods.eln", "mods.eln.migrations"]
+package-dir = {"mods.eln" = ".", "mods.eln.migrations" = "migrations"}
 
 [tool.setuptools.package-data]
-"mods.eln" = ["modManifest.json", "identity_map.json", "migrations/*.json"]
+"mods.eln" = ["modManifest.json", "identity_map.json", "contracts/*.json", "migrations/*.json"]

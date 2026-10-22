@@ -69,3 +69,11 @@ test("ELN npm artifact contains its runtime sources and declarations", async () 
   assert.ok(![...included].some((file) => file.startsWith("prototypes/")), "prototypes should not ship in the ELN runtime package");
   assert.ok(![...included].some((file) => file.startsWith("package-tests/")), "package verification sources should not ship in the ELN runtime package");
 });
+
+test("ELN Python source artifact ships every manifest contract", () => {
+  const python = process.env.PYTHON ?? "python";
+  execFileSync(python, ["package-tests/check_python_artifact.py"], {
+    cwd: root,
+    stdio: "inherit",
+  });
+});

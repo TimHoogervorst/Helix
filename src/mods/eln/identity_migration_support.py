@@ -83,4 +83,3 @@ def migrate_workspace_url(url: str) -> tuple[str, str]:
     mod, workspace = reference.split(":", 1)
     vendor, name = mod.split(".", 1)
     return reference, f"/w/{vendor}/{name}/{workspace}/{parts[1]}{suffix}"
-

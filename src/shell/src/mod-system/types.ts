@@ -299,6 +299,52 @@ export interface SlotContext {
    * Blocks call this instead of the legacy ``sendAction`` on props.
    */
   emitAction?: (localId: string, payload?: Record<string, unknown>) => void;
+  /** Read-only typed Action bindings resolved by the Platform host. */
+  actionContext?: (stepId: string) => ActionStepContext;
+  /** Host-owned invocation boundary; block code never writes scientific data directly. */
+  invokeAction?: (request: ActionInvocationRequest) => Promise<ActionInvocationOutcome>;
+}
+
+export interface ActionInvocationRequest {
+  readonly invocationId: string;
+  readonly sequenceFingerprint: string;
+  readonly inputs: Readonly<Record<string, unknown>>;
+  readonly parameters: Readonly<Record<string, unknown>>;
+  readonly targets: Readonly<Record<string, unknown>>;
+  readonly expectedState: Readonly<Record<string, unknown>>;
+  readonly providers: Readonly<Record<string, string>>;
+}
+
+export interface ActionInvocationOutcome {
+  readonly invocationId?: string;
+  readonly actionId?: string;
+  readonly outputs?: Readonly<Record<string, unknown>>;
+  readonly providers?: Readonly<Record<string, unknown>>;
+  readonly participants?: readonly unknown[];
+  readonly replayed?: boolean;
+  readonly [key: string]: unknown;
+}
+
+export interface ActionStepContext {
+  readonly action?: { readonly kind: "action"; readonly id: string; readonly version: string };
+  readonly provider?: string;
+  readonly inputs: Readonly<Record<string, ActionPortBinding>>;
+  readonly parameters: Readonly<Record<string, ActionPortBinding>>;
+  readonly outputs: Readonly<Record<string, ActionOutputBinding>>;
+  readonly available: boolean;
+  readonly reason?: string;
+}
+
+export interface ActionPortBinding {
+  readonly type: unknown;
+  readonly value?: unknown;
+  readonly source?: unknown;
+}
+
+export interface ActionOutputBinding {
+  readonly type: unknown;
+  readonly declared: true;
+  readonly recorded?: unknown;
 }
 
 /**
@@ -340,6 +386,10 @@ export interface BlockComponentProps {
    * Example: ``props.emits.entitiesRegistered.fire({ count: 5 })``
    */
   emits?: Record<string, { fire: (payload: Record<string, unknown>) => void }>;
+  /** Read-only named port bindings and capability state for one declared step. */
+  actionContext: (stepId: string) => ActionStepContext;
+  /** Invoke a prepared Action through the Platform persistence boundary. */
+  invokeAction: (request: ActionInvocationRequest) => Promise<ActionInvocationOutcome>;
 }
 
 // ── Slot System — Registration Types ─────────────────────────────────────────

@@ -127,6 +127,31 @@ export type {
   DataContractEnvelope,
   ExactJsonNumber,
 } from "./contracts";
+export type {
+  ActionOutputBinding,
+  ActionPortBinding,
+  ActionStepContext,
+  ActionInvocationOutcome,
+} from "../../shell/src/mod-system/types";
+export {
+  getActionInvocation,
+  invokeAction,
+  PortableBlockView,
+  resolvePortableActionContext,
+} from "./portableBlocks";
+export type {
+  ActionInvocationRequest,
+  InvocationOutcome,
+  PortableActionContext,
+  PortableActionContextResolver,
+  PortableActionAvailability,
+  PortableInputValueResolvers,
+  PortableActionStep,
+  PortableBlockContent,
+  PortableBlockViewProps,
+  PortableInputSource,
+  TypedValue,
+} from "./portableBlocks";
 
 export interface EntityReference {
   readonly type: "entity-reference";

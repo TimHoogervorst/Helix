@@ -49,7 +49,7 @@ function makeBlockBinding(
 }
 
 /** A block component that renders its instance data for assertion. */
-function TestBlock({ instance, context }: BlockComponentProps) {
+function TestBlock({ instance, context, actionContext, invokeAction }: BlockComponentProps) {
   return (
     <div data-testid={`block-${instance.blockId}`}>
       <span data-testid={`block-id-${instance.blockId}`}>{instance.id}</span>
@@ -58,6 +58,9 @@ function TestBlock({ instance, context }: BlockComponentProps) {
       </span>
       <span data-testid={`block-context-workspace-${instance.blockId}`}>
         {context.workspaceId}
+      </span>
+      <span data-testid={`block-action-host-${instance.blockId}`}>
+        {`${actionContext("fixture-step").available}:${typeof invokeAction}`}
       </span>
       <button
         data-testid={`update-attrs-btn-${instance.blockId}`}
@@ -1293,6 +1296,8 @@ describe("TipTapRenderer", () => {
       user: { id: "u2", name: "LIMS User" },
       viewMode: "view",
       entityId: "entity-1",
+      actionContext: () => ({ inputs: {}, parameters: {}, outputs: {}, available: true }),
+      invokeAction: vi.fn().mockResolvedValue({}),
     };
 
     const bindings: BlockBinding[] = [
@@ -1337,6 +1342,7 @@ describe("TipTapRenderer", () => {
         '[data-testid="block-context-workspace-eln.table"]',
       );
       expect(el).toBeTruthy();
+      expect(document.querySelector('[data-testid="block-action-host-eln.table"]')?.textContent).toBe("true:function");
     });
   });
 

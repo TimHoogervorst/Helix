@@ -17,6 +17,7 @@ describe("@helix/mod-api public subpaths", () => {
         "./editor": expect.any(Object),
         "./blocks": expect.any(Object),
         "./api": expect.any(Object),
+        "./contracts": expect.any(Object),
         "./theme": expect.any(Object),
         "./theme.css": expect.any(String),
       }),

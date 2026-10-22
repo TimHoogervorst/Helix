@@ -1,6 +1,7 @@
 /** Authenticated, same-origin API client supplied by the Helix shell. */
 export {
   get,
+  getText,
   post,
   put,
   patch,

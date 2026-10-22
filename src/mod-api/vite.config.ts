@@ -9,6 +9,7 @@ export default defineConfig({
         editor: path.resolve(import.meta.dirname, "src/editor.ts"),
         blocks: path.resolve(import.meta.dirname, "src/blocks.ts"),
         api: path.resolve(import.meta.dirname, "src/api.ts"),
+        contracts: path.resolve(import.meta.dirname, "src/contracts.ts"),
         theme: path.resolve(import.meta.dirname, "src/theme.ts"),
       },
       formats: ["es"],

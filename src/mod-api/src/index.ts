@@ -48,6 +48,7 @@ export type {
 } from "../../shell/src/shared/formulas/formulaEngine";
 export {
   get,
+  getText,
   post,
   put,
   patch,
@@ -87,6 +88,26 @@ export type {
   IconLibraryEntry,
   ColorToken,
 } from "../../shell/src/mod-system/types";
+export {
+  canonicalizeContractJson,
+  canonicalJson,
+  contractFingerprint,
+  isExactJsonNumber,
+  parseExactContractJson,
+} from "./contracts";
+export type {
+  ActionContractDefinition,
+  ActionContractEnvelope,
+  CanonicalJsonValue,
+  ContractEnvelope,
+  ContractKind,
+  ContractNumber,
+  ContractReference,
+  ContractType,
+  DataContractDefinition,
+  DataContractEnvelope,
+  ExactJsonNumber,
+} from "./contracts";
 
 export interface EntityReference {
   readonly type: "entity-reference";

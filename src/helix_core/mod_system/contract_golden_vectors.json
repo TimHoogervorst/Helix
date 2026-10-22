@@ -1,0 +1,81 @@
+{
+  "canonical": [
+    {
+      "name": "exact-decimals",
+      "source": "{\"z\":1.0,\"d\":1e0,\"c\":1,\"b\":-0.0,\"a\":123456789012345678901234567890.1200e+3}",
+      "canonical": "{\"a\":12345678901234567890123456789012e1,\"b\":0,\"c\":1e0,\"d\":1e0,\"z\":1e0}"
+    },
+    {
+      "name": "unicode-scalar-order-and-array-order",
+      "source": "{\"\ud83d\ude00\":[2,1],\"\\ue000\":3,\"e\u0301\":4,\"\u00e9\":5,\"a\":6}",
+      "canonical": "{\"a\":6e0,\"e\u0301\":4e0,\"\u00e9\":5e0,\"\ue000\":3e0,\"\ud83d\ude00\":[2e0,1e0]}"
+    },
+    {
+      "name": "array-order-original",
+      "source": "{\"array\":[2,1]}",
+      "canonical": "{\"array\":[2e0,1e0]}"
+    },
+    {
+      "name": "array-order-reversed",
+      "source": "{\"array\":[1,2]}",
+      "canonical": "{\"array\":[1e0,2e0]}"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "duplicate-object-key",
+      "source": "{\"a\":1,\"a\":2}"
+    },
+    {
+      "name": "unpaired-surrogate",
+      "source": "{\"a\":\"\\ud800\"}"
+    }
+  ],
+  "contracts": [
+    {
+      "name": "exact-scientific-number-and-unicode-description",
+      "source": "{\"formatVersion\":1,\"kind\":\"data\",\"id\":\"acme.publisher.measurement\",\"version\":\"1.0.0\",\"description\":\"Potential measured in \u03bcV\",\"definition\":{\"type\":{\"type\":\"object\",\"fields\":{\"voltage\":{\"type\":\"number\",\"minimum\":1.23456789012345678901234567890e-12,\"description\":\"Minimum calibrated potential\"}}}}}",
+      "canonical": "{\"definition\":{\"type\":{\"fields\":{\"voltage\":{\"description\":\"Minimum calibrated potential\",\"minimum\":12345678901234567890123456789e-40,\"type\":\"number\"}},\"type\":\"object\"}},\"description\":\"Potential measured in \u03bcV\",\"formatVersion\":1e0,\"id\":\"acme.publisher.measurement\",\"kind\":\"data\",\"version\":\"1.0.0\"}",
+      "fingerprint": "8d9bcbea3681e6f299c0560445a2e051203ee623e1c90025bb80e503656d6d38"
+    },
+    {
+      "name": "description-change",
+      "source": "{\"formatVersion\":1,\"kind\":\"data\",\"id\":\"acme.publisher.measurement\",\"version\":\"1.0.0\",\"description\":\"Potential calibrated in \u03bcV\",\"definition\":{\"type\":{\"type\":\"object\",\"fields\":{\"voltage\":{\"type\":\"number\",\"minimum\":1.23456789012345678901234567890e-12,\"description\":\"Minimum calibrated potential\"}}}}}",
+      "canonical": "{\"definition\":{\"type\":{\"fields\":{\"voltage\":{\"description\":\"Minimum calibrated potential\",\"minimum\":12345678901234567890123456789e-40,\"type\":\"number\"}},\"type\":\"object\"}},\"description\":\"Potential calibrated in \u03bcV\",\"formatVersion\":1e0,\"id\":\"acme.publisher.measurement\",\"kind\":\"data\",\"version\":\"1.0.0\"}",
+      "fingerprint": "f58b64226ac1fb2eb23a75679177c04cbda00185d0f7e2dcdcacb850d1d664a2"
+    },
+    {
+      "name": "version-change",
+      "source": "{\"formatVersion\":1,\"kind\":\"data\",\"id\":\"acme.publisher.measurement\",\"version\":\"1.0.1\",\"description\":\"Potential measured in \u03bcV\",\"definition\":{\"type\":{\"type\":\"object\",\"fields\":{\"voltage\":{\"type\":\"number\",\"minimum\":1.23456789012345678901234567890e-12,\"description\":\"Minimum calibrated potential\"}}}}}",
+      "canonical": "{\"definition\":{\"type\":{\"fields\":{\"voltage\":{\"description\":\"Minimum calibrated potential\",\"minimum\":12345678901234567890123456789e-40,\"type\":\"number\"}},\"type\":\"object\"}},\"description\":\"Potential measured in \u03bcV\",\"formatVersion\":1e0,\"id\":\"acme.publisher.measurement\",\"kind\":\"data\",\"version\":\"1.0.1\"}",
+      "fingerprint": "987b5664f260e8b73aa99790740c87bcc96369a83c7ce8b1165c2065ec24ea93"
+    },
+    {
+      "name": "type-change",
+      "source": "{\"formatVersion\":1,\"kind\":\"data\",\"id\":\"acme.publisher.measurement\",\"version\":\"1.0.0\",\"description\":\"Potential measured in \u03bcV\",\"definition\":{\"type\":{\"type\":\"object\",\"fields\":{\"voltage\":{\"type\":\"string\",\"description\":\"Minimum calibrated potential\"}}}}}",
+      "canonical": "{\"definition\":{\"type\":{\"fields\":{\"voltage\":{\"description\":\"Minimum calibrated potential\",\"type\":\"string\"}},\"type\":\"object\"}},\"description\":\"Potential measured in \u03bcV\",\"formatVersion\":1e0,\"id\":\"acme.publisher.measurement\",\"kind\":\"data\",\"version\":\"1.0.0\"}",
+      "fingerprint": "8638b53c5877d56d2e25bd716b9457d3ab6c1cd8019fbc4fd936542b8ff2f1b0"
+    },
+    {
+      "name": "enum-array-order",
+      "source": "{\"formatVersion\":1,\"kind\":\"data\",\"id\":\"acme.publisher.sequence\",\"version\":\"1.0.0\",\"description\":\"Ordered values\",\"definition\":{\"type\":{\"type\":\"string\",\"enum\":[\"first\",\"second\"]}}}",
+      "canonical": "{\"definition\":{\"type\":{\"enum\":[\"first\",\"second\"],\"type\":\"string\"}},\"description\":\"Ordered values\",\"formatVersion\":1e0,\"id\":\"acme.publisher.sequence\",\"kind\":\"data\",\"version\":\"1.0.0\"}",
+      "fingerprint": "02f2c0a55f0fad45fe4e2c4b43d70c3793c85342815ed17eefb6aba826a08e37"
+    },
+    {
+      "name": "enum-array-order-reversed",
+      "source": "{\"formatVersion\":1,\"kind\":\"data\",\"id\":\"acme.publisher.sequence\",\"version\":\"1.0.0\",\"description\":\"Ordered values\",\"definition\":{\"type\":{\"type\":\"string\",\"enum\":[\"second\",\"first\"]}}}",
+      "canonical": "{\"definition\":{\"type\":{\"enum\":[\"second\",\"first\"],\"type\":\"string\"}},\"description\":\"Ordered values\",\"formatVersion\":1e0,\"id\":\"acme.publisher.sequence\",\"kind\":\"data\",\"version\":\"1.0.0\"}",
+      "fingerprint": "04661631c5c318fa9ddc2c7ce41b267ecdaafe99e8849cc9e1cade65826b5bff"
+    }
+  ],
+  "equivalentContracts": [
+    {
+      "name": "whitespace-object-order-and-equivalent-number-spelling",
+      "equivalentTo": "exact-scientific-number-and-unicode-description",
+      "source": "{\n  \"definition\": {\"type\": {\"fields\": {\"voltage\": {\"description\": \"Minimum calibrated potential\", \"minimum\": 12345678901234567890123456789e-40, \"type\": \"number\"}}, \"type\": \"object\"}},\n  \"description\": \"Potential measured in \\u03bcV\",\n  \"id\": \"acme.publisher.measurement\",\n  \"kind\": \"data\",\n  \"version\": \"1.0.0\",\n  \"formatVersion\": 1.0\n}",
+      "canonical": "{\"definition\":{\"type\":{\"fields\":{\"voltage\":{\"description\":\"Minimum calibrated potential\",\"minimum\":12345678901234567890123456789e-40,\"type\":\"number\"}},\"type\":\"object\"}},\"description\":\"Potential measured in \u03bcV\",\"formatVersion\":1e0,\"id\":\"acme.publisher.measurement\",\"kind\":\"data\",\"version\":\"1.0.0\"}",
+      "fingerprint": "8d9bcbea3681e6f299c0560445a2e051203ee623e1c90025bb80e503656d6d38"
+    }
+  ]
+}

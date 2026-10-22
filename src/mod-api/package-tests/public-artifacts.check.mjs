@@ -11,11 +11,12 @@ const packageJson = JSON.parse(
 );
 
 test("built Mod API exports can be consumed from package artifacts", async () => {
-  const [root, editor, blocks, api, theme] = await Promise.all([
+  const [root, editor, blocks, api, contracts, theme] = await Promise.all([
     import("@helix/mod-api"),
     import("@helix/mod-api/editor"),
     import("@helix/mod-api/blocks"),
     import("@helix/mod-api/api"),
+    import("@helix/mod-api/contracts"),
     import("@helix/mod-api/theme"),
   ]);
 
@@ -25,6 +26,8 @@ test("built Mod API exports can be consumed from package artifacts", async () =>
   assert.equal(typeof editor.createBlockNode, "function");
   assert.equal(typeof blocks.createBlockAdapter, "function");
   assert.equal(typeof api.get, "function");
+  assert.equal(typeof api.getText, "function");
+  assert.equal(typeof contracts.contractFingerprint, "function");
   assert.equal(typeof api.post, "function");
   assert.equal(theme.themeTokens.primary, "--color-primary");
 });

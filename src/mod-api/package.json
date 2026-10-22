@@ -23,6 +23,10 @@
       "types": "./dist/mod-api/src/blocks.d.ts",
       "import": "./dist/blocks.js"
     },
+    "./portable-blocks": {
+      "types": "./dist/mod-api/src/portableBlocks.d.ts",
+      "import": "./dist/portable-blocks.js"
+    },
     "./api": {
       "types": "./dist/mod-api/src/api.d.ts",
       "import": "./dist/api.js"

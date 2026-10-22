@@ -4,11 +4,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 from uuid import uuid4
+from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.test import override_settings
+from django.utils import timezone
 from pypdf import PdfReader
 
 from helix_core.core.tests.base import BaseTestCase
@@ -129,6 +131,59 @@ class ReviewRenditionApiTests(BaseTestCase):
         download.close()
         self.assertTrue(content.startswith(b"%PDF-"))
 
+        newer = {
+            "type": "doc",
+            "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Later revision"}]}],
+        }
+        saved = self.client.put(
+            f"/api/eln/entries/{entry.display_id}/",
+            {
+                "name": entry.name,
+                "content": newer,
+                "state_token": entry_data["platform_state_token"],
+                "request_id": str(uuid4()),
+            },
+            format="json",
+        )
+        self.assertEqual(saved.status_code, 200, saved.data)
+        historical_download = self.client.get(
+            f"/api/records/{entry.platform_record_id}/attachments/{rendition.attachment_id}/content/",
+            {"revision_id": revision.pk},
+        )
+        self.assertEqual(historical_download.status_code, 200)
+        historical_download.close()
+
+    def test_source_change_during_render_rejects_capture_and_cleans_staged_pdf(self):
+        entry_data, entry = self.create_entry()
+        from mods.eln.renditions import render_document_pdf as real_render
+
+        def render_then_save(**kwargs):
+            pdf = real_render(**kwargs)
+            changed = {
+                "type": "doc",
+                "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Concurrent edit"}]}],
+            }
+            saved = self.client.put(
+                f"/api/eln/entries/{entry.display_id}/",
+                {
+                    "name": entry.name,
+                    "content": changed,
+                    "state_token": entry_data["platform_state_token"],
+                    "request_id": str(uuid4()),
+                },
+                format="json",
+            )
+            self.assertEqual(saved.status_code, 200, saved.data)
+            return pdf
+
+        with patch("mods.eln.views.render_document_pdf", side_effect=render_then_save):
+            response = self.capture(entry_data)
+
+        self.assertEqual(response.status_code, 409, response.data)
+        self.assertFalse(HistoricalRendition.objects.filter(entry=entry).exists())
+        self.assertFalse(PlatformAttachment.objects.exists())
+        self.assertFalse(ActionLogEntry.objects.filter(action="eln.entry.reviewed").exists())
+
     def test_changed_document_revision_rejects_capture_without_review_or_file(self):
         entry_data, entry = self.create_entry()
         newer = {
@@ -187,3 +242,21 @@ class ReviewRenditionApiTests(BaseTestCase):
         self.assertFalse(HistoricalRendition.objects.filter(entry=entry).exists())
         self.assertFalse(PlatformAttachment.objects.exists())
 
+    def test_deleting_entry_removes_retained_rendition_and_platform_file(self):
+        entry_data, entry = self.create_entry()
+        response = self.capture(entry_data)
+        self.assertEqual(response.status_code, 201, response.data)
+        rendition_id = response.data["id"]
+        attachment_id = response.data["attachment_id"]
+
+        deleted = self.client.delete(f"/api/eln/entries/{entry.display_id}/")
+
+        self.assertEqual(deleted.status_code, 204, getattr(deleted, "data", None))
+        self.assertFalse(HistoricalRendition.objects.filter(pk=rendition_id).exists())
+        attachment = PlatformAttachment.objects.get(pk=attachment_id)
+        self.assertFalse(attachment.revision_links.exists())
+        self.assertIsNotNone(attachment.unreferenced_at)
+        from helix_core.attachments import cleanup_staged_attachments
+
+        cleanup_staged_attachments(now=timezone.now() + timedelta(days=2))
+        self.assertFalse(PlatformAttachment.objects.filter(pk=attachment_id).exists())

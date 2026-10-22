@@ -7,7 +7,10 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import override_settings
 
 from helix_core.core.tests.base import BaseTestCase
-from helix_core.models import ActionLogEntry, ActionParticipant, PlatformRecord, RetainedContract, ScientificRevision
+from helix_core.models import (
+    ActionInvocationReceipt, ActionLogEntry, ActionParticipant, PlatformRecord,
+    RetainedContract, ScientificRevision,
+)
 from helix_core.mod_system.contracts import contract_fingerprint, canonical_json
 from helix_core.mod_system.registry import BackendModRegistry
 from helix_core.mod_system.manifest import ModManifest
@@ -198,6 +201,97 @@ class PlatformDocumentSaveTests(BaseTestCase):
             target_model_reference="eln.entry", target_object_id=str(entry.pk),
             metadata__group_key="document", metadata__revision_changed=False,
         ).exists())
+
+    def test_deleting_entry_removes_platform_history_but_keeps_unavailable_action_receipt(self):
+        created = self.create_entry()
+        entry = NotebookEntry.objects.get(pk=created["id"])
+        record = PlatformRecord.objects.get(pk=entry.platform_record_id)
+        groups = list(record.revision_groups.all())
+        revision_ids = [revision.pk for group in groups for revision in group.revisions.all()]
+        self.assertTrue(revision_ids)
+
+        action = ActionLogEntry.objects.create(
+            performed_by=self.user,
+            action="fixture.eln.document.saved",
+            action_type="edited",
+            target_model_reference="helix.record",
+            target_object_id=str(record.pk),
+        )
+        participant = ActionParticipant.objects.create(
+            action=action,
+            record=record,
+            target_model_reference="helix.record",
+            target_object_id=str(record.pk),
+            role="subject",
+        )
+        receipt = ActionInvocationReceipt.objects.create(
+            actor=self.user,
+            actor_stable_id=str(self.user.pk),
+            invocation_id="eln-delete-recovery",
+            fingerprint="a" * 64,
+            request_fingerprint="b" * 64,
+            target_ids={"record": str(record.pk), "project": record.project_id},
+            outcome={
+                "invocationId": "eln-delete-recovery",
+                "actionId": action.pk,
+                "participants": [{
+                    "targetRole": "record",
+                    "targetType": "helix.record",
+                    "targetId": str(record.pk),
+                    "role": "subject",
+                    "before": {},
+                    "after": {},
+                }],
+                "replayed": False,
+            },
+        )
+
+        response = self.client.delete(f"/api/eln/entries/{entry.display_id}/")
+        self.assertEqual(response.status_code, 204, getattr(response, "data", None))
+        self.assertFalse(NotebookEntry.objects.filter(pk=entry.pk).exists())
+        self.assertFalse(PlatformRecord.objects.filter(pk=record.pk).exists())
+        self.assertFalse(type(groups[0]).objects.filter(pk__in=[group.pk for group in groups]).exists())
+        self.assertFalse(ScientificRevision.objects.filter(pk__in=revision_ids).exists())
+
+        participant.refresh_from_db()
+        self.assertIsNone(participant.record_id)
+        self.assertEqual(participant.target_model_reference, "helix.record")
+        self.assertEqual(participant.target_object_id, str(record.pk))
+        self.assertTrue(ActionInvocationReceipt.objects.filter(pk=receipt.pk).exists())
+        recovery = self.client.get("/api/action-invocations/eln-delete-recovery/")
+        self.assertEqual(recovery.status_code, 200, recovery.data)
+        self.assertTrue(recovery.data["participants"][0]["targetUnavailable"])
+
+    def test_source_cleanup_accepts_registry_identity_for_legacy_document_groups(self):
+        from helix_core.record_persistence import delete_source_entity
+
+        created = self.create_entry()
+        entry = NotebookEntry.objects.get(pk=created["id"])
+        record = PlatformRecord.objects.get(pk=entry.platform_record_id)
+        document_group = record.revision_groups.get(group_key="document")
+        document_revision_id = document_group.current_revision_id
+        # Rows written before stable model references used the local alias.
+        type(document_group).objects.filter(pk=document_group.pk).update(
+            target_model_reference="eln.entry"
+        )
+
+        delete_source_entity(
+            NotebookEntry,
+            entry.pk,
+            target_model_reference="helix.eln:entry",
+            actor=self.user,
+        )
+
+        self.assertFalse(NotebookEntry.objects.filter(pk=entry.pk).exists())
+        self.assertFalse(PlatformRecord.objects.filter(pk=record.pk).exists())
+        self.assertFalse(type(document_group).objects.filter(pk=document_group.pk).exists())
+        self.assertFalse(ScientificRevision.objects.filter(pk=document_revision_id).exists())
+        source_delete = ActionLogEntry.objects.get(
+            action="helix.source.deleted",
+            target_model_reference="helix.eln:entry",
+            target_object_id=str(entry.pk),
+        )
+        self.assertIn(str(document_revision_id), source_delete.metadata["revision_ids"])
 
     def test_stale_save_is_rejected_without_claiming_the_old_revision(self):
         created = self.create_entry()

@@ -28,7 +28,7 @@ from bundled.access.access.scoping import visible_rows_q
 from helix_core.models import ActionLogEntry, Schema
 
 from .models import NotebookEntry, ContentVersion, EntryLock, HistoricalRendition, Protocol
-from .config import CONTENT_VERSION_REFERENCE
+from .config import CONTENT_VERSION_REFERENCE, ENTRY_MODEL_REFERENCE
 from .serializers import (
     NotebookEntrySerializer,
     NotebookEntryCreateSerializer,
@@ -259,6 +259,18 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             )
         with transaction.atomic():
             delete_source_descendants(instance, actor=self.request.user)
+            if instance.platform_record_id:
+                from helix_core.record_persistence import delete_platform_record
+
+                delete_platform_record(
+                    instance.platform_record,
+                    actor=self.request.user,
+                    source={
+                        "kind": "eln-entry",
+                        "type": ENTRY_MODEL_REFERENCE,
+                        "id": str(instance.pk),
+                    },
+                )
             super().perform_destroy(instance)
 
     @action(detail=True, methods=["post"], url_path="review")
@@ -267,9 +279,11 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         from bundled.access.access.policies import effective_role
         from helix_core.attachments import link_revision_attachments, upload_attachment
         from helix_core.models import (
-            PlatformAttachment, PlatformRecord, RecordRevisionGroup, ScientificRevision,
+            PlatformAttachment, PlatformRecord, ScientificRevision,
         )
-        from helix_core.record_persistence import StateConflict
+        from helix_core.record_persistence import (
+            StateConflict, lock_record_revision_for_update,
+        )
 
         entry = self.get_object()
         if effective_role(request.user, entry) != "edit":
@@ -322,20 +336,22 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         try:
             with transaction.atomic():
-                locked_record = PlatformRecord.objects.select_for_update().select_related(
-                    "project"
-                ).get(pk=record.pk)
+                locked_record, locked_group = lock_record_revision_for_update(
+                    actor=request.user,
+                    record_id=record.pk,
+                    group_key="document",
+                    state_token=state_token,
+                    revision_id=revision.pk,
+                )
                 locked_entry = NotebookEntry.objects.select_for_update().get(pk=entry.pk)
                 active_lock = EntryLock.objects.select_for_update().filter(entry=locked_entry).first()
                 if active_lock and not active_lock.is_stale() and active_lock.held_by_id != request.user.pk:
                     raise LockedException()
-                locked_group = RecordRevisionGroup.objects.select_for_update().get(
-                    pk=group.pk, record=locked_record, group_key="document",
-                )
                 if effective_role(request.user, locked_record) != "edit":
                     raise PermissionDenied("You do not have permission to review this entry.")
                 if (
-                    str(locked_record.state_token) != str(state_token)
+                    str(locked_group.pk) != str(group.pk)
+                    or str(locked_record.state_token) != str(state_token)
                     or str(locked_group.current_revision_id) != str(revision.pk)
                 ):
                     raise StateConflict("The document changed while its review rendition was being captured.")
@@ -603,6 +619,18 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 if not NotebookEntry.objects.filter(pk=entry.pk).exists():
                     continue
                 delete_source_descendants(entry, actor=request.user)
+                if entry.platform_record_id:
+                    from helix_core.record_persistence import delete_platform_record
+
+                    delete_platform_record(
+                        entry.platform_record,
+                        actor=request.user,
+                        source={
+                            "kind": "eln-entry",
+                            "type": ENTRY_MODEL_REFERENCE,
+                            "id": str(entry.pk),
+                        },
+                    )
                 entry.delete()
                 count += 1
         return Response({"deleted": count})

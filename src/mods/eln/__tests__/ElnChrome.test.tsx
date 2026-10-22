@@ -592,9 +592,9 @@ describe("ElnChrome", () => {
       expect(title.getAttribute("contentEditable")).toBe("true");
     });
 
-    it("shows Sign & Witness placeholder button", () => {
+    it("shows the review capture action", () => {
       renderChrome();
-      expect(screen.getByLabelText("Sign & Witness")).toBeDefined();
+      expect(screen.getByRole("button", { name: "Review and capture PDF" })).toBeDefined();
     });
 
     it("hides MoreActions when isReady is false", () => {

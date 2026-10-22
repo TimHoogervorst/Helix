@@ -192,8 +192,18 @@ def delete_source_entity(model, object_id, *, target_model_reference, actor=None
     """Retain an audit outcome and remove Platform history for a source entity."""
     from helix_core.models import ActionLogEntry, ActionParticipant, RecordRevisionGroup
 
+    entity = model.objects.select_for_update().filter(pk=object_id).first()
+    if entity is None:
+        return None
+
+    target_references = {target_model_reference}
+    if target_model_reference == "helix.eln:entry":
+        # ELN document groups created before its stable ModelReference was
+        # adopted stored the legacy short name. Include those rows while
+        # deleting through the canonical registry identity.
+        target_references.add("eln.entry")
     groups = list(RecordRevisionGroup.objects.select_for_update().filter(
-        target_model_reference=target_model_reference,
+        target_model_reference__in=target_references,
         target_object_id=str(object_id),
     ))
     revisions = [
@@ -223,6 +233,23 @@ def delete_source_entity(model, object_id, *, target_model_reference, actor=None
         group.current_revision = None
         group.save(update_fields=["current_revision"])
         group.delete()
+    linked_record_id = getattr(entity, "platform_record_id", None)
+    if linked_record_id:
+        from helix_core.models import PlatformRecord
+        try:
+            linked_record = PlatformRecord.objects.get(pk=linked_record_id)
+        except PlatformRecord.DoesNotExist:
+            linked_record = None
+        if linked_record is not None:
+            delete_platform_record(
+                linked_record,
+                actor=actor,
+                source=source or {
+                    "kind": "source-entity",
+                    "type": target_model_reference,
+                    "id": str(object_id),
+                },
+            )
     model.objects.filter(pk=object_id).delete()
     return action
 
@@ -949,6 +976,46 @@ def _lock_record_access_rows(actor, record):
     OrganizationMembership.objects.select_for_update().filter(user_id=actor.pk).first()
     through = actor.groups.through
     list(through.objects.select_for_update().filter(user_id=actor.pk).order_by("pk"))
+
+
+def lock_record_revision_for_update(
+    *, actor, record_id, group_key, state_token, revision_id,
+):
+    """Lock and revalidate an exact record Revision under the shared write protocol.
+
+    Mod-owned revision capture uses this boundary so record state, schema
+    ownership, and access grants cannot change between authorization and commit.
+    The caller must already be inside ``transaction.atomic()``.
+    """
+    from helix_core.core.models import Project
+    from helix_core.models import PlatformRecord, Schema, SchemaType
+    from bundled.access.access.policies import effective_role
+
+    try:
+        hint = PlatformRecord.objects.get(pk=record_id)
+    except (PlatformRecord.DoesNotExist, ValueError, TypeError):
+        raise NotFound("Record not found.")
+
+    Project.objects.select_for_update().get(pk=hint.project_id)
+    schema_hint = Schema.objects.only("schema_type_id").get(pk=hint.schema_id)
+    SchemaType.objects.select_for_update().get(pk=schema_hint.schema_type_id)
+    Schema.objects.select_for_update().get(pk=hint.schema_id)
+    record = PlatformRecord.objects.select_for_update().select_related(
+        "schema__schema_type", "project"
+    ).get(pk=record_id)
+    _lock_record_access_rows(actor, record)
+    if effective_role(actor, record) != "edit":
+        raise PermissionDenied("You do not have permission to edit this record.")
+    group = record.revision_groups.select_for_update().select_related(
+        "current_revision"
+    ).filter(group_key=group_key).first()
+    if (
+        group is None
+        or str(record.state_token) != str(state_token)
+        or str(group.current_revision_id) != str(revision_id)
+    ):
+        raise StateConflict("The record or Revision changed since it was loaded.")
+    return record, group
 
 
 def _authorize_invocation_replay(actor, receipt):

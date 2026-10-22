@@ -7,6 +7,7 @@ import hashlib
 import shutil
 import tempfile
 
+from django.db import transaction
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 from django.contrib.contenttypes.models import ContentType
@@ -523,6 +524,91 @@ class PlatformRecordApiTests(TestCase):
         )
         self.assertEqual(history.status_code, 200, history.data)
         self.assertEqual(history.data["snapshot"]["field_values"]["field-concentration"], old_value)
+
+    def test_exact_record_reference_uses_historical_type_after_schema_field_changes(self):
+        from helix_core.record_persistence import _resolve_record_source
+
+        cases = (
+            ("retyped", [{"id": "field-concentration", "name": "Concentration", "type": "string"}]),
+            ("removed", []),
+        )
+        for suffix, current_columns in cases:
+            with self.subTest(schema_change=suffix):
+                self.schema.schema_type.columns = [
+                    {"id": "field-concentration", "name": "Concentration", "type": "number"},
+                ]
+                self.schema.schema_type.save()
+                source = self.client.post(
+                    "/api/records/",
+                    self.create_payload(name=f"Historical {suffix}", field_values={
+                        "field-concentration": {"type": "number", "value": 1.25},
+                    }),
+                    format="json",
+                )
+                self.assertEqual(source.status_code, 201, source.data)
+                self.schema.schema_type.columns = current_columns
+                self.schema.schema_type.save()
+                with transaction.atomic():
+                    value, participant = _resolve_record_source(
+                        self.user,
+                        {"kind": "record", "reference": {
+                            "mode": "exact",
+                            "entityId": source.data["id"],
+                            "groupId": source.data["revision"]["group_id"],
+                            "revisionId": source.data["revision"]["id"],
+                            "fieldId": "field-concentration",
+                        }},
+                        {"type": "number"},
+                        "measurement",
+                    )
+                self.assertEqual(value, 1.25)
+                self.assertEqual(str(participant["revision"].pk), source.data["revision"]["id"])
+
+    def test_exact_record_reference_preserves_historical_contract_binding_after_field_removal(self):
+        from helix_core.record_persistence import _resolve_record_source
+
+        envelope = {
+            "formatVersion": 1, "kind": "data", "id": "fixture.science.exact-measurement",
+            "version": "1.0.0", "description": "Exact measurement",
+            "definition": {"type": {"type": "object", "fields": {
+                "amount": {"type": "number"},
+            }}},
+        }
+        RetainedContract.objects.create(
+            kind="data", contract_id=envelope["id"], version=envelope["version"],
+            fingerprint=contract_fingerprint(envelope),
+            canonical_envelope=canonical_json(envelope).decode("utf-8"),
+        )
+        binding = {"kind": "data", "id": envelope["id"], "version": envelope["version"]}
+        self.schema.schema_type.columns = [{
+            "id": "field-concentration", "name": "Concentration", "type": "contract",
+            "contract": binding,
+        }]
+        self.schema.schema_type.save()
+        source = self.client.post(
+            "/api/records/",
+            self.create_payload(name="Bound historical value", field_values={
+                "field-concentration": {"type": "contract", "contract": binding, "value": {"amount": 1.25}},
+            }),
+            format="json",
+        )
+        self.assertEqual(source.status_code, 201, source.data)
+        self.schema.schema_type.columns = []
+        self.schema.schema_type.save()
+
+        with transaction.atomic():
+            value, _ = _resolve_record_source(
+                self.user,
+                {"kind": "record", "reference": {
+                    "mode": "exact", "entityId": source.data["id"],
+                    "groupId": source.data["revision"]["group_id"],
+                    "revisionId": source.data["revision"]["id"],
+                    "fieldId": "field-concentration",
+                }},
+                {"type": "contract", **binding},
+                "measurement",
+            )
+        self.assertEqual(value, {"amount": 1.25})
 
     def test_form_edit_creates_one_revision_and_same_request_returns_saved_outcome(self):
         created = self.client.post("/api/records/", self.create_payload(), format="json")

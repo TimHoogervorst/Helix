@@ -96,6 +96,10 @@ function defaultProps(overrides: Partial<ElnChromeProps> = {}): ElnChromeProps {
     saveStatus: "idle",
     queueLength: 0,
     onSave: vi.fn(),
+    onReview: vi.fn(),
+    reviewing: false,
+    reviewError: null,
+    renditions: [],
     onDelete: vi.fn(),
     tags: [],
     onAddTag: vi.fn(),
@@ -126,6 +130,25 @@ afterEach(() => {
 });
 
 describe("ElnChrome", () => {
+  it("offers review capture and labels retained renditions as historical", async () => {
+    const onReview = vi.fn();
+    renderChrome({
+      onReview,
+      renditions: [{
+        id: "rendition-1", revision_id: "revision-1", revision_sequence: 2,
+        source_hash: "abc", captured_by: { username: "reviewer" },
+        captured_at: "2026-01-01T00:00:00Z", presentation_provider: "helix.eln.pdf",
+        presentation_version: "1.0.0", presentation_context: {},
+        download_url: "/api/records/record/attachments/file/content/?revision_id=revision-1",
+        kind: "historical_rendition",
+      }],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review and capture PDF" }));
+    expect(onReview).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("historical-renditions")).toHaveTextContent("Historical Renditions");
+    expect(screen.getByRole("link", { name: "Open retained PDF" })).toHaveAttribute("href", expect.stringContaining("revision_id=revision-1"));
+  });
+
   describe("loading phase", () => {
     it("renders ContentLoadingSkeleton when isReady is false", () => {
       renderChrome({ isReady: false, error: null });

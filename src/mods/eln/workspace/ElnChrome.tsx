@@ -7,7 +7,7 @@ import {
   MessageSquareOff,
   Star,
   Share2,
-  CircleCheck,
+  FileCheck2,
   Folder,
   ChevronRight,
   Trash2,
@@ -25,6 +25,7 @@ import { Button } from "../../../shell/src/shared/primitives/Button";
 import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
 import NotFound from "../../../shell/src/shared/components/NotFound";
 import type { EntryDetail, Tag, ElnAction, SourcePathSegment } from "../types";
+import type { HistoricalRendition } from "../api";
 import type { SaveStatus } from "../hooks/useSaveQueue";
 
 function formatDateShort(iso: string): string {
@@ -55,6 +56,10 @@ export interface ElnChromeProps {
   saveStatus: SaveStatus;
   queueLength: number;
   onSave: () => void;
+  onReview: () => void;
+  reviewing: boolean;
+  reviewError: string | null;
+  renditions: HistoricalRendition[];
   onDelete: () => void;
 
   tags: Tag[];
@@ -88,6 +93,10 @@ function ElnChrome({
   saveStatus,
   queueLength,
   onSave,
+  onReview,
+  reviewing,
+  reviewError,
+  renditions,
   onDelete,
   tags,
   onAddTag,
@@ -343,14 +352,17 @@ function ElnChrome({
               )}
             </Button>
 
-            {/* Sign & Witness button */}
+            {/* Review capture does not claim a cryptographic signature. */}
             <Button
               variant="primary"
-              aria-label="Sign & Witness"
-              title="Placeholder — sign & witness coming soon"
+              size="sm"
+              aria-label="Review and capture PDF"
+              title="Save the current draft and retain a PDF of its exact Revision"
+              disabled={isNew || !entry || isLockedByOther || reviewing}
+              onClick={onReview}
             >
-              <CircleCheck className="h-3.5 w-3.5" aria-hidden="true" />
-              Sign &amp; witness
+              {reviewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />}
+              {reviewing ? "Capturing…" : "Review & capture"}
             </Button>
           </div>
         </div>
@@ -373,6 +385,11 @@ function ElnChrome({
                         <strong>{lockHeldBy || "another user"}</strong>. You are viewing it
                         in read-only mode.
                       </span>
+                    </div>
+                  )}
+                  {reviewError && (
+                    <div role="alert" className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive">
+                      {reviewError}
                     </div>
                   )}
 
@@ -470,6 +487,20 @@ function ElnChrome({
                   >
                     {editor}
                   </div>
+                  {renditions.length > 0 && (
+                    <section aria-labelledby="historical-renditions-heading" className="workspace-text-column mt-8 rounded-md border border-hairline p-4" data-testid="historical-renditions">
+                      <h2 id="historical-renditions-heading" className="mb-2 font-medium">Historical Renditions</h2>
+                      <p className="mb-3 text-sm text-muted-foreground">These PDFs are retained captures of saved Revisions. A current presentation may look different.</p>
+                      <ul className="space-y-2">
+                        {renditions.map((rendition) => (
+                          <li key={rendition.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                            <span>Revision {rendition.revision_sequence} · {new Date(rendition.captured_at).toLocaleString()}</span>
+                            <a className="text-primary underline" href={rendition.download_url} target="_blank" rel="noreferrer">Open retained PDF</a>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
                   <button
                     type="button"
                     className="eln-end-of-entry workspace-text-column block w-full border-0 bg-transparent p-0 text-left"

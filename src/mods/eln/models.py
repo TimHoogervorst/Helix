@@ -1,5 +1,6 @@
 import hashlib
 import json
+import uuid
 
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericRelation
@@ -134,6 +135,48 @@ class ContentVersion(models.Model):
         """Return the next sequential version number for *entry*."""
         latest = cls.latest_for(entry)
         return (latest.version_number + 1) if latest else 1
+
+
+class HistoricalRendition(models.Model):
+    """An immutable review capture retained against one document Revision."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    entry = models.ForeignKey(
+        NotebookEntry, on_delete=models.CASCADE, related_name="historical_renditions",
+    )
+    revision = models.ForeignKey(
+        "helix_core.ScientificRevision", on_delete=models.CASCADE,
+        related_name="eln_historical_renditions",
+    )
+    attachment = models.ForeignKey(
+        "helix_core.PlatformAttachment", on_delete=models.PROTECT,
+        related_name="eln_historical_renditions",
+    )
+    source_hash = models.CharField(max_length=64)
+    captured_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    captured_by_snapshot = models.JSONField(default=dict, blank=True)
+    captured_at = models.DateTimeField()
+    presentation_provider = models.CharField(max_length=255)
+    presentation_version = models.CharField(max_length=100)
+    presentation_context = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "eln_historical_rendition"
+        ordering = ("-captured_at", "id")
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise ValueError("HistoricalRendition metadata is immutable")
+        if self.captured_by_id and not self.captured_by_snapshot:
+            from helix_core.models import user_attribution_snapshot
+
+            self.captured_by_snapshot = user_attribution_snapshot(self.captured_by)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("HistoricalRendition is immutable")
 
 
 class Protocol(models.Model):

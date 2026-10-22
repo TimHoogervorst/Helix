@@ -500,6 +500,11 @@ def save_revision_group(
         )
         group.current_revision = revision
         group.save(update_fields=["current_revision"])
+        from helix_core.attachments import link_revision_attachments
+
+        link_revision_attachments(
+            project_id=record.project_id, values=snapshot, revision=revision,
+        )
     if changed or name_changed:
         record.last_editor = actor
         record.state_token = uuid4()

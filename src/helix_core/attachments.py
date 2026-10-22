@@ -180,7 +180,6 @@ def open_revision_attachment(*, record, revision_id, attachment_id, actor):
         revision = ScientificRevision.objects.get(
             pk=revision_id,
             group__record=record,
-            group__group_key="record",
             attachment_links__attachment_id=attachment_id,
         )
         link = AttachmentRevisionLink.objects.select_related("attachment").get(

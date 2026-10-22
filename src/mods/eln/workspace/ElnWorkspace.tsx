@@ -12,7 +12,7 @@ import { TipTapRenderer } from "../../../shell/src/workspace/TipTapRenderer";
 import { elnExtensions } from "../editor/extensions/elnExtensions";
 import { useEntryWorkspace } from "../hooks/useEntryWorkspace";
 import { useTaggableItems } from "../../../bundled/labelling/tags/hooks";
-import { attachTags, detachTag } from "../api";
+import { attachTags, captureReview, detachTag, listRenditions, type HistoricalRendition } from "../api";
 import { useMentionContext } from "../../../shell/src/mentions/MentionProvider";
 import { useActivity } from "../hooks/useActivity";
 import { getRecentEditors } from "../activityHelpers";
@@ -177,6 +177,9 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const { saveStatus, lastSavedAt, queueLength, save, deleteEntry } = workspace.save;
   const { isLockedByOther, lockHeldBy } = workspace.lock;
   const { tags, pendingTagIds, addTag, removeTag } = taggableItems;
+  const [renditions, setRenditions] = useState<HistoricalRendition[]>([]);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const editorRef = useRef<Editor | null>(null);
   const savedInvocationEntryRef = useRef<typeof workspace.entry>(null);
   const [actionDefinitions, setActionDefinitions] = useState<Record<string, ActionContractDefinition>>({});
@@ -186,6 +189,37 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const portableBlocks = useMemo(() => collectPortableBlocks(workspace.editor.content), [workspace.editor.content]);
   const recordInputSources = useMemo(() => [...collectRecordSources(workspace.editor.content).entries()], [workspace.editor.content]);
   const [recordInputValues, setRecordInputValues] = useState<Record<string, { type: ContractType; value: unknown }>>({});
+
+  useEffect(() => {
+    if (!entryId || isNew) {
+      setRenditions([]);
+      return;
+    }
+    let cancelled = false;
+    void listRenditions(entryId)
+      .then((items) => { if (!cancelled) setRenditions(items); })
+      .catch(() => { if (!cancelled) setRenditions([]); });
+    return () => { cancelled = true; };
+  }, [entryId, isNew]);
+
+  const handleReview = useCallback(async () => {
+    if (isNew || !entryId || isLockedByOther) return;
+    setReviewing(true);
+    setReviewError(null);
+    try {
+      // Drain the save queue first; use the exact committed Revision it returns.
+      const saved = await workspace.save.save();
+      if (!saved?.platform_state_token || !saved.document_revision_id) {
+        throw new Error("Save the document before reviewing it.");
+      }
+      await captureReview(saved.display_id, saved.platform_state_token, saved.document_revision_id);
+      setRenditions(await listRenditions(saved.display_id));
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : "The review rendition could not be captured.");
+    } finally {
+      setReviewing(false);
+    }
+  }, [entryId, isNew, isLockedByOther, workspace.save.save]);
 
   useEffect(() => {
     let cancelled = false;
@@ -528,6 +562,10 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       saveStatus={saveStatus}
       queueLength={queueLength}
       onSave={handleSave}
+      onReview={() => { void handleReview(); }}
+      reviewing={reviewing}
+      reviewError={reviewError}
+      renditions={renditions}
       onDelete={deleteEntry}
       tags={tags}
       onAddTag={addTag}

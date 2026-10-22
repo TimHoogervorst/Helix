@@ -21,6 +21,42 @@ export interface PaginatedResponse<T> {
   results: T[];
 }
 
+export interface HistoricalRendition {
+  id: string;
+  revision_id: string;
+  revision_sequence: number;
+  source_hash: string;
+  captured_by: { id?: string; username?: string; displayName?: string };
+  captured_at: string;
+  presentation_provider: string;
+  presentation_version: string;
+  presentation_context: Record<string, unknown>;
+  download_url: string;
+  kind: "historical_rendition";
+}
+
+export interface ReviewCapture extends Omit<HistoricalRendition, "revision_sequence" | "captured_by" | "kind"> {
+  attachment_id: string;
+}
+
+export function captureReview(
+  displayId: string,
+  stateToken: string,
+  revisionId: string,
+): Promise<ReviewCapture> {
+  return post<ReviewCapture>(`/eln/entries/${displayId}/review/`, {
+    state_token: stateToken,
+    revision_id: revisionId,
+  });
+}
+
+export async function listRenditions(displayId: string): Promise<HistoricalRendition[]> {
+  const response = await get<{ results: HistoricalRendition[] }>(
+    `/eln/entries/${displayId}/renditions/`,
+  );
+  return response.results;
+}
+
 /** List ELN entries with optional pagination. */
 export async function listEntries(url?: string): Promise<PaginatedResponse<EntryListItem>> {
   const path = url

@@ -8,6 +8,9 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 
 from django.utils.dateparse import parse_datetime
 from django.http import Http404
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException, PermissionDenied, ValidationError as DRFValidationError
@@ -24,8 +27,8 @@ from bundled.access.access.scoping import visible_rows_q
 
 from helix_core.models import ActionLogEntry, Schema
 
-from .models import NotebookEntry, ContentVersion, EntryLock, Protocol
-from .config import CONTENT_VERSION_REFERENCE
+from .models import NotebookEntry, ContentVersion, EntryLock, HistoricalRendition, Protocol
+from .config import CONTENT_VERSION_REFERENCE, ENTRY_MODEL_REFERENCE
 from .serializers import (
     NotebookEntrySerializer,
     NotebookEntryCreateSerializer,
@@ -35,6 +38,10 @@ from .serializers import (
     ProtocolSerializer,
 )
 from .sync import sync_entry_content
+from .renditions import (
+    PRESENTATION_PROVIDER, PRESENTATION_VERSION, embedded_resource_count,
+    render_document_pdf,
+)
 
 eln_logger = logging.getLogger(__name__)
 
@@ -48,6 +55,12 @@ class LockedException(APIException):
     status_code = 423
     default_detail = "This entry is currently being edited by another user."
     default_code = "locked"
+
+
+class ReviewCaptureUnavailable(APIException):
+    status_code = 503
+    default_detail = "The ELN review rendition could not be captured."
+    default_code = "rendition_capture_failed"
 
 
 class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
@@ -246,7 +259,207 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             )
         with transaction.atomic():
             delete_source_descendants(instance, actor=self.request.user)
+            if instance.platform_record_id:
+                from helix_core.record_persistence import delete_platform_record
+
+                delete_platform_record(
+                    instance.platform_record,
+                    actor=self.request.user,
+                    source={
+                        "kind": "eln-entry",
+                        "type": ENTRY_MODEL_REFERENCE,
+                        "id": str(instance.pk),
+                    },
+                )
             super().perform_destroy(instance)
+
+    @action(detail=True, methods=["post"], url_path="review")
+    def review(self, request, display_id=None):
+        """Capture and retain a self-contained PDF for the selected saved Revision."""
+        from bundled.access.access.policies import effective_role
+        from helix_core.attachments import link_revision_attachments, upload_attachment
+        from helix_core.models import (
+            PlatformAttachment, PlatformRecord, ScientificRevision,
+        )
+        from helix_core.record_persistence import (
+            StateConflict, lock_record_revision_for_update,
+        )
+
+        entry = self.get_object()
+        if effective_role(request.user, entry) != "edit":
+            raise PermissionDenied("You do not have permission to review this entry.")
+        record = entry.platform_record
+        if record is None:
+            raise StateConflict("Save the document before reviewing it.")
+
+        state_token = request.data.get("state_token")
+        revision_id = request.data.get("revision_id")
+        if not state_token or not revision_id:
+            raise DRFValidationError({"review": "state_token and revision_id are required."})
+        group = record.revision_groups.filter(group_key="document").select_related(
+            "current_revision"
+        ).first()
+        revision = group.current_revision if group else None
+        if (
+            revision is None
+            or str(revision.pk) != str(revision_id)
+            or str(record.state_token) != str(state_token)
+        ):
+            raise StateConflict("Review requires the exact current saved document Revision.")
+        if not isinstance(revision.snapshot, dict) or revision.snapshot.get("document") != entry.content:
+            raise StateConflict("The ELN document and its current Platform Revision disagree.")
+
+        source_snapshot = revision.snapshot
+        source_hash = revision.content_hash
+        captured_at = timezone.now()
+        try:
+            pdf_bytes = render_document_pdf(
+                entry_name=entry.name,
+                revision_snapshot=source_snapshot,
+                project_id=record.project_id,
+            )
+            pdf_upload = ContentFile(
+                pdf_bytes,
+                name=f"{entry.display_id}-revision-{revision.sequence}-review.pdf",
+            )
+            pdf_upload.content_type = "application/pdf"
+            uploaded = upload_attachment(
+                project=record.project,
+                actor=request.user,
+                uploaded_file=pdf_upload,
+            )
+        except Exception as exc:
+            if isinstance(exc, (DRFValidationError, PermissionDenied, StateConflict)):
+                raise
+            eln_logger.exception("Failed to render ELN review rendition")
+            raise ReviewCaptureUnavailable() from exc
+
+        try:
+            with transaction.atomic():
+                locked_record, locked_group = lock_record_revision_for_update(
+                    actor=request.user,
+                    record_id=record.pk,
+                    group_key="document",
+                    state_token=state_token,
+                    revision_id=revision.pk,
+                )
+                locked_entry = NotebookEntry.objects.select_for_update().get(pk=entry.pk)
+                active_lock = EntryLock.objects.select_for_update().filter(entry=locked_entry).first()
+                if active_lock and not active_lock.is_stale() and active_lock.held_by_id != request.user.pk:
+                    raise LockedException()
+                if effective_role(request.user, locked_record) != "edit":
+                    raise PermissionDenied("You do not have permission to review this entry.")
+                if (
+                    str(locked_group.pk) != str(group.pk)
+                    or str(locked_record.state_token) != str(state_token)
+                    or str(locked_group.current_revision_id) != str(revision.pk)
+                ):
+                    raise StateConflict("The document changed while its review rendition was being captured.")
+                locked_revision = ScientificRevision.objects.get(
+                    pk=revision.pk, group=locked_group,
+                )
+                if (
+                    locked_revision.content_hash != source_hash
+                    or locked_revision.snapshot != source_snapshot
+                    or locked_entry.platform_record_id != locked_record.pk
+                ):
+                    raise StateConflict("The document changed while its review rendition was being captured.")
+
+                link_revision_attachments(
+                    project_id=locked_record.project_id,
+                    values={"type": "attachmentReference", "value": {"id": str(uploaded.pk)}},
+                    revision=locked_revision,
+                )
+                presentation_context = {
+                    "format": "pdf",
+                    "renderingMode": "saved-document-generic",
+                    "embeddedSource": "source-document.json",
+                    "embeddedResourceCount": embedded_resource_count(source_snapshot),
+                }
+                rendition = HistoricalRendition.objects.create(
+                    entry=locked_entry,
+                    revision=locked_revision,
+                    attachment=uploaded,
+                    source_hash=source_hash,
+                    captured_by=request.user,
+                    captured_at=captured_at,
+                    presentation_provider=PRESENTATION_PROVIDER,
+                    presentation_version=PRESENTATION_VERSION,
+                    presentation_context=presentation_context,
+                )
+                from helix_core.actions import VersionTarget, log_action
+
+                log_action(
+                    user=request.user,
+                    action="eln.entry.reviewed",
+                    target_type="eln.entry",
+                    target_id=locked_entry.pk,
+                    action_type="reviewed",
+                    request_id=uuid.uuid4(),
+                    version_target=VersionTarget(
+                        reference="helix.record.revision",
+                        object_id=str(locked_revision.pk),
+                        label=str(locked_revision.sequence),
+                        content_hash=source_hash,
+                    ),
+                    metadata={
+                        "record_id": str(locked_record.pk),
+                        "group_id": str(locked_group.pk),
+                        "group_key": "document",
+                        "revision_id": str(locked_revision.pk),
+                        "source_hash": source_hash,
+                        "rendition_id": str(rendition.pk),
+                        "attachment_id": str(uploaded.pk),
+                        "captured_at": captured_at.isoformat(),
+                        "presentation_provider": PRESENTATION_PROVIDER,
+                        "presentation_version": PRESENTATION_VERSION,
+                    },
+                )
+            return Response({
+                "id": str(rendition.pk),
+                "revision_id": str(revision.pk),
+                "source_hash": source_hash,
+                "attachment_id": str(uploaded.pk),
+                "download_url": f"/api/records/{record.pk}/attachments/{uploaded.pk}/content/?revision_id={revision.pk}",
+                "captured_at": captured_at.isoformat(),
+                "presentation_provider": PRESENTATION_PROVIDER,
+                "presentation_version": PRESENTATION_VERSION,
+                "presentation_context": presentation_context,
+            }, status=status.HTTP_201_CREATED)
+        except Exception:
+            # Database rollback leaves the attachment as an unreferenced stage.
+            # Remove both staged bytes and the stage row, so no dangling file
+            # remains after a failed review or audit write.
+            default_storage.delete(uploaded.storage_key)
+            PlatformAttachment.objects.filter(pk=uploaded.pk, status="staged").delete()
+            raise
+
+    @action(detail=True, methods=["get"], url_path="renditions")
+    def renditions(self, request, display_id=None):
+        """List immutable captures while applying the entry's current access policy."""
+        from bundled.access.access.policies import effective_role
+
+        entry = self.get_object()
+        if effective_role(request.user, entry) not in {"read", "edit"}:
+            raise PermissionDenied("You do not have permission to read this entry's history.")
+        results = []
+        for rendition in entry.historical_renditions.select_related(
+            "revision", "attachment"
+        ).all():
+            results.append({
+                "id": str(rendition.pk),
+                "revision_id": str(rendition.revision_id),
+                "revision_sequence": rendition.revision.sequence,
+                "source_hash": rendition.source_hash,
+                "captured_by": rendition.captured_by_snapshot,
+                "captured_at": rendition.captured_at.isoformat(),
+                "presentation_provider": rendition.presentation_provider,
+                "presentation_version": rendition.presentation_version,
+                "presentation_context": rendition.presentation_context,
+                "download_url": f"/api/records/{entry.platform_record_id}/attachments/{rendition.attachment_id}/content/?revision_id={rendition.revision_id}",
+                "kind": "historical_rendition",
+            })
+        return Response({"results": results})
 
     @transaction.atomic
     def perform_update(self, serializer):
@@ -406,6 +619,18 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 if not NotebookEntry.objects.filter(pk=entry.pk).exists():
                     continue
                 delete_source_descendants(entry, actor=request.user)
+                if entry.platform_record_id:
+                    from helix_core.record_persistence import delete_platform_record
+
+                    delete_platform_record(
+                        entry.platform_record,
+                        actor=request.user,
+                        source={
+                            "kind": "eln-entry",
+                            "type": ENTRY_MODEL_REFERENCE,
+                            "id": str(entry.pk),
+                        },
+                    )
                 entry.delete()
                 count += 1
         return Response({"deleted": count})

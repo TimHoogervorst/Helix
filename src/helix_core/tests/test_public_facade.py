@@ -207,15 +207,17 @@ def test_packaged_manifest_is_loaded_from_entry_point_package_without_importing_
     assert loaded.version == "1.2.3"
 
 
-def test_public_mod_composition_resolves_explicit_packages_in_dependency_order():
+def test_public_mod_composition_resolves_platform_owned_fixture_without_external_mods(monkeypatch):
     from helix_core.public import get_bundled_mod_packages, get_mod_app_configs
+    from helix_core.mod_system import loader
 
+    monkeypatch.setattr(loader, "get_helix_mods", lambda *, base_dir=None, helix_mods_override=None: list(helix_mods_override or []))
     bundled = get_bundled_mod_packages()
-    apps = get_mod_app_configs([*bundled, "mods.eln"])
+    apps = get_mod_app_configs([*bundled, "fixture.platform_records"])
 
-    assert "mods.eln" in apps
-    assert apps.index("bundled.lims") < apps.index("mods.eln")
-    assert apps.index("bundled.labelling.tags") < apps.index("mods.eln")
+    assert "fixture.platform_records" in apps
+    assert apps.index("bundled.lims") < apps.index("fixture.platform_records")
+    assert apps.index("bundled.labelling.tags") < apps.index("fixture.platform_records")
     assert get_mod_app_configs(bundled) == get_mod_app_configs(list(bundled))
 
 

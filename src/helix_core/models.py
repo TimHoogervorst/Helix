@@ -473,6 +473,37 @@ class AttachmentRevisionLink(models.Model):
         constraints = [models.UniqueConstraint(fields=("revision", "attachment"), name="helix_attachment_revision_uniq")]
 
 
+class PlatformRendition(models.Model):
+    """Platform-owned immutable presentation artifact for an exact Revision."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    record = models.ForeignKey(PlatformRecord, on_delete=models.CASCADE, related_name="renditions")
+    group = models.ForeignKey(RecordRevisionGroup, on_delete=models.CASCADE, related_name="renditions")
+    revision = models.ForeignKey(ScientificRevision, on_delete=models.CASCADE, related_name="renditions")
+    attachment = models.ForeignKey(PlatformAttachment, on_delete=models.PROTECT, related_name="renditions")
+    source_hash = models.CharField(max_length=64)
+    captured_by = models.ForeignKey("core.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    captured_by_snapshot = models.JSONField(default=dict, blank=True)
+    captured_at = models.DateTimeField(default=timezone.now)
+    presentation_provider = models.CharField(max_length=255)
+    presentation_version = models.CharField(max_length=100)
+    presentation_context = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "helix_platform_rendition"
+        ordering = ("-captured_at", "id")
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise ValueError("PlatformRendition metadata is immutable")
+        if self.captured_by_id and not self.captured_by_snapshot:
+            self.captured_by_snapshot = user_attribution_snapshot(self.captured_by)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("PlatformRendition is immutable")
+
+
 @receiver(post_delete, sender=AttachmentRevisionLink)
 def mark_attachment_unreferenced(sender, instance, **kwargs):
     attachment = instance.attachment

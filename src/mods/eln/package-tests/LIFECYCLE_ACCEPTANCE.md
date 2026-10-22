@@ -10,6 +10,36 @@ unchanged `COMPOSE_PROJECT_NAME`. It mounts a named media volume and uses
 post-migrate contract-retention/activation hooks, then starts the server. It
 does not run `makemigrations`, fixture seeding, flush, reset, or cleanup.
 
+## Readiness and race checks
+
+Before D2, run the non-mutating readiness check from the checkout that owns
+both compose files. It checks the Docker CLI, daemon, merged Compose config,
+and current service status; it does not start services or inspect/delete
+volumes:
+
+```sh
+python src/mods/eln/package-tests/lifecycle_acceptance.py preflight \
+  --checkout /path/to/independent/checkout \
+  --compose-project helix-eln-d2d4-2026-10
+```
+
+If this fails at `Docker daemon`, resolve Docker Desktop/Engine availability
+before starting D2. In particular, a Windows named-pipe error means the
+acceptance run has not started; it is not evidence for D3 or D4.
+
+The Platform race suites use independent PostgreSQL connections and row locks.
+From `src/`, run them against the same disposable PostgreSQL service used for
+acceptance:
+
+```sh
+pytest helix_core/tests/test_platform_action_invocations_postgres.py \
+  helix_core/tests/test_platform_attachments_postgres.py -q
+```
+
+SQLite runs skip these PostgreSQL-only cases and cannot establish their race
+guarantees. The D2-D4 run below is a separate live-data acceptance; passing
+the unit race suites does not count as completing it.
+
 ## D2: create and capture the real data
 
 1. In the independent deployment checkout, set a run-specific project name

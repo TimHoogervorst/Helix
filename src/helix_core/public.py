@@ -682,6 +682,44 @@ def save_revision_group(**values: Any) -> dict[str, Any]:
     return persist(**values)
 
 
+def retain_rendition(**values: Any) -> Any:
+    """Retain immutable presentation metadata against an exact Platform Revision."""
+    from helix_core.models import (
+        AttachmentRevisionLink, PlatformAttachment, PlatformRecord,
+        PlatformRendition, RecordRevisionGroup, ScientificRevision,
+    )
+    from django.core.exceptions import ValidationError
+
+    record = PlatformRecord.objects.get(pk=values["record_id"])
+    actor = values.get("actor")
+    from bundled.access.access.policies import role
+    if actor is None or role(actor, record.project) != "edit":
+        from rest_framework.exceptions import PermissionDenied
+        raise PermissionDenied("You do not have permission to retain a rendition for this record.")
+    group = RecordRevisionGroup.objects.get(pk=values["group_id"], record=record)
+    revision = ScientificRevision.objects.get(pk=values["revision_id"], group=group)
+    attachment = PlatformAttachment.objects.get(pk=values["attachment_id"], project_id=record.project_id)
+    if revision.content_hash != values["source_hash"]:
+        raise ValidationError("Rendition source hash must match the exact Platform Revision.")
+    if not AttachmentRevisionLink.objects.filter(revision=revision, attachment=attachment).exists():
+        raise ValidationError("Rendition attachment must be retained by the exact Revision.")
+    return PlatformRendition.objects.create(
+        record=record, group=group, revision=revision, attachment=attachment,
+        source_hash=values["source_hash"], captured_by=actor,
+        captured_at=values["captured_at"],
+        presentation_provider=values["presentation_provider"],
+        presentation_version=values["presentation_version"],
+        presentation_context=values.get("presentation_context") or {},
+    )
+
+
+def list_renditions(record_id: str, *, revision_id: str | None = None) -> list[dict[str, Any]]:
+    """List retained Platform presentation artifacts for a record or exact Revision."""
+    from helix_core.attachments import rendition_metadata
+
+    return rendition_metadata(record_id=record_id, revision_id=revision_id)
+
+
 def record_action_state(record_id: str) -> dict[str, Any]:
     """Return the concurrency state required to invoke a Record Action.
 

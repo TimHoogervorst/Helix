@@ -170,6 +170,33 @@ def attachment_metadata(snapshot, *, record_id=None, revision_id=None):
     return result
 
 
+def rendition_metadata(*, record_id, revision_id=None):
+    """List Platform-retained presentation artifacts for an exact Revision."""
+    from helix_core.models import PlatformRendition
+
+    return [{
+        "id": str(row.pk), "record_id": str(row.record_id),
+        "group_id": str(row.group_id), "revision_id": str(row.revision_id),
+        "revision_sequence": row.revision.sequence,
+        "source_hash": row.source_hash,
+        "captured_by": row.captured_by_snapshot or None,
+        "captured_at": row.captured_at.isoformat(),
+        "presentation_provider": row.presentation_provider,
+        "presentation_version": row.presentation_version,
+        "presentation_context": row.presentation_context,
+        "attachment_id": str(row.attachment_id),
+        "filename": row.attachment.filename,
+        "media_type": row.attachment.media_type,
+        "size": row.attachment.size,
+        "rendition_hash": row.attachment.sha256,
+        "download_url": f"/api/records/{record_id}/attachments/{row.attachment_id}/content/?revision_id={row.revision_id}",
+        "kind": "historical_rendition",
+    } for row in PlatformRendition.objects.select_related("attachment", "revision").filter(
+        record_id=record_id,
+        **({"revision_id": revision_id} if revision_id is not None else {}),
+    ).order_by("captured_at", "pk")]
+
+
 def open_revision_attachment(*, record, revision_id, attachment_id, actor):
     from bundled.access.access.policies import role
     from helix_core.models import AttachmentRevisionLink, ScientificRevision

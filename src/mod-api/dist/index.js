@@ -7,8 +7,8 @@ import { j as n } from "./jsx-runtime-BzflLqGi.js";
 import { createContext as M, useState as p, useEffect as C, useCallback as j, useMemo as g, useContext as B, useRef as F } from "react";
 import b from "./chevron-right-Df9XrNWg.js";
 import y from "./chevron-left-xHQCqUAL.js";
-import { u as S, i as k } from "./editor-CMfF8bXZ.js";
-import { T as ke } from "./editor-CMfF8bXZ.js";
+import { r as S, i as k } from "./editor-By1elTEQ.js";
+import { T as ke } from "./editor-By1elTEQ.js";
 import "@tiptap/react";
 import { ApiError as Re, NetworkError as Ie, del as Ae, get as Ee, getText as Pe, isNotFoundError as Te, patch as Me, post as Be, put as Fe } from "./api.js";
 import "react-dom";
@@ -327,7 +327,7 @@ function te(e) {
             },
             s.id
           );
-        const d = s.component, c = i.actionContext ?? S(), x = i.invokeAction ?? k, m = {
+        const d = s.component, c = S(i.actionContext), x = i.invokeAction ?? k, m = {
           id: `${s.id}::static`,
           blockId: s.id,
           slotId: a,
@@ -363,7 +363,7 @@ function J({
   bus: a,
   context: o
 }) {
-  const i = e.component, r = D(e, t, a), f = o.actionContext ?? S(), u = o.invokeAction ?? k, l = g(
+  const i = e.component, r = D(e, t, a), f = S(o.actionContext), u = o.invokeAction ?? k, l = g(
     () => ({
       ...o,
       emitAction: (s, d) => {

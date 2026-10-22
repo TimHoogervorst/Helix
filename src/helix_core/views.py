@@ -915,7 +915,7 @@ class PlatformRecordDetailView(APIView):
         return Response(response)
 
     def get_revisions(self, request, record_id):
-        from helix_core.attachments import attachment_metadata
+        from helix_core.attachments import attachment_metadata, rendition_metadata
         record = self.get_record(request, record_id)
         revisions = []
         for group in record.revision_groups.prefetch_related("revisions").all():
@@ -930,6 +930,7 @@ class PlatformRecordDetailView(APIView):
                         "content_hash": revision.content_hash,
                         "snapshot": revision.snapshot,
                         "attachments": attachment_metadata(revision.snapshot, record_id=record.pk, revision_id=revision.pk),
+                        "renditions": rendition_metadata(record_id=record.pk, revision_id=revision.pk),
                         "created_by": revision.created_by_snapshot or None,
                         "created_at": revision.created_at,
                     }
@@ -999,7 +1000,7 @@ class PlatformRecordGroupHistoryView(PlatformRecordDetailView):
         from helix_core.models import RecordRevisionGroup
 
         record = self.get_record(request, record_id)
-        from helix_core.attachments import attachment_metadata
+        from helix_core.attachments import attachment_metadata, rendition_metadata
         try:
             group = RecordRevisionGroup.objects.get(pk=group_id, record=record)
         except (RecordRevisionGroup.DoesNotExist, ValueError):
@@ -1014,6 +1015,7 @@ class PlatformRecordGroupHistoryView(PlatformRecordDetailView):
                 "sequence": revision.sequence, "content_hash": revision.content_hash,
                 "snapshot": revision.snapshot, "created_at": revision.created_at,
                 "attachments": attachment_metadata(revision.snapshot, record_id=record.pk, revision_id=revision.pk),
+                "renditions": rendition_metadata(record_id=record.pk, revision_id=revision.pk),
             })
         page, page_size = _record_page_params(request)
         revisions = group.revisions.order_by("-sequence")
@@ -1165,8 +1167,9 @@ class PlatformRecordExportView(PlatformRecordDetailView):
             envelope = parse_contract_json(retained.canonical_envelope)
             definitions[identity] = {"fingerprint": retained.fingerprint, "envelope": envelope}
             pending.extend(_contract_references(envelope["definition"]))
-        from helix_core.attachments import attachment_metadata
+        from helix_core.attachments import attachment_metadata, rendition_metadata
         attachments = attachment_metadata(state["snapshot"] or {"field_values": values})
+        renditions = rendition_metadata(record_id=record.pk, revision_id=state["revision_id"]) if state["revision_id"] else []
         attachment_capability = {"available": True}
         return Response({
             "formatVersion": 1, "record": {
@@ -1179,6 +1182,7 @@ class PlatformRecordExportView(PlatformRecordDetailView):
             "definitions": [{"kind": kind, "id": contract_id, "version": version, **entry}
                             for (kind, contract_id, version), entry in sorted(definitions.items())],
             "attachments": attachments,
+            "renditions": renditions,
             "capabilities": {
                 "viewer": {"available": False, "reason": "No optional specialized viewer is installed; generic inspection is available."},
                 "attachmentMetadata": attachment_capability,

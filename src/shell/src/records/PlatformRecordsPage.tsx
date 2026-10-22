@@ -122,15 +122,15 @@ export default function PlatformRecordsPage() {
       <main className="mx-auto w-full max-w-5xl space-y-5 p-6" aria-labelledby="platform-records-title">
         <header><h1 id="platform-records-title" className="text-title font-[var(--font-label)]">Platform Records</h1>
           <p className="text-meta">Current retained records. History does not add duplicate rows to this count.</p></header>
-        <label className="block max-w-lg font-[var(--font-label)] text-sm">Search records
+        <label className="block max-w-lg font-[var(--font-label)] text-[length:var(--text-sm)]">Search records
           <Input value={search} onChange={(event) => { setPage(1); setSearch(event.target.value); }} placeholder="Name" />
         </label>
         {error && <p role="alert">{error}</p>}
         {loading ? <p role="status">Loading records…</p> : <p>{count} current records</p>}
         <ul className="divide-y divide-[var(--color-ink-border)]">
           {records.map((item) => <li key={item.id} className="py-3">
-            <Link className="font-[var(--font-body)] font-medium text-primary underline" to={`/records/${encodeURIComponent(item.id)}`}>{item.name}</Link>
-            <span className="ml-2 font-mono text-meta">{item.display_id}</span>
+            <Link className="font-[var(--font-body)] font-medium text-[var(--color-primary)] underline" to={`/records/${encodeURIComponent(item.id)}`}>{item.name}</Link>
+            <span className="ml-2 font-[var(--font-label)] text-meta">{item.display_id}</span>
           </li>)}
         </ul>
         <div className="flex items-center gap-3"><Button variant="ghost" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Previous</Button>
@@ -139,7 +139,7 @@ export default function PlatformRecordsPage() {
     );
   }
 
-  if (error) return <main className="mx-auto max-w-5xl space-y-4 p-6"><Link to="/records" className="text-primary underline">All records</Link><p role="alert">{error}</p></main>;
+  if (error) return <main className="mx-auto max-w-5xl space-y-4 p-6"><Link to="/records" className="text-[var(--color-primary)] underline">All records</Link><p role="alert">{error}</p></main>;
   if (loading || !record) return <main className="p-6" role="status">Loading retained record…</main>;
 
   const shownValues = revision?.snapshot.field_values as Record<string, unknown> | undefined;
@@ -157,59 +157,76 @@ export default function PlatformRecordsPage() {
   return (
     <main className="mx-auto w-full max-w-5xl space-y-6 p-6" aria-labelledby="record-title">
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div><Link to="/records" className="text-sm text-primary underline">All records</Link>
+        <div><Link to="/records" className="text-[length:var(--text-sm)] text-[var(--color-primary)] underline">All records</Link>
         <h1 id="record-title" className="mt-2 text-title font-[var(--font-label)]">{record.name}</h1>
-        <p className="font-mono text-meta">{record.display_id}</p></div>
+        <p className="font-[var(--font-label)] text-meta">{record.display_id}</p></div>
         <Button onClick={() => void exportSelected()}>Export JSON</Button>
       </header>
       {historical && <p className="rounded-md border border-[var(--color-ink-border)] p-3" role="status">
         Historical group snapshot · {revision.group_key} · Revision {revision.sequence} · {revision.id}
       </p>}
-      {!historical && <p className="text-sm">Current record state · Revision {record.revision?.sequence ?? "unavailable"}</p>}
+      {!historical && <p className="text-[length:var(--text-sm)]">Current record state · Revision {record.revision?.sequence ?? "unavailable"}</p>}
       {recordExport?.capabilities.viewer.available === false && <UnavailableRecordCapability capability="Specialized viewer" reason={recordExport.capabilities.viewer.reason ?? "No compatible viewer is active."} />}
       {definitionError && <UnavailableRecordCapability capability="Contract definitions" reason="The retained definition closure is unavailable." />}
       <section aria-labelledby="record-values-title" className="space-y-3">
-        <h2 id="record-values-title" className="text-lg font-semibold">{historical ? "Historical values" : "Current values"}</h2>
+        <h2 id="record-values-title" className="text-[length:var(--text-lg)] font-semibold">{historical ? "Historical values" : "Current values"}</h2>
         {Object.entries(values ?? {}).map(([fieldId, value]) => <article key={fieldId} className="rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-4">
           <h3 className="mb-2 font-medium">{fieldId}</h3><RecordValueInspector value={value} definitions={recordExport?.definitions} />
         </article>)}
       </section>
       <section aria-labelledby="record-attachments-title" className="space-y-3">
-        <h2 id="record-attachments-title" className="text-lg font-semibold">{historical ? "Files retained by this Revision" : "Current files"}</h2>
+        <h2 id="record-attachments-title" className="text-[length:var(--text-lg)] font-semibold">{historical ? "Files retained by this Revision" : "Current files"}</h2>
         {(recordExport?.attachments ?? []).length === 0 ? <p>No files are retained by this state.</p> :
           <ul className="divide-y divide-[var(--color-ink-hairline)]">
             {recordExport?.attachments.map((file) => <li key={file.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
               <div><p className="font-medium">{file.filename}</p>
-                <p className="text-sm text-muted-foreground">{file.mediaType} · {file.size} bytes · SHA-256 {file.sha256}</p></div>
-              <a className="text-primary underline" href={file.downloadUrl} download>Download retained file</a>
+                <p className="text-[length:var(--text-sm)] text-[var(--color-ink-muted-foreground)]">{file.mediaType} · {file.size} bytes · SHA-256 {file.sha256}</p></div>
+              <a className="text-[var(--color-primary)] underline" href={file.downloadUrl} download>Download retained file</a>
+            </li>)}
+          </ul>}
+      </section>
+      <section aria-labelledby="record-renditions-title" className="space-y-3">
+        <h2 id="record-renditions-title" className="font-[var(--font-label)] text-[length:var(--text-lg)] font-semibold">Historical renditions</h2>
+        {(recordExport?.renditions ?? []).length === 0 ? <p className="text-meta">No retained presentation artifacts exist for this exact Revision.</p> :
+          <ul className="divide-y divide-[var(--color-ink-hairline)]">
+            {recordExport?.renditions?.map((rendition) => <li key={rendition.id} className="space-y-1 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="font-[var(--font-label)] text-data">Captured {new Date(rendition.captured_at).toLocaleString()}</p>
+                <a className="font-[var(--font-body)] text-[length:var(--text-sm)] text-[var(--color-primary)] underline" href={rendition.download_url} download>Open retained rendition</a>
+              </div>
+              <p className="text-meta">Captured by {String(rendition.captured_by?.displayName ?? rendition.captured_by?.username ?? "Unavailable")}</p>
+              <p className="text-meta">Source record {rendition.record_id} · group {rendition.group_id} · Revision {rendition.revision_id}</p>
+              <p className="text-meta">Source SHA-256 {rendition.source_hash} · rendition SHA-256 {rendition.rendition_hash}</p>
+              <p className="text-meta">{rendition.filename} · {rendition.media_type} · {rendition.size} bytes · {rendition.presentation_provider}@{rendition.presentation_version}</p>
+              <p className="text-meta">Capture context: {JSON.stringify(rendition.presentation_context)}</p>
             </li>)}
           </ul>}
       </section>
       <section aria-labelledby="record-history-title" className="space-y-3">
-        <h2 id="record-history-title" className="text-lg font-semibold">Group history</h2>
+        <h2 id="record-history-title" className="text-[length:var(--text-lg)] font-semibold">Group history</h2>
         {history.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 border-b border-[var(--color-ink-hairline)] py-2">
           <span>Revision {item.sequence} · {item.id}</span>
-          <Link className="text-primary underline" to={`/records/${encodeURIComponent(record.id)}?group_id=${encodeURIComponent(groupId ?? currentGroupId)}&revision_id=${encodeURIComponent(item.id)}`}>Open exact Revision</Link>
+          <Link className="text-[var(--color-primary)] underline" to={`/records/${encodeURIComponent(record.id)}?group_id=${encodeURIComponent(groupId ?? currentGroupId)}&revision_id=${encodeURIComponent(item.id)}`}>Open exact Revision</Link>
         </div>)}
       </section>
       <section aria-labelledby="record-operations-title" className="space-y-3">
-        <h2 id="record-operations-title" className="text-lg font-semibold">Declared operations</h2>
-        <p className="text-sm text-muted-foreground">Declarations are retained for inspection; opening this record does not execute provider code.</p>
+        <h2 id="record-operations-title" className="text-[length:var(--text-lg)] font-semibold">Declared operations</h2>
+        <p className="text-[length:var(--text-sm)] text-[var(--color-ink-muted-foreground)]">Declarations are retained for inspection; opening this record does not execute provider code.</p>
         {declaredOperations.length === 0 ? <p>No exact Action Contract declarations are linked from this saved content.</p> : declaredOperations.map((item) => {
           const envelope = item.envelope as { description?: string; definition?: { inputs?: unknown; parameters?: unknown; outputs?: unknown } };
           return <article key={`${item.id}@${item.version}`} className="rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-card)] p-3">
             <h3 className="font-medium">{item.id}@{item.version}</h3><p>{envelope.description}</p>
-            <pre className="overflow-auto text-xs">{JSON.stringify({ inputs: envelope.definition?.inputs, parameters: envelope.definition?.parameters, outputs: envelope.definition?.outputs }, null, 2)}</pre>
+            <pre className="overflow-auto text-[length:var(--text-xs)]">{JSON.stringify({ inputs: envelope.definition?.inputs, parameters: envelope.definition?.parameters, outputs: envelope.definition?.outputs }, null, 2)}</pre>
           </article>;
         })}
       </section>
       <section aria-labelledby="record-activity-title" className="space-y-3">
-        <h2 id="record-activity-title" className="text-lg font-semibold">Activity</h2>
+        <h2 id="record-activity-title" className="text-[length:var(--text-lg)] font-semibold">Activity</h2>
         {activity.map((item) => <article key={item.id} className="border-b border-[var(--color-ink-hairline)] py-3">
           <p className="font-[var(--font-label)] font-medium">{item.action}</p><time className="text-meta">{item.created_at}</time>
           {item.descriptions.map((description, index) => <p key={`${item.id}.${index}`}>{description}</p>)}
-          <p className="text-sm">Participation: {item.subject.roles.join(", ")}</p>
-          {[...item.before, ...item.after].map((exact) => <Link key={`${exact.group_id}.${exact.revision_id}`} className="mr-3 text-primary underline" to={`/records/${encodeURIComponent(record.id)}?group_id=${encodeURIComponent(exact.group_id)}&revision_id=${encodeURIComponent(exact.revision_id)}`}>Open exact Revision {exact.revision_id}</Link>)}
+          <p className="text-[length:var(--text-sm)]">Participation: {item.subject.roles.join(", ")}</p>
+          {[...item.before, ...item.after].map((exact) => <Link key={`${exact.group_id}.${exact.revision_id}`} className="mr-3 text-[var(--color-primary)] underline" to={`/records/${encodeURIComponent(record.id)}?group_id=${encodeURIComponent(exact.group_id)}&revision_id=${encodeURIComponent(exact.revision_id)}`}>Open exact Revision {exact.revision_id}</Link>)}
         </article>)}
       </section>
     </main>

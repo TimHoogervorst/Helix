@@ -1,5 +1,6 @@
 import { get, post } from "./client";
 import type { ActionInvocationOutcome, ActionInvocationRequest } from "../mod-system/types";
+import type { ActionStepContext } from "../mod-system/types";
 
 /** Send a prepared scientific operation to the Platform-owned transaction boundary. */
 export function invokePlatformAction(request: ActionInvocationRequest) {
@@ -23,4 +24,9 @@ export function unavailableActionContext(reason = "This surface does not provide
     available: false,
     reason,
   });
+}
+
+/** Resolve a host-provided Action context or a consistent unavailable state. */
+export function resolveActionContext(actionContext?: (stepId: string) => ActionStepContext) {
+  return actionContext ?? unavailableActionContext();
 }

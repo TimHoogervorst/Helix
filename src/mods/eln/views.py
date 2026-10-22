@@ -180,7 +180,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 "You do not have permission to delete this entry."
             )
         with transaction.atomic():
-            delete_source_descendants(instance)
+            delete_source_descendants(instance, actor=self.request.user)
             super().perform_destroy(instance)
 
     def perform_update(self, serializer):
@@ -348,7 +348,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             for entry in list(NotebookEntry.objects.all()):
                 if not NotebookEntry.objects.filter(pk=entry.pk).exists():
                     continue
-                delete_source_descendants(entry)
+                delete_source_descendants(entry, actor=request.user)
                 entry.delete()
                 count += 1
         return Response({"deleted": count})

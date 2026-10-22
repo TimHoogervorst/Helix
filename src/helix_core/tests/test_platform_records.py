@@ -5,9 +5,16 @@ from uuid import UUID, uuid4
 
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
+from django.contrib.contenttypes.models import ContentType
 
-from bundled.access.access.models import Grant, ProjectRole
-from helix_core.core.models import Project, User
+from bundled.access.access.models import (
+    Grant,
+    Organization,
+    OrganizationMembership,
+    OrganizationRole,
+    ProjectRole,
+)
+from helix_core.core.models import Folder, Project, User
 from helix_core.models import (
     ActionLogEntry,
     PlatformRecord,
@@ -490,17 +497,103 @@ class PlatformRecordApiTests(TestCase):
         Grant.objects.filter(project=self.project, user=self.user).delete()
         denied_recovery = self.client.get("/api/action-invocations/lab-run-2026-17/")
         self.assertEqual(denied_recovery.status_code, 403)
-        PlatformRecord.objects.get(pk=created.data["id"]).delete()
+        Grant.objects.create(project=self.project, user=self.user, role=ProjectRole.EDIT)
+        deleted = self.client.delete(f"/api/records/{created.data['id']}/")
+        self.assertEqual(deleted.status_code, 204, deleted.data)
         missing_recovery = self.client.get("/api/action-invocations/lab-run-2026-17/")
-        self.assertEqual(missing_recovery.status_code, 404)
+        self.assertEqual(missing_recovery.status_code, 200, missing_recovery.data)
+        self.assertTrue(missing_recovery.data["participants"][0]["targetUnavailable"])
         missing_retry = self.client.post("/api/action-invocations/", invocation, format="json")
-        self.assertEqual(missing_retry.status_code, 404)
+        self.assertEqual(missing_retry.status_code, 200, missing_retry.data)
+        self.assertTrue(missing_retry.data["participants"][0]["targetUnavailable"])
         self.assertEqual(PlatformRecord.objects.count(), 0)
-        self.assertEqual(ActionLogEntry.objects.count(), 3)
+        self.assertEqual(ScientificRevision.objects.count(), 0)
+        self.assertEqual(ActionLogEntry.objects.count(), 4)
 
         changed = {**invocation, "inputs": {"concentration": 8.5}}
         conflict = self.client.post("/api/action-invocations/", changed, format="json")
         self.assertEqual(conflict.status_code, 409, conflict.data)
+
+    def test_account_deletion_preserves_record_history_and_actor_snapshots(self):
+        self.user.first_name = "Researcher"
+        self.user.save(update_fields=["first_name"])
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        revision = ScientificRevision.objects.get()
+        action = ActionLogEntry.objects.order_by("pk").first()
+        actor_name = self.user.username
+
+        organization = Organization.objects.create(name="Record Lab")
+        administrator = User.objects.create_user(username="record_admin", password="pass")
+        OrganizationMembership.objects.update_or_create(
+            user=administrator,
+            defaults={"organization": organization, "role": OrganizationRole.ADMIN},
+        )
+        OrganizationMembership.objects.update_or_create(
+            user=self.user,
+            defaults={"organization": organization, "role": OrganizationRole.USER},
+        )
+        self.client.force_authenticate(user=administrator)
+        deletion = self.client.delete(f"/api/core/users/{self.user.pk}/")
+        self.assertEqual(deletion.status_code, 204, getattr(deletion, "data", None))
+
+        record = PlatformRecord.objects.get(pk=created.data["id"])
+        revision.refresh_from_db()
+        action.refresh_from_db()
+        self.assertIsNone(record.author_id)
+        self.assertIsNone(revision.created_by_id)
+        self.assertIsNone(action.performed_by_id)
+        self.assertEqual(record.author_snapshot["username"], actor_name)
+        self.assertEqual(revision.created_by_snapshot["username"], actor_name)
+        self.assertEqual(action.performed_by_snapshot["username"], actor_name)
+        self.assertEqual(action.performed_by_snapshot["displayName"], "Researcher")
+
+        observer = User.objects.create_user(username="record_observer", password="pass")
+        Grant.objects.create(project=self.project, user=observer, role=ProjectRole.READ)
+        self.client.force_authenticate(user=observer)
+        record_response = self.client.get(f"/api/records/{created.data['id']}/")
+        self.assertEqual(record_response.status_code, 200, record_response.data)
+        self.assertEqual(record_response.data["author"]["displayName"], "Researcher")
+        revisions = self.client.get(f"/api/records/{created.data['id']}/revisions/")
+        self.assertEqual(revisions.status_code, 200, revisions.data)
+        self.assertEqual(revisions.data["groups"][0]["revisions"][0]["created_by"]["username"], actor_name)
+        activity = self.client.get(f"/api/records/{created.data['id']}/actions/")
+        self.assertEqual(activity.status_code, 200, activity.data)
+        self.assertEqual(activity.data["results"][0]["performed_by"]["displayName"], "Researcher")
+
+    def test_deleting_source_folder_removes_record_descendants_and_history(self):
+        folder = Folder.objects.create(
+            name="Retained research",
+            project=self.project,
+            source_type=ContentType.objects.get_for_model(Project),
+            source_id=self.project.pk,
+        )
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        record = PlatformRecord.objects.get(pk=created.data["id"])
+        record.source_type = ContentType.objects.get_for_model(Folder)
+        record.source_id = folder.pk
+        record.save(update_fields=["source_type", "source_id"])
+
+        deleted = self.client.delete(f"/api/core/folders/{folder.pk}/")
+
+        self.assertEqual(deleted.status_code, 204, getattr(deleted, "data", None))
+        self.assertFalse(PlatformRecord.objects.filter(pk=record.pk).exists())
+        self.assertEqual(ScientificRevision.objects.count(), 0)
+        deletion_action = ActionLogEntry.objects.get(action="helix.record.deleted")
+        self.assertEqual(deletion_action.target_object_id, str(record.pk))
+
+    def test_read_only_project_member_cannot_delete_record(self):
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        reader = User.objects.create_user(username="record_reader", password="pass")
+        Grant.objects.create(project=self.project, user=reader, role=ProjectRole.READ)
+        self.client.force_authenticate(user=reader)
+
+        response = self.client.delete(f"/api/records/{created.data['id']}/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(PlatformRecord.objects.filter(pk=created.data["id"]).exists())
+        self.assertEqual(ScientificRevision.objects.count(), 1)
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
 
     def test_action_invocation_requires_current_record_and_expected_schema_state(self):
         created = self.client.post("/api/records/", self.create_payload(), format="json")

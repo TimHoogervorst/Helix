@@ -112,7 +112,7 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         if effective_role(self.request.user, instance) == "edit":
             with transaction.atomic():
-                delete_source_descendants(instance)
+                delete_source_descendants(instance, actor=self.request.user)
                 return super().perform_destroy(instance)
 
         raise PermissionDenied(

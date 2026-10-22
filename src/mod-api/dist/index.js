@@ -1,183 +1,184 @@
-var I = Object.defineProperty;
-var E = (e, t, a) => t in e ? I(e, t, { enumerable: !0, configurable: !0, writable: !0, value: a }) : e[t] = a;
-var x = (e, t, a) => E(e, typeof t != "symbol" ? t + "" : t, a);
-import { c as S, I as v, C as T, M as A } from "./editor-CuTS04NA.js";
-import { A as ne, B as ae, a as oe, b as re, O as ie, S as ce, d as le, T as de, W as ue, e as me, f as fe, g as he, h as xe, i as ve, l as pe, p as ge, r as be, u as je, j as we, w as ye } from "./editor-CuTS04NA.js";
-import { j as s } from "./jsx-runtime-D1SHvdVE.js";
-import { createContext as M, useState as p, useEffect as w, useCallback as j, useMemo as b, useContext as L, useRef as P } from "react";
+var E = Object.defineProperty;
+var P = (e, t, a) => t in e ? E(e, t, { enumerable: !0, configurable: !0, writable: !0, value: a }) : e[t] = a;
+var x = (e, t, a) => P(e, typeof t != "symbol" ? t + "" : t, a);
+import { c as k, I as v, C as T, M, u as S, i as N } from "./editor-rgcyRClr.js";
+import { A as ae, B as ie, a as re, b as ce, O as le, S as de, d as ue, T as me, W as fe, e as he, f as xe, g as ve, h as pe, j as ge, l as be, p as je, r as Ce, k as we, m as ye, w as ke } from "./editor-rgcyRClr.js";
+import { j as n } from "./jsx-runtime-D1SHvdVE.js";
+import { createContext as L, useState as p, useEffect as C, useCallback as j, useMemo as b, useContext as B, useRef as F } from "react";
 import "@tiptap/react";
+import { ApiError as Ne, NetworkError as Re, del as Ie, get as Ae, getText as Ee, isNotFoundError as Pe, patch as Te, post as Me, put as Le } from "./api.js";
 import "react-dom";
-import { ApiError as Se, NetworkError as Ne, del as Re, get as ke, getText as Ie, isNotFoundError as Ee, patch as Te, post as Ae, put as Me } from "./api.js";
-import { canonicalJson as Pe, canonicalizeContractJson as Fe, contractFingerprint as Ge, isExactJsonNumber as Be, parseExactContractJson as ze } from "./contracts.js";
-import { RecordValueInspector as $e, UnavailableRecordCapability as De, exportPlatformRecord as Oe, getExactRecordRevision as _e, getPlatformRecord as Je, listPlatformRecords as We, listRecordActivity as Ke, listRecordGroupRevisions as qe, uploadPlatformAttachment as Qe } from "./records.js";
+import { canonicalJson as Fe, canonicalizeContractJson as Ge, contractFingerprint as ze, isExactJsonNumber as Ue, parseExactContractJson as $e } from "./contracts.js";
+import { RecordValueInspector as Oe, UnavailableRecordCapability as _e, exportPlatformRecord as Je, getExactRecordRevision as We, getPlatformRecord as Ke, listPlatformRecords as Ve, listRecordActivity as qe, listRecordGroupRevisions as Qe, uploadPlatformAttachment as Xe } from "./records.js";
+import { PortableBlockView as Ye, getActionInvocation as Ze, invokeAction as et, resolvePortableActionContext as tt } from "./portable-blocks.js";
 /**
  * @license lucide-react v1.26.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const F = [["path", { d: "m15 18-6-6 6-6", key: "1wnfg3" }]], C = S("chevron-left", F);
+const G = [["path", { d: "m15 18-6-6 6-6", key: "1wnfg3" }]], y = k("chevron-left", G);
 /**
  * @license lucide-react v1.26.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const G = [["path", { d: "m9 18 6-6-6-6", key: "mthhwq" }]], g = S("chevron-right", G);
-function Y({
+const z = [["path", { d: "m9 18 6-6-6-6", key: "mthhwq" }]], g = k("chevron-right", z);
+function ee({
   bindings: e,
   bus: t,
   context: a
 }) {
-  return e.length === 0 ? null : /* @__PURE__ */ s.jsx("div", { className: "flex items-center gap-1", children: e.map((n) => {
-    const i = n.icon;
-    return /* @__PURE__ */ s.jsxs(
+  return e.length === 0 ? null : /* @__PURE__ */ n.jsx("div", { className: "flex items-center gap-1", children: e.map((o) => {
+    const r = o.icon;
+    return /* @__PURE__ */ n.jsxs(
       "button",
       {
         type: "button",
         className: "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-secondary hover:bg-hover hover:text-primary transition-colors",
-        onClick: () => n.onClick({ bus: t, context: a }),
-        "aria-label": n.label,
+        onClick: () => o.onClick({ bus: t, context: a }),
+        "aria-label": o.label,
         children: [
-          i && /* @__PURE__ */ s.jsx(i, { className: "h-4 w-4" }),
-          n.label
+          r && /* @__PURE__ */ n.jsx(r, { className: "h-4 w-4" }),
+          o.label
         ]
       },
-      n.id
+      o.id
     );
   }) });
 }
-const N = M(null);
-function B({ children: e }) {
-  const [t, a] = p(!1), [n, i] = p(
+const R = L(null);
+function U({ children: e }) {
+  const [t, a] = p(!1), [o, r] = p(
     () => typeof window < "u" && typeof window.matchMedia == "function" ? window.matchMedia("(max-width: 1023px)").matches : !1
-  ), [r, m] = p(
+  ), [i, f] = p(
     /* @__PURE__ */ new Set()
   );
-  w(() => {
+  C(() => {
     if (typeof window > "u" || typeof window.matchMedia != "function")
       return;
-    const c = window.matchMedia("(max-width: 1023px)"), h = (f) => {
-      i(f.matches);
+    const c = window.matchMedia("(max-width: 1023px)"), h = (m) => {
+      r(m.matches);
     };
     return c.addEventListener("change", h), () => c.removeEventListener("change", h);
   }, []);
-  const d = j(() => {
-    n || a((c) => !c);
-  }, [n]), l = j((c) => {
-    m((h) => {
-      const f = new Set(h);
-      return f.has(c) ? f.delete(c) : f.add(c), f;
+  const u = j(() => {
+    o || a((c) => !c);
+  }, [o]), l = j((c) => {
+    f((h) => {
+      const m = new Set(h);
+      return m.has(c) ? m.delete(c) : m.add(c), m;
     });
-  }, []), o = j(
-    (c) => r.has(c),
-    [r]
-  ), u = b(
+  }, []), s = j(
+    (c) => i.has(c),
+    [i]
+  ), d = b(
     () => ({
-      isCollapsed: n || t,
-      toggleSidebar: d,
-      collapsedSections: r,
+      isCollapsed: o || t,
+      toggleSidebar: u,
+      collapsedSections: i,
       toggleSection: l,
-      isSectionCollapsed: o
+      isSectionCollapsed: s
     }),
-    [n, t, d, r, l, o]
+    [o, t, u, i, l, s]
   );
-  return /* @__PURE__ */ s.jsx(N.Provider, { value: u, children: e });
+  return /* @__PURE__ */ n.jsx(R.Provider, { value: d, children: e });
 }
-function R() {
-  const e = L(N);
+function I() {
+  const e = B(R);
   if (!e)
     throw new Error("useSidebar must be used inside <SidebarProvider>.");
   return e;
 }
-function z({ groups: e }) {
-  return /* @__PURE__ */ s.jsx("div", { className: "flex flex-col items-center gap-0 py-2", role: "navigation", "aria-label": "Icon strip", children: e.map((t, a) => /* @__PURE__ */ s.jsxs("div", { className: "flex flex-col items-center gap-1 w-full", children: [
-    a > 0 && /* @__PURE__ */ s.jsx("div", { className: "w-6 h-px bg-border my-1", "aria-hidden": "true" }),
+function $({ groups: e }) {
+  return /* @__PURE__ */ n.jsx("div", { className: "flex flex-col items-center gap-0 py-2", role: "navigation", "aria-label": "Icon strip", children: e.map((t, a) => /* @__PURE__ */ n.jsxs("div", { className: "flex flex-col items-center gap-1 w-full", children: [
+    a > 0 && /* @__PURE__ */ n.jsx("div", { className: "w-6 h-px bg-border my-1", "aria-hidden": "true" }),
     t.icons.map(
-      (n, i) => n.onClick ? /* @__PURE__ */ s.jsx(
+      (o, r) => o.onClick ? /* @__PURE__ */ n.jsx(
         v,
         {
           className: "flex items-center justify-center w-9 h-9 rounded-md",
-          onClick: n.onClick,
-          title: n.label,
-          "aria-label": n.label,
-          children: n.icon
+          onClick: o.onClick,
+          title: o.label,
+          "aria-label": o.label,
+          children: o.icon
         },
-        i
-      ) : /* @__PURE__ */ s.jsx(
+        r
+      ) : /* @__PURE__ */ n.jsx(
         "span",
         {
           className: "flex items-center justify-center w-9 h-9 text-muted-foreground",
           "aria-hidden": "true",
-          children: n.icon
+          children: o.icon
         },
-        i
+        r
       )
     )
   ] }, a)) });
 }
-function U(e) {
+function D(e) {
   if (e.length === 0 || e[0].icons.length === 0)
     return { logoIcon: null, remainingGroups: e };
-  const [t, ...a] = e[0].icons, n = { icons: a }, i = a.length > 0 ? [n, ...e.slice(1)] : e.slice(1);
-  return { logoIcon: t, remainingGroups: i };
+  const [t, ...a] = e[0].icons, o = { icons: a }, r = a.length > 0 ? [o, ...e.slice(1)] : e.slice(1);
+  return { logoIcon: t, remainingGroups: r };
 }
-function $({
+function O({
   side: e,
   variant: t,
   iconStripGroups: a = [],
-  children: n,
-  hideToggle: i = !1,
-  footer: r,
-  collapsedContent: m
+  children: o,
+  hideToggle: r = !1,
+  footer: i,
+  collapsedContent: f
 }) {
-  const { isCollapsed: d, toggleSidebar: l } = R(), o = e === "left" ? d ? g : C : d ? C : g, u = d ? "Expand sidebar" : "Collapse sidebar";
-  if (d && t === "full-hide")
-    return /* @__PURE__ */ s.jsxs(
+  const { isCollapsed: u, toggleSidebar: l } = I(), s = e === "left" ? u ? g : y : u ? y : g, d = u ? "Expand sidebar" : "Collapse sidebar";
+  if (u && t === "full-hide")
+    return /* @__PURE__ */ n.jsxs(
       "aside",
       {
         className: "collapsible-sidebar is-collapsed variant-full-hide",
         "data-side": e,
         role: "complementary",
         "aria-label": e === "left" ? "Left sidebar (collapsed)" : "Right sidebar (collapsed)",
-        style: r ? { overflow: "visible" } : void 0,
+        style: i ? { overflow: "visible" } : void 0,
         children: [
-          /* @__PURE__ */ s.jsx(
+          /* @__PURE__ */ n.jsx(
             v,
             {
               className: "sidebar-toggle",
               onClick: l,
-              title: u,
-              "aria-label": u,
-              children: /* @__PURE__ */ s.jsx(o, { size: 16 })
+              title: d,
+              "aria-label": d,
+              children: /* @__PURE__ */ n.jsx(s, { size: 16 })
             }
           ),
-          m,
-          r && /* @__PURE__ */ s.jsx("div", { className: "mt-auto", children: r })
+          f,
+          i && /* @__PURE__ */ n.jsx("div", { className: "mt-auto", children: i })
         ]
       }
     );
-  if (d && t === "icon-strip") {
-    const c = e === "left", { logoIcon: h, remainingGroups: f } = c ? U(a) : { logoIcon: null, remainingGroups: a };
-    return /* @__PURE__ */ s.jsxs(
+  if (u && t === "icon-strip") {
+    const c = e === "left", { logoIcon: h, remainingGroups: m } = c ? D(a) : { logoIcon: null, remainingGroups: a };
+    return /* @__PURE__ */ n.jsxs(
       "aside",
       {
         className: "collapsible-sidebar is-collapsed variant-icon-strip",
         "data-side": e,
         role: "complementary",
         "aria-label": e === "left" ? "Left sidebar (collapsed)" : "Right sidebar (collapsed)",
-        style: r ? { overflow: "visible" } : void 0,
+        style: i ? { overflow: "visible" } : void 0,
         children: [
-          h && /* @__PURE__ */ s.jsxs(
+          h && /* @__PURE__ */ n.jsxs(
             v,
             {
               className: "sidebar-logo-toggle",
               onClick: l,
-              title: u,
-              "aria-label": u,
+              title: d,
+              "aria-label": d,
               children: [
-                /* @__PURE__ */ s.jsx("span", { className: "sidebar-logo-toggle-icon", children: h.icon }),
-                /* @__PURE__ */ s.jsx(
+                /* @__PURE__ */ n.jsx("span", { className: "sidebar-logo-toggle-icon", children: h.icon }),
+                /* @__PURE__ */ n.jsx(
                   g,
                   {
                     size: 14,
@@ -188,222 +189,226 @@ function $({
               ]
             }
           ),
-          f.length > 0 && /* @__PURE__ */ s.jsx(z, { groups: f }),
-          !h && /* @__PURE__ */ s.jsx(
+          m.length > 0 && /* @__PURE__ */ n.jsx($, { groups: m }),
+          !h && /* @__PURE__ */ n.jsx(
             v,
             {
               className: "sidebar-toggle",
               onClick: l,
-              title: u,
-              "aria-label": u,
-              children: /* @__PURE__ */ s.jsx(o, { size: 16 })
+              title: d,
+              "aria-label": d,
+              children: /* @__PURE__ */ n.jsx(s, { size: 16 })
             }
           ),
-          m,
-          r && /* @__PURE__ */ s.jsx("div", { className: "mt-auto", children: r })
+          f,
+          i && /* @__PURE__ */ n.jsx("div", { className: "mt-auto", children: i })
         ]
       }
     );
   }
-  return /* @__PURE__ */ s.jsx(
+  return /* @__PURE__ */ n.jsx(
     "aside",
     {
       className: "collapsible-sidebar is-expanded",
       "data-side": e,
       role: "complementary",
       "aria-label": e === "left" ? "Left sidebar" : "Right sidebar",
-      children: /* @__PURE__ */ s.jsxs("div", { className: "sidebar-content", children: [
-        !i && /* @__PURE__ */ s.jsx("div", { className: "sidebar-toggle-row", "data-side": e, children: /* @__PURE__ */ s.jsx(
+      children: /* @__PURE__ */ n.jsxs("div", { className: "sidebar-content", children: [
+        !r && /* @__PURE__ */ n.jsx("div", { className: "sidebar-toggle-row", "data-side": e, children: /* @__PURE__ */ n.jsx(
           v,
           {
             className: "sidebar-toggle",
             onClick: l,
-            title: u,
-            "aria-label": u,
-            children: /* @__PURE__ */ s.jsx(o, { size: 16 })
+            title: d,
+            "aria-label": d,
+            children: /* @__PURE__ */ n.jsx(s, { size: 16 })
           }
         ) }),
-        n,
-        r && /* @__PURE__ */ s.jsx("div", { className: "sidebar-footer", children: r })
+        o,
+        i && /* @__PURE__ */ n.jsx("div", { className: "sidebar-footer", children: i })
       ] })
     }
   );
 }
-function k({
+function A({
   id: e,
   label: t,
   icon: a,
-  collapsible: n = !0,
-  children: i,
-  actions: r
+  collapsible: o = !0,
+  children: r,
+  actions: i
 }) {
-  const { isSectionCollapsed: m, toggleSection: d } = R(), l = n && m(e), o = () => {
-    n && d(e);
-  }, u = (c) => {
-    n && (c.key === "Enter" || c.key === " ") && (c.preventDefault(), d(e));
+  const { isSectionCollapsed: f, toggleSection: u } = I(), l = o && f(e), s = () => {
+    o && u(e);
+  }, d = (c) => {
+    o && (c.key === "Enter" || c.key === " ") && (c.preventDefault(), u(e));
   };
-  return /* @__PURE__ */ s.jsxs("div", { className: "sidebar-section", "data-section-id": e, children: [
-    /* @__PURE__ */ s.jsxs(
+  return /* @__PURE__ */ n.jsxs("div", { className: "sidebar-section", "data-section-id": e, children: [
+    /* @__PURE__ */ n.jsxs(
       "div",
       {
         className: "sidebar-section-header",
-        onClick: o,
-        role: n ? "button" : void 0,
-        tabIndex: n ? 0 : void 0,
-        onKeyDown: u,
-        "aria-expanded": n ? !l : void 0,
-        "aria-label": n ? `${t} section` : void 0,
+        onClick: s,
+        role: o ? "button" : void 0,
+        tabIndex: o ? 0 : void 0,
+        onKeyDown: d,
+        "aria-expanded": o ? !l : void 0,
+        "aria-label": o ? `${t} section` : void 0,
         children: [
-          a && /* @__PURE__ */ s.jsx(a, { size: 16, className: "sidebar-section-icon" }),
-          /* @__PURE__ */ s.jsx("span", { className: "sidebar-section-label", children: t }),
-          r && /* @__PURE__ */ s.jsx("span", { onClick: (c) => c.stopPropagation(), children: r }),
-          n && /* @__PURE__ */ s.jsx("span", { className: "sidebar-section-chevron", "aria-hidden": "true", children: l ? /* @__PURE__ */ s.jsx(g, { size: 16 }) : /* @__PURE__ */ s.jsx(T, { size: 16 }) })
+          a && /* @__PURE__ */ n.jsx(a, { size: 16, className: "sidebar-section-icon" }),
+          /* @__PURE__ */ n.jsx("span", { className: "sidebar-section-label", children: t }),
+          i && /* @__PURE__ */ n.jsx("span", { onClick: (c) => c.stopPropagation(), children: i }),
+          o && /* @__PURE__ */ n.jsx("span", { className: "sidebar-section-chevron", "aria-hidden": "true", children: l ? /* @__PURE__ */ n.jsx(g, { size: 16 }) : /* @__PURE__ */ n.jsx(T, { size: 16 }) })
         ]
       }
     ),
-    !l && /* @__PURE__ */ s.jsx("div", { className: "sidebar-section-content", children: i })
+    !l && /* @__PURE__ */ n.jsx("div", { className: "sidebar-section-content", children: r })
   ] });
 }
-function D(e, t, a) {
-  const [n, i] = p(
+function _(e, t, a) {
+  const [o, r] = p(
     e.defaultState
-  ), r = P(null), m = b(
+  ), i = F(null), f = b(
     () => `${e.id}::${crypto.randomUUID()}`,
     [e.id, t]
   );
-  w(() => {
-    i(e.defaultState);
+  C(() => {
+    r(e.defaultState);
   }, [e.defaultState]);
-  const d = {
-    id: m,
+  const u = {
+    id: f,
     blockId: e.id,
     slotId: t,
-    attrs: n,
+    attrs: o,
     updateAttrs: (l) => {
-      i((o) => ({ ...o, ...l }));
+      r((s) => ({ ...s, ...l }));
     }
   };
-  return r.current = d, w(() => {
+  return i.current = u, C(() => {
     if (!a) return;
     const l = [];
-    for (const o of e.listensTo) {
-      const u = e.onEvent[o];
-      if (!u) continue;
-      const c = a.on(o, (h) => {
-        const f = r.current;
-        if (f)
-          return u(f, h);
+    for (const s of e.listensTo) {
+      const d = e.onEvent[s];
+      if (!d) continue;
+      const c = a.on(s, (h) => {
+        const m = i.current;
+        if (m)
+          return d(m, h);
       });
       l.push(c);
     }
     return () => {
-      for (const o of l)
-        o();
+      for (const s of l)
+        s();
     };
-  }, [e.listensTo, e.onEvent, a]), d;
+  }, [e.listensTo, e.onEvent, a]), u;
 }
-const O = {
+const J = {
   workspaceId: "",
   user: null,
   viewMode: null
-}, _ = () => {
+}, W = () => {
 };
-function Z(e) {
+function te(e) {
   const t = b(() => {
     if ("bindings" in e)
       return e.bindings;
-    const o = A.getInstance().resolveSlot(e.slotId);
-    return (o == null ? void 0 : o.bindings) ?? [];
+    const s = M.getInstance().resolveSlot(e.slotId);
+    return (s == null ? void 0 : s.bindings) ?? [];
   }, ["bindings" in e ? e.bindings : e.slotId]);
   if (t.length === 0) return null;
-  const a = e.slotId, n = "bindings" in e && "bus" in e, i = n ? e.context : e.context ?? O, r = e.bus, m = ("side" in e ? e.side : void 0) ?? "right", d = ("variant" in e ? e.variant : void 0) ?? "full-hide", l = ("iconStripGroups" in e ? e.iconStripGroups : void 0) ?? [];
-  return /* @__PURE__ */ s.jsx(B, { children: /* @__PURE__ */ s.jsx(
-    $,
+  const a = e.slotId, o = "bindings" in e && "bus" in e, r = o ? e.context : e.context ?? J, i = e.bus, f = ("side" in e ? e.side : void 0) ?? "right", u = ("variant" in e ? e.variant : void 0) ?? "full-hide", l = ("iconStripGroups" in e ? e.iconStripGroups : void 0) ?? [];
+  return /* @__PURE__ */ n.jsx(U, { children: /* @__PURE__ */ n.jsx(
+    O,
     {
-      side: m,
-      variant: d,
+      side: f,
+      variant: u,
       iconStripGroups: l,
-      children: t.map((o) => {
-        if (o.type !== "block") return null;
-        if (r)
-          return /* @__PURE__ */ s.jsx(
-            J,
+      children: t.map((s) => {
+        if (s.type !== "block") return null;
+        if (i)
+          return /* @__PURE__ */ n.jsx(
+            K,
             {
-              binding: o,
+              binding: s,
               slotId: a,
-              bus: r,
-              context: i
+              bus: i,
+              context: r
             },
-            o.id
+            s.id
           );
-        const u = o.component, c = {
-          id: `${o.id}::static`,
-          blockId: o.id,
+        const d = s.component, c = r.actionContext ?? S(), h = r.invokeAction ?? N, m = {
+          id: `${s.id}::static`,
+          blockId: s.id,
           slotId: a,
-          attrs: o.defaultState,
-          updateAttrs: _
+          attrs: s.defaultState,
+          updateAttrs: W
         };
-        return /* @__PURE__ */ s.jsx(
-          k,
+        return /* @__PURE__ */ n.jsx(
+          A,
           {
-            id: o.id,
-            label: o.label,
-            icon: o.icon,
-            children: /* @__PURE__ */ s.jsx(
-              u,
+            id: s.id,
+            label: s.label,
+            icon: s.icon,
+            children: /* @__PURE__ */ n.jsx(
+              d,
               {
-                context: i,
-                instance: c,
-                overrides: o.overrides
+                context: r,
+                instance: m,
+                overrides: s.overrides,
+                actionContext: c,
+                invokeAction: h
               }
             )
           },
-          o.id
+          s.id
         );
       })
     }
   ) });
 }
-function J({
+function K({
   binding: e,
   slotId: t,
   bus: a,
-  context: n
+  context: o
 }) {
-  const i = e.component, r = D(e, t, a), m = b(
+  const r = e.component, i = _(e, t, a), f = o.actionContext ?? S(), u = o.invokeAction ?? N, l = b(
     () => ({
-      ...n,
-      emitAction: (d, l) => {
-        a.emit(`${e.id}.${d}`, {
-          blockInstanceId: r.id,
+      ...o,
+      emitAction: (s, d) => {
+        a.emit(`${e.id}.${s}`, {
+          blockInstanceId: i.id,
           blockId: e.id,
-          localId: d,
-          payload: l
+          localId: s,
+          payload: d
         });
       }
     }),
-    [n, e.id, a, r.id]
+    [o, e.id, a, i.id]
   );
-  return /* @__PURE__ */ s.jsx(
-    k,
+  return /* @__PURE__ */ n.jsx(
+    A,
     {
       id: e.id,
       label: e.label,
       icon: e.icon,
-      children: /* @__PURE__ */ s.jsx(
-        i,
+      children: /* @__PURE__ */ n.jsx(
+        r,
         {
-          context: m,
-          instance: r,
-          overrides: e.overrides
+          context: l,
+          instance: i,
+          overrides: e.overrides,
+          actionContext: f,
+          invokeAction: u
         }
       )
     }
   );
 }
-class y {
+class w {
   // ── Construction ──────────────────────────────────────────────────────
-  constructor(t, a, n, i = []) {
+  constructor(t, a, o, r = []) {
     /**
      * Local event identifier, e.g. ``"entities-registered"``.
      * Combined with the block's global ID to form the full bus event key.
@@ -420,7 +425,7 @@ class y {
     x(this, "core");
     /** Reserved for future listen-by-tag.  Stored, not consumed. */
     x(this, "tags");
-    this.id = t, this.category = a, this.core = n, this.tags = i;
+    this.id = t, this.category = a, this.core = o, this.tags = r;
   }
   // ── Static factories ──────────────────────────────────────────────────
   /**
@@ -431,7 +436,7 @@ class y {
    * persisted in the action log.
    */
   static action(t) {
-    return new y(t.id, "action", t.core, t.tags);
+    return new w(t.id, "action", t.core, t.tags);
   }
   /**
    * Create a UI-only workspace signal.
@@ -441,7 +446,7 @@ class y {
    * communication between blocks (e.g. column resized, sort changed).
    */
   static ui(t) {
-    return new y(t.id, "ui", "ui", t.tags);
+    return new w(t.id, "ui", "ui", t.tags);
   }
   // ── Runtime ───────────────────────────────────────────────────────────
   /**
@@ -464,60 +469,64 @@ class y {
     };
   }
 }
-function W(e, t) {
+function V(e, t) {
   return t === void 0 ? { type: "entity-reference", displayId: e } : { type: "entity-reference", displayId: e, schemaId: t };
 }
-function ee(e, t) {
-  return W(t, e);
+function ne(e, t) {
+  return V(t, e);
 }
 export {
-  ne as ActionReference,
-  Se as ApiError,
-  y as BlockEvent,
-  ae as Button,
-  Y as ButtonGroupRenderer,
+  ae as ActionReference,
+  Ne as ApiError,
+  w as BlockEvent,
+  ie as Button,
+  ee as ButtonGroupRenderer,
   v as IconButton,
-  oe as Menu,
-  re as ModelReference,
-  Ne as NetworkError,
-  ie as ObjectReference,
-  $e as RecordValueInspector,
-  ce as ServiceReference,
-  le as SlotReference,
-  Z as SlotSidebar,
-  de as TipTapRenderer,
-  De as UnavailableRecordCapability,
-  ue as WorkspaceReference,
-  Pe as canonicalJson,
-  Fe as canonicalizeContractJson,
-  Ge as contractFingerprint,
-  Re as del,
-  W as entityReference,
-  me as evaluateCellFormula,
-  fe as evaluateFormula,
-  he as evaluateRow,
-  Oe as exportPlatformRecord,
-  xe as externalRoutePath,
-  ve as functionCallsIn,
-  ke as get,
-  _e as getExactRecordRevision,
-  Je as getPlatformRecord,
-  Ie as getText,
-  Be as isExactJsonNumber,
-  Ee as isNotFoundError,
-  pe as legacyWorkspaceUrl,
-  We as listPlatformRecords,
-  Ke as listRecordActivity,
-  qe as listRecordGroupRevisions,
-  ze as parseExactContractJson,
-  ge as parseFormula,
+  re as Menu,
+  ce as ModelReference,
+  Re as NetworkError,
+  le as ObjectReference,
+  Ye as PortableBlockView,
+  Oe as RecordValueInspector,
+  de as ServiceReference,
+  ue as SlotReference,
+  te as SlotSidebar,
+  me as TipTapRenderer,
+  _e as UnavailableRecordCapability,
+  fe as WorkspaceReference,
+  Fe as canonicalJson,
+  Ge as canonicalizeContractJson,
+  ze as contractFingerprint,
+  Ie as del,
+  V as entityReference,
+  he as evaluateCellFormula,
+  xe as evaluateFormula,
+  ve as evaluateRow,
+  Je as exportPlatformRecord,
+  pe as externalRoutePath,
+  ge as functionCallsIn,
+  Ae as get,
+  Ze as getActionInvocation,
+  We as getExactRecordRevision,
+  Ke as getPlatformRecord,
+  Ee as getText,
+  et as invokeAction,
+  Ue as isExactJsonNumber,
+  Pe as isNotFoundError,
+  be as legacyWorkspaceUrl,
+  Ve as listPlatformRecords,
+  qe as listRecordActivity,
+  Qe as listRecordGroupRevisions,
+  $e as parseExactContractJson,
+  je as parseFormula,
   Te as patch,
-  Ae as post,
-  Me as put,
-  be as registrationId,
-  ee as schemaReference,
-  je as unimplementedFormulaFunctionsIn,
-  Qe as uploadPlatformAttachment,
-  we as usesBackendOnlyFunction,
-  ye as workspaceUrl
+  Me as post,
+  Le as put,
+  Ce as registrationId,
+  tt as resolvePortableActionContext,
+  ne as schemaReference,
+  we as unimplementedFormulaFunctionsIn,
+  Xe as uploadPlatformAttachment,
+  ye as usesBackendOnlyFunction,
+  ke as workspaceUrl
 };

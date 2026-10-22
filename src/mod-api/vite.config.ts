@@ -8,6 +8,7 @@ export default defineConfig({
         index: path.resolve(import.meta.dirname, "src/index.ts"),
         editor: path.resolve(import.meta.dirname, "src/editor.ts"),
         blocks: path.resolve(import.meta.dirname, "src/blocks.ts"),
+        "portable-blocks": path.resolve(import.meta.dirname, "src/portableBlocks.tsx"),
         api: path.resolve(import.meta.dirname, "src/api.ts"),
         contracts: path.resolve(import.meta.dirname, "src/contracts.ts"),
         theme: path.resolve(import.meta.dirname, "src/theme.ts"),

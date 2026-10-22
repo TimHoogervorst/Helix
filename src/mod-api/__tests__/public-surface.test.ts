@@ -16,6 +16,7 @@ describe("@helix/mod-api public subpaths", () => {
       expect.objectContaining({
         "./editor": expect.any(Object),
         "./blocks": expect.any(Object),
+        "./portable-blocks": expect.any(Object),
         "./api": expect.any(Object),
         "./contracts": expect.any(Object),
         "./records": expect.any(Object),
@@ -28,10 +29,15 @@ describe("@helix/mod-api public subpaths", () => {
   it("exports the renderer host and block adapter from public modules", async () => {
     const editor = await import("../src/editor");
     const blocks = await import("../src/blocks");
+    const portableBlocks = await import("../src/portableBlocks");
 
     expect(editor.TipTapRenderer).toBeTypeOf("function");
     expect(editor.createBlockNode).toBeTypeOf("function");
     expect(blocks.createBlockAdapter).toBeTypeOf("function");
+    expect(portableBlocks.PortableBlockView).toBeTypeOf("function");
+    expect(portableBlocks.invokeAction).toBeTypeOf("function");
+    expect(portableBlocks.getActionInvocation).toBeTypeOf("function");
+    expect(portableBlocks.resolvePortableActionContext).toBeTypeOf("function");
   }, 15_000);
 
   it("exports the authenticated API client and theme token names", async () => {

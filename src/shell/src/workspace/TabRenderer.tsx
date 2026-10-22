@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { RendererProps, BlockBinding, SlotContext } from "../mod-system/types";
 import { useBlockInstance } from "./useBlockInstance";
+import { invokePlatformAction, unavailableActionContext } from "../api/actionInvocations";
 
 /**
  * Renders blocks as tabs in a tabbed interface.
@@ -91,6 +92,8 @@ function TabContent({
 }: TabContentProps) {
   const Component = binding.component;
   const instance = useBlockInstance(binding, slotId, bus);
+  const actionContext = context.actionContext ?? unavailableActionContext();
+  const invokeAction = context.invokeAction ?? invokePlatformAction;
 
   // Build typed emitter functions from the binding's emits declarations.
   const emits: Record<string, { fire: (payload: Record<string, unknown>) => void }> =
@@ -140,6 +143,8 @@ function TabContent({
         instance={instance}
         overrides={binding.overrides}
         emits={emits}
+        actionContext={actionContext}
+        invokeAction={invokeAction}
       />
     </div>
   );

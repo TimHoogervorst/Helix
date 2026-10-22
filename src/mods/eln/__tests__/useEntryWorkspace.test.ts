@@ -26,7 +26,7 @@ vi.mock("react-router-dom", () => ({
 }));
 
 const mockGet = vi.fn();
-vi.mock("../../../shell/src/api/client", () => ({
+vi.mock("@helix/mod-api/host", () => ({
   get: (...args: unknown[]) => mockGet(...args),
   ApiError: class ApiError extends Error {
     status: number;
@@ -38,7 +38,7 @@ vi.mock("../../../shell/src/api/client", () => ({
 }));
 
 const mockResolveIds = vi.fn();
-vi.mock("../../../shell/src/mentions/MentionProvider", () => ({
+vi.mock("@helix/mod-api/host", () => ({
   useMentionContext: () => ({
     resolutionMap: new Map(),
     resolveIds: mockResolveIds,
@@ -59,7 +59,7 @@ const mockUser = {
   id: 1, username: "alice", first_name: "", last_name: "",
   color: "#000", is_active: true, date_joined: "2025-01-01",
 };
-vi.mock("../../../shell/src/user/CurrentUserProvider", () => ({
+vi.mock("@helix/mod-api/host", () => ({
   useCurrentUser: () => ({ user: mockUser, isChecking: false, error: null, refresh: vi.fn() }),
 }));
 

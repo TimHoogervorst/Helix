@@ -20,4 +20,4 @@ where = ["../.."]
 include = ["mods.eln*"]
 
 [tool.setuptools.package-data]
-"mods.eln" = ["modManifest.json"]
+"mods.eln" = ["modManifest.json", "identity_map.json", "migrations/*.json"]

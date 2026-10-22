@@ -16,16 +16,16 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import APIException, PermissionDenied, ValidationError as DRFValidationError
 from rest_framework.response import Response
 
-from helix_core.actions.logger import bulk_log_actions, log_action
-from helix_core.actions import VersionTarget
-from helix_core.actions.mixins import ActionLoggingMixin, logs_action
-from helix_core.source_deletion import delete_source_descendants
+from helix_core.public import bulk_log_actions, log_action
+from helix_core.public import VersionTarget
+from helix_core.public import ActionLoggingMixin, logs_action
+from helix_core.public import delete_source_descendants
 
-from bundled.labelling.tags.models import Tag
-from bundled.access.access.permissions import IsOrganizationAdmin, IsOrganizationAdminForWrites
-from bundled.access.access.scoping import visible_rows_q
+from helix_core.public import Tag
+from helix_core.public import IsOrganizationAdmin, IsOrganizationAdminForWrites
+from helix_core.public import visible_rows_q
 
-from helix_core.models import ActionLogEntry, Schema
+from helix_core.public import ActionLogEntry, Schema
 
 from .models import NotebookEntry, ContentVersion, EntryLock, HistoricalRendition, Protocol
 from .config import CONTENT_VERSION_REFERENCE, ENTRY_MODEL_REFERENCE
@@ -132,7 +132,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         not having been created yet — e.g. after a fresh migration where
         the mod registration hasn't run.
         """
-        from helix_core.models import SchemaType
+        from helix_core.public import SchemaType
 
         schema_type, _ = SchemaType.objects.get_or_create(
             model="mods.eln.models.NotebookEntry",
@@ -211,7 +211,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_create(self, serializer):
-        from bundled.access.access.policies import effective_role, role
+        from helix_core.public import effective_role, role
         from rest_framework.exceptions import PermissionDenied
 
         project = serializer.validated_data["project"]
@@ -248,7 +248,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         Organization Admin override, or a Read + Write share evaluated via the
         target Project.
         """
-        from bundled.access.access.policies import effective_role
+        from helix_core.public import effective_role
 
         return effective_role(self.request.user, instance) == "edit"
 
@@ -260,7 +260,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         with transaction.atomic():
             delete_source_descendants(instance, actor=self.request.user)
             if instance.platform_record_id:
-                from helix_core.record_persistence import delete_platform_record
+                from helix_core.public import delete_platform_record
 
                 delete_platform_record(
                     instance.platform_record,
@@ -276,12 +276,12 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="review")
     def review(self, request, display_id=None):
         """Capture and retain a self-contained PDF for the selected saved Revision."""
-        from bundled.access.access.policies import effective_role
-        from helix_core.attachments import link_revision_attachments, upload_attachment
-        from helix_core.models import (
+        from helix_core.public import effective_role
+        from helix_core.public import link_revision_attachments, upload_attachment
+        from helix_core.public import (
             PlatformAttachment, PlatformRecord, ScientificRevision,
         )
-        from helix_core.record_persistence import (
+        from helix_core.public import (
             StateConflict, lock_record_revision_for_update,
         )
 
@@ -387,7 +387,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     presentation_version=PRESENTATION_VERSION,
                     presentation_context=presentation_context,
                 )
-                from helix_core.actions import VersionTarget, log_action
+                from helix_core.public import VersionTarget, log_action
 
                 log_action(
                     user=request.user,
@@ -437,7 +437,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["get"], url_path="renditions")
     def renditions(self, request, display_id=None):
         """List immutable captures while applying the entry's current access policy."""
-        from bundled.access.access.policies import effective_role
+        from helix_core.public import effective_role
 
         entry = self.get_object()
         if effective_role(request.user, entry) not in {"read", "edit"}:
@@ -500,11 +500,11 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         # ── Cross-Project move rejection ───────────────────────────────────
         if "source_type" in validated_data or "source_id" in validated_data:
-            from bundled.access.access.policies import effective_role
-            from helix_core.core.models import Project
+            from helix_core.public import effective_role
+            from helix_core.public import Project
 
             if validated_data.get("source_type") is None:
-                from helix_core.core.models import Folder
+                from helix_core.public import Folder
                 new_source = instance.project if validated_data.get("source_id") is None else Folder.objects.get(pk=validated_data["source_id"])
             else:
                 new_source = instance.resolve_source(
@@ -620,7 +620,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     continue
                 delete_source_descendants(entry, actor=request.user)
                 if entry.platform_record_id:
-                    from helix_core.record_persistence import delete_platform_record
+                    from helix_core.public import delete_platform_record
 
                     delete_platform_record(
                         entry.platform_record,
@@ -851,7 +851,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             423 — another user holds an active lock.
             403 — the requester cannot Edit this entry.
         """
-        from bundled.access.access.policies import effective_role
+        from helix_core.public import effective_role
         from rest_framework.exceptions import PermissionDenied
 
         entry = self.get_object()
@@ -945,7 +945,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             204 — lock released, didn't exist, or held by another user.
             403 — the requester cannot Edit this entry.
         """
-        from bundled.access.access.policies import effective_role
+        from helix_core.public import effective_role
         from rest_framework.exceptions import PermissionDenied
 
         entry = self.get_object()
@@ -979,7 +979,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             acquired_at: str | None  (ISO 8601)
             last_activity_at: str | None  (ISO 8601)
         """
-        from bundled.access.access.policies import effective_role
+        from helix_core.public import effective_role
 
         entry = self.get_object()
 

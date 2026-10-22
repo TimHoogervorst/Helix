@@ -1,29 +1,29 @@
 import { useRef, useEffect, useMemo, useCallback, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { WorkspaceBus } from "../../../shell/src/workspace/WorkspaceBus";
-import { SlotRenderer } from "../../../shell/src/workspace/SlotRenderer";
-import { SlotSidebar } from "../../../shell/src/shared/components/Sidebar/SlotSidebar";
-import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import type { SlotContext, BlockBinding } from "../../../shell/src/mod-system/types";
+import { WorkspaceBus } from "@helix/mod-api/host";
+import { SlotRenderer } from "@helix/mod-api/host";
+import { SlotSidebar } from "@helix/mod-api/host";
+import { ModRegistry } from "@helix/mod-api/host";
+import type { SlotContext, BlockBinding } from "@helix/mod-api/host";
 import type { ElnSidebarData } from "../blocks/sidebarData";
-import { useSendAction } from "../../../shell/src/workspace/useSendAction";
-import { TipTapRenderer } from "../../../shell/src/workspace/TipTapRenderer";
+import { useSendAction } from "@helix/mod-api/host";
+import { TipTapRenderer } from "@helix/mod-api/host";
 import { elnExtensions } from "../editor/extensions/elnExtensions";
 import { useEntryWorkspace } from "../hooks/useEntryWorkspace";
-import { useTaggableItems } from "../../../bundled/labelling/tags/hooks";
+import { useTaggableItems } from "../tags/hooks/useTaggableItems";
 import { attachTags, captureReview, detachTag, listRenditions, type HistoricalRendition } from "../api";
-import { useMentionContext } from "../../../shell/src/mentions/MentionProvider";
+import { useMentionContext } from "@helix/mod-api/host";
 import { useActivity } from "../hooks/useActivity";
 import { getRecentEditors } from "../activityHelpers";
 import ElnChrome from "./ElnChrome";
 import { portableAttributeNodeTypes, preparePortableDocument, restorePortableDocument } from "../portableDocument";
 import { PortableNodeAttributes } from "../editor/portableBlockExtensions";
 import { ElnPortableBlockHostContext, type ElnPortableBlockHost } from "../editor/portableBlockExtensions";
-import { get } from "../../../mod-api/src/api";
-import { invokeAction, resolvePortableActionContext, type PortableBlockContent } from "../../../mod-api/src/portableBlocks";
-import type { ActionContractDefinition, ActionContractEnvelope, ContractType } from "../../../mod-api/src/contracts";
-import type { ActionInvocationRequest } from "../../../shell/src/mod-system/types";
+import { get } from "@helix/mod-api/api";
+import { invokeAction, resolvePortableActionContext, type PortableBlockContent } from "@helix/mod-api/portable-blocks";
+import type { ActionContractDefinition, ActionContractEnvelope, ContractType } from "@helix/mod-api/contracts";
+import type { ActionInvocationRequest } from "@helix/mod-api/host";
 
 function contractKey(id: string, version: string) {
   return `action:${id}@${version}`;
@@ -37,7 +37,7 @@ interface RecordActionProvider {
   provider_mod_version: string;
 }
 
-type RecordInputSource = Extract<import("../../../mod-api/src/portableBlocks").PortableInputSource, { kind: "record" }>;
+type RecordInputSource = Extract<import("@helix/mod-api/portable-blocks").PortableInputSource, { kind: "record" }>;
 
 function collectPortableBlocks(value: unknown, blocks = new Map<string, PortableBlockContent>()): Map<string, PortableBlockContent> {
   if (Array.isArray(value)) {

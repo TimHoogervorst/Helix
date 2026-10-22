@@ -2,16 +2,16 @@ from rest_framework import serializers
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 
-from helix_core.core.models import Folder, Project, User
-from helix_core.abstracts import hydrate_source_path
-from bundled.access.users.serializers import UserSerializer
+from helix_core.public import Folder, Project, User
+from helix_core.public import hydrate_source_path
+from helix_core.public import UserSerializer
 
-from bundled.labelling.tags.models import Tag
+from helix_core.public import Tag
 
-from helix_core.mentions.models import Mention
+from helix_core.public import Mention
 
 from .models import NotebookEntry, Protocol
-from helix_core.models import ActionLogEntry
+from helix_core.public import ActionLogEntry
 
 
 def validate_tiptap_json(value):
@@ -66,7 +66,7 @@ class MentionSerializer(serializers.ModelSerializer):
 
 
 # Re-export for backward compatibility — canonical in bundled.labelling.tags.serializers.
-from bundled.labelling.tags.serializers import TagSerializer  # noqa: F401, E402
+from helix_core.public import TagSerializer  # noqa: F401, E402
 
 
 class NotebookEntrySerializer(serializers.ModelSerializer):

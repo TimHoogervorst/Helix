@@ -70,8 +70,8 @@ def _resource_files(snapshot, project_id):
     from django.core.files.storage import default_storage
     from rest_framework.exceptions import ValidationError
 
-    from helix_core.attachments import _verify_content
-    from helix_core.models import PlatformAttachment
+    from helix_core.public import verify_attachment_content
+    from helix_core.public import PlatformAttachment
 
     ids = sorted(set(_attachment_ids(snapshot)))
     if not ids:
@@ -83,7 +83,7 @@ def _resource_files(snapshot, project_id):
         row = by_id.get(resource_id)
         if row is None or row.status != "complete":
             raise ValidationError({"document": f"Saved attachment resource '{resource_id}' is unavailable."})
-        _verify_content(row.storage_key, row.size, row.sha256)
+        verify_attachment_content(row.storage_key, row.size, row.sha256)
         with default_storage.open(row.storage_key, "rb") as stream:
             files.append((row.filename, row.media_type, stream.read()))
     return files

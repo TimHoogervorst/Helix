@@ -13,11 +13,11 @@
  * All edits sync back to node attributes via ``updateAttributes``.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
+import { createBlockAdapter } from "@helix/mod-api/host";
 import { Plus, Trash2 } from "lucide-react";
-import { Button } from "../../../shell/src/shared/primitives/Button";
-import { TableKit } from "../../../shell/src/shared/table/TableKit";
-import { TableChrome } from "../../../shell/src/shared/table/TableChrome";
+import { Button } from "@helix/mod-api/host";
+import { TableKit } from "@helix/mod-api/host";
+import { TableChrome } from "@helix/mod-api/host";
 
 // ── Types ───────────────────────────────────────────────────────────────
 

@@ -7,7 +7,7 @@ const mockPost = vi.fn();
 const mockPut = vi.fn();
 const mockDel = vi.fn();
 
-vi.mock("../../../../shell/src/api/client", () => ({
+vi.mock("@helix/mod-api/host", () => ({
   get: (...args: unknown[]) => mockGet(...args),
   post: (...args: unknown[]) => mockPost(...args),
   put: (...args: unknown[]) => mockPut(...args),

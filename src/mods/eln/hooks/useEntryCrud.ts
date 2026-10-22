@@ -26,12 +26,12 @@
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del, ApiError } from "../../../shell/src/api/client";
+import { get, del, ApiError } from "@helix/mod-api/host";
 import type { TipTapDoc, EntryDetail } from "../types";
-import { useMentionContext } from "../../../shell/src/mentions/MentionProvider";
+import { useMentionContext } from "@helix/mod-api/host";
 import { attachTags, acquireLock, releaseLock, getLockStatus } from "../api";
 import { useSaveQueue, type SaveStatus } from "./useSaveQueue";
-import { useCurrentUser } from "../../../shell/src/user/CurrentUserProvider";
+import { useCurrentUser } from "@helix/mod-api/host";
 import {
   splitFirstParagraph,
   prependDescription,

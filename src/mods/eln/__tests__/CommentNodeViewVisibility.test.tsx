@@ -25,7 +25,7 @@ const { mockUser, mockNodeAttrs } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("../../../shell/src/user/CurrentUserProvider", () => ({
+vi.mock("@helix/mod-api/host", () => ({
   useCurrentUser: () => ({ user: mockUser, isChecking: false, error: null, refresh: vi.fn() }),
 }));
 

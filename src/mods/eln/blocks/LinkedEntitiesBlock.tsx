@@ -9,7 +9,7 @@
  * `<aside>` did: clickable buttons that navigate to each linked entity.
  */
 import { FlaskConical } from "lucide-react";
-import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
+import type { BlockComponentProps } from "@helix/mod-api/host";
 import type { ElnSidebarData } from "./sidebarData";
 
 export function LinkedEntitiesBlock({ context }: BlockComponentProps) {

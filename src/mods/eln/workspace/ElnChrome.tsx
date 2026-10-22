@@ -17,13 +17,13 @@ import {
   Lock,
 } from "lucide-react";
 import { CommentVisibilityProvider } from "../context/CommentVisibilityContext";
-import { Avatar, getInitials } from "../../../shell/src/shared/Avatar";
+import { Avatar, getInitials } from "@helix/mod-api/host";
 import MoreActions from "../components/MoreActions";
 import ContentLoadingSkeleton from "../components/ContentLoadingSkeleton";
-import { TagSection } from "../../../bundled/labelling/tags/ui";
-import { Button } from "../../../shell/src/shared/primitives/Button";
-import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
-import NotFound from "../../../shell/src/shared/components/NotFound";
+import { TagSection } from "../tags/ui/TagSection";
+import { Button } from "@helix/mod-api/host";
+import { IconButton } from "@helix/mod-api/host";
+import NotFound from "@helix/mod-api/host";
 import type { EntryDetail, Tag, ElnAction, SourcePathSegment } from "../types";
 import type { HistoricalRendition } from "../api";
 import type { SaveStatus } from "../hooks/useSaveQueue";

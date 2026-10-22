@@ -5,9 +5,9 @@ Exercises full CRUD, validation, soft-delete, and is_active filtering.
 """
 from unittest.mock import patch
 
-from helix_core.core.tests.base import BaseTestCase
+from .support import BaseTestCase
 from mods.eln.models import Protocol
-from bundled.access.access.models import Organization, OrganizationMembership, OrganizationRole
+from helix_core.public import Organization, OrganizationMembership, OrganizationRole
 
 
 VALID_ITEMS = [

@@ -8,7 +8,7 @@
  *
  * Requires MentionProvider to be in the component tree (provided at Layout level).
  */
-import MentionBadge from "../../../../shell/src/shared/components/MentionBadge";
+import MentionBadge from "@helix/mod-api/host";
 
 /**
  * Local replacement for ag-grid-react's CustomCellRendererProps.

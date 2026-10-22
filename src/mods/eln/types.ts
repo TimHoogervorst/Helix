@@ -11,8 +11,7 @@ export interface EntryListItem {
   updated_at: string;
 }
 
-// Re-export for backward compatibility — canonical in bundled/labelling/tags/types.
-import type { Tag } from "../tags/types";
+import type { Tag } from "./tags/types";
 export type { Tag };
 
 /** A mention — a parsed reference from an entry body to another entity. */

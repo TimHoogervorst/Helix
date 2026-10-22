@@ -11,11 +11,11 @@
  * started date, status dropdown, and folder dropdown.
  */
 import { useState, useEffect } from "react";
-import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
+import type { BlockComponentProps } from "@helix/mod-api/host";
 import type { ElnSidebarData } from "./sidebarData";
-import { Avatar, getInitials } from "../../../shell/src/shared/Avatar";
-import { listDropdowns } from "../../../bundled/datatypes/dropdowns/api";
-import { Select } from "../../../shell/src/shared/primitives/Input";
+import { Avatar, getInitials } from "@helix/mod-api/host";
+import { listDropdowns } from "../api";
+import { Select } from "@helix/mod-api/host";
 
 /** Format a snake_case status value for display (e.g. "in_progress" → "In Progress"). */
 function formatStatusLabel(status: string): string {

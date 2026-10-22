@@ -1,5 +1,17 @@
-import { get, post, patch, del } from "../../shell/src/api/client";
+import { get, post, patch, del } from "@helix/mod-api/host";
 import type { EntryDetail, EntryListItem, ElnAction, TipTapDoc } from "./types";
+
+export interface DropdownDefinition {
+  id: number;
+  name: string;
+  options: string[];
+}
+
+/** Read dropdown definitions through the host API rather than another Mod's source. */
+export async function listDropdowns(): Promise<DropdownDefinition[]> {
+  const response = await get<PaginatedResponse<DropdownDefinition> | DropdownDefinition[]>("/dropdowns/");
+  return Array.isArray(response) ? response : response.results;
+}
 
 /** Lock status response from the lock endpoints. */
 export interface LockStatus {

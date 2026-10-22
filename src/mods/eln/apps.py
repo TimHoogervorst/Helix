@@ -1,5 +1,5 @@
-from helix_core import make_app_config
 from helix_core.public import load_entry_point_manifest
+from helix_core.public import make_app_config
 
 
 ModAppConfig = make_app_config(

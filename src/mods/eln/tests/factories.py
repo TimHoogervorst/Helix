@@ -6,7 +6,7 @@ Import ``_CreateEntryMixin``, ``TEXT_DOC``, ``ALT_DOC``, and
 across all ELN test modules.
 """
 
-from helix_core.models import Schema, SchemaType
+from helix_core.public import Schema, SchemaType
 from django.contrib.contenttypes.models import ContentType
 
 TEXT_DOC = {

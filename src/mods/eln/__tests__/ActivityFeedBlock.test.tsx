@@ -8,8 +8,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { mapElnAction, activityFeedOnEvent } from "../components/ActivityFeedBlock";
 import type { ElnAction } from "../types";
-import type { DisplayActionItem } from "../../../shell/src/shared/types/actions";
-import type { BlockInstance } from "../../../shell/src/mod-system/types";
+import type { DisplayActionItem } from "@helix/mod-api/host";
+import type { BlockInstance } from "@helix/mod-api/host";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 

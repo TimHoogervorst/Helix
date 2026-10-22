@@ -1,37 +1,27 @@
-var E = Object.defineProperty;
-var P = (e, t, a) => t in e ? E(e, t, { enumerable: !0, configurable: !0, writable: !0, value: a }) : e[t] = a;
-var x = (e, t, a) => P(e, typeof t != "symbol" ? t + "" : t, a);
-import { c as k, I as v, C as T, M, u as S, i as N } from "./editor-rgcyRClr.js";
-import { A as ae, B as ie, a as re, b as ce, O as le, S as de, d as ue, T as me, W as fe, e as he, f as xe, g as ve, h as pe, j as ge, l as be, p as je, r as Ce, k as we, m as ye, w as ke } from "./editor-rgcyRClr.js";
-import { j as n } from "./jsx-runtime-D1SHvdVE.js";
-import { createContext as L, useState as p, useEffect as C, useCallback as j, useMemo as b, useContext as B, useRef as F } from "react";
+var A = Object.defineProperty;
+var E = (e, t, a) => t in e ? A(e, t, { enumerable: !0, configurable: !0, writable: !0, value: a }) : e[t] = a;
+var h = (e, t, a) => E(e, typeof t != "symbol" ? t + "" : t, a);
+import { I as v, C as P, M as T } from "./Button-CXH-9zj5.js";
+import { A as ae, B as re, a as ie, b as ce, O as le, S as de, d as ue, W as me, e as fe, f as xe, g as he, h as ve, i as pe, l as be, p as ge, r as je, u as Ce, j as we, w as ye } from "./Button-CXH-9zj5.js";
+import { j as n } from "./jsx-runtime-BzflLqGi.js";
+import { createContext as M, useState as p, useEffect as C, useCallback as j, useMemo as g, useContext as B, useRef as F } from "react";
+import b from "./chevron-right-Df9XrNWg.js";
+import y from "./chevron-left-xHQCqUAL.js";
+import { u as S, i as k } from "./editor-CMfF8bXZ.js";
+import { T as ke } from "./editor-CMfF8bXZ.js";
 import "@tiptap/react";
-import { ApiError as Ne, NetworkError as Re, del as Ie, get as Ae, getText as Ee, isNotFoundError as Pe, patch as Te, post as Me, put as Le } from "./api.js";
+import { ApiError as Re, NetworkError as Ie, del as Ae, get as Ee, getText as Pe, isNotFoundError as Te, patch as Me, post as Be, put as Fe } from "./api.js";
 import "react-dom";
-import { canonicalJson as Fe, canonicalizeContractJson as Ge, contractFingerprint as ze, isExactJsonNumber as Ue, parseExactContractJson as $e } from "./contracts.js";
-import { RecordValueInspector as Oe, UnavailableRecordCapability as _e, exportPlatformRecord as Je, getExactRecordRevision as We, getPlatformRecord as Ke, listPlatformRecords as Ve, listRecordActivity as qe, listRecordGroupRevisions as Qe, uploadPlatformAttachment as Xe } from "./records.js";
-import { PortableBlockView as Ye, getActionInvocation as Ze, invokeAction as et, resolvePortableActionContext as tt } from "./portable-blocks.js";
-/**
- * @license lucide-react v1.26.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
-const G = [["path", { d: "m15 18-6-6 6-6", key: "1wnfg3" }]], y = k("chevron-left", G);
-/**
- * @license lucide-react v1.26.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */
-const z = [["path", { d: "m9 18 6-6-6-6", key: "mthhwq" }]], g = k("chevron-right", z);
+import { canonicalJson as Le, canonicalizeContractJson as ze, contractFingerprint as Ue, isExactJsonNumber as De, parseExactContractJson as Oe } from "./contracts.js";
+import { RecordValueInspector as Je, UnavailableRecordCapability as We, exportPlatformRecord as Ke, getExactRecordRevision as Ve, getPlatformRecord as Qe, listPlatformRecords as Xe, listRecordActivity as _e, listRecordGroupRevisions as qe, uploadPlatformAttachment as He } from "./records.js";
+import { PortableBlockView as Ze, getActionInvocation as et, invokeAction as tt, resolvePortableActionContext as nt } from "./portable-blocks.js";
 function ee({
   bindings: e,
   bus: t,
   context: a
 }) {
   return e.length === 0 ? null : /* @__PURE__ */ n.jsx("div", { className: "flex items-center gap-1", children: e.map((o) => {
-    const r = o.icon;
+    const i = o.icon;
     return /* @__PURE__ */ n.jsxs(
       "button",
       {
@@ -40,7 +30,7 @@ function ee({
         onClick: () => o.onClick({ bus: t, context: a }),
         "aria-label": o.label,
         children: [
-          r && /* @__PURE__ */ n.jsx(r, { className: "h-4 w-4" }),
+          i && /* @__PURE__ */ n.jsx(i, { className: "h-4 w-4" }),
           o.label
         ]
       },
@@ -48,54 +38,54 @@ function ee({
     );
   }) });
 }
-const R = L(null);
-function U({ children: e }) {
-  const [t, a] = p(!1), [o, r] = p(
+const N = M(null);
+function G({ children: e }) {
+  const [t, a] = p(!1), [o, i] = p(
     () => typeof window < "u" && typeof window.matchMedia == "function" ? window.matchMedia("(max-width: 1023px)").matches : !1
-  ), [i, f] = p(
+  ), [r, f] = p(
     /* @__PURE__ */ new Set()
   );
   C(() => {
     if (typeof window > "u" || typeof window.matchMedia != "function")
       return;
-    const c = window.matchMedia("(max-width: 1023px)"), h = (m) => {
-      r(m.matches);
+    const c = window.matchMedia("(max-width: 1023px)"), x = (m) => {
+      i(m.matches);
     };
-    return c.addEventListener("change", h), () => c.removeEventListener("change", h);
+    return c.addEventListener("change", x), () => c.removeEventListener("change", x);
   }, []);
   const u = j(() => {
     o || a((c) => !c);
   }, [o]), l = j((c) => {
-    f((h) => {
-      const m = new Set(h);
+    f((x) => {
+      const m = new Set(x);
       return m.has(c) ? m.delete(c) : m.add(c), m;
     });
   }, []), s = j(
-    (c) => i.has(c),
-    [i]
-  ), d = b(
+    (c) => r.has(c),
+    [r]
+  ), d = g(
     () => ({
       isCollapsed: o || t,
       toggleSidebar: u,
-      collapsedSections: i,
+      collapsedSections: r,
       toggleSection: l,
       isSectionCollapsed: s
     }),
-    [o, t, u, i, l, s]
+    [o, t, u, r, l, s]
   );
-  return /* @__PURE__ */ n.jsx(R.Provider, { value: d, children: e });
+  return /* @__PURE__ */ n.jsx(N.Provider, { value: d, children: e });
 }
-function I() {
-  const e = B(R);
+function R() {
+  const e = B(N);
   if (!e)
     throw new Error("useSidebar must be used inside <SidebarProvider>.");
   return e;
 }
-function $({ groups: e }) {
+function L({ groups: e }) {
   return /* @__PURE__ */ n.jsx("div", { className: "flex flex-col items-center gap-0 py-2", role: "navigation", "aria-label": "Icon strip", children: e.map((t, a) => /* @__PURE__ */ n.jsxs("div", { className: "flex flex-col items-center gap-1 w-full", children: [
     a > 0 && /* @__PURE__ */ n.jsx("div", { className: "w-6 h-px bg-border my-1", "aria-hidden": "true" }),
     t.icons.map(
-      (o, r) => o.onClick ? /* @__PURE__ */ n.jsx(
+      (o, i) => o.onClick ? /* @__PURE__ */ n.jsx(
         v,
         {
           className: "flex items-center justify-center w-9 h-9 rounded-md",
@@ -104,7 +94,7 @@ function $({ groups: e }) {
           "aria-label": o.label,
           children: o.icon
         },
-        r
+        i
       ) : /* @__PURE__ */ n.jsx(
         "span",
         {
@@ -112,27 +102,27 @@ function $({ groups: e }) {
           "aria-hidden": "true",
           children: o.icon
         },
-        r
+        i
       )
     )
   ] }, a)) });
 }
-function D(e) {
+function z(e) {
   if (e.length === 0 || e[0].icons.length === 0)
     return { logoIcon: null, remainingGroups: e };
-  const [t, ...a] = e[0].icons, o = { icons: a }, r = a.length > 0 ? [o, ...e.slice(1)] : e.slice(1);
-  return { logoIcon: t, remainingGroups: r };
+  const [t, ...a] = e[0].icons, o = { icons: a }, i = a.length > 0 ? [o, ...e.slice(1)] : e.slice(1);
+  return { logoIcon: t, remainingGroups: i };
 }
-function O({
+function U({
   side: e,
   variant: t,
   iconStripGroups: a = [],
   children: o,
-  hideToggle: r = !1,
-  footer: i,
+  hideToggle: i = !1,
+  footer: r,
   collapsedContent: f
 }) {
-  const { isCollapsed: u, toggleSidebar: l } = I(), s = e === "left" ? u ? g : y : u ? y : g, d = u ? "Expand sidebar" : "Collapse sidebar";
+  const { isCollapsed: u, toggleSidebar: l } = R(), s = e === "left" ? u ? b : y : u ? y : b, d = u ? "Expand sidebar" : "Collapse sidebar";
   if (u && t === "full-hide")
     return /* @__PURE__ */ n.jsxs(
       "aside",
@@ -141,7 +131,7 @@ function O({
         "data-side": e,
         role: "complementary",
         "aria-label": e === "left" ? "Left sidebar (collapsed)" : "Right sidebar (collapsed)",
-        style: i ? { overflow: "visible" } : void 0,
+        style: r ? { overflow: "visible" } : void 0,
         children: [
           /* @__PURE__ */ n.jsx(
             v,
@@ -154,12 +144,12 @@ function O({
             }
           ),
           f,
-          i && /* @__PURE__ */ n.jsx("div", { className: "mt-auto", children: i })
+          r && /* @__PURE__ */ n.jsx("div", { className: "mt-auto", children: r })
         ]
       }
     );
   if (u && t === "icon-strip") {
-    const c = e === "left", { logoIcon: h, remainingGroups: m } = c ? D(a) : { logoIcon: null, remainingGroups: a };
+    const c = e === "left", { logoIcon: x, remainingGroups: m } = c ? z(a) : { logoIcon: null, remainingGroups: a };
     return /* @__PURE__ */ n.jsxs(
       "aside",
       {
@@ -167,9 +157,9 @@ function O({
         "data-side": e,
         role: "complementary",
         "aria-label": e === "left" ? "Left sidebar (collapsed)" : "Right sidebar (collapsed)",
-        style: i ? { overflow: "visible" } : void 0,
+        style: r ? { overflow: "visible" } : void 0,
         children: [
-          h && /* @__PURE__ */ n.jsxs(
+          x && /* @__PURE__ */ n.jsxs(
             v,
             {
               className: "sidebar-logo-toggle",
@@ -177,9 +167,9 @@ function O({
               title: d,
               "aria-label": d,
               children: [
-                /* @__PURE__ */ n.jsx("span", { className: "sidebar-logo-toggle-icon", children: h.icon }),
+                /* @__PURE__ */ n.jsx("span", { className: "sidebar-logo-toggle-icon", children: x.icon }),
                 /* @__PURE__ */ n.jsx(
-                  g,
+                  b,
                   {
                     size: 14,
                     className: "sidebar-logo-toggle-chevron",
@@ -189,8 +179,8 @@ function O({
               ]
             }
           ),
-          m.length > 0 && /* @__PURE__ */ n.jsx($, { groups: m }),
-          !h && /* @__PURE__ */ n.jsx(
+          m.length > 0 && /* @__PURE__ */ n.jsx(L, { groups: m }),
+          !x && /* @__PURE__ */ n.jsx(
             v,
             {
               className: "sidebar-toggle",
@@ -201,7 +191,7 @@ function O({
             }
           ),
           f,
-          i && /* @__PURE__ */ n.jsx("div", { className: "mt-auto", children: i })
+          r && /* @__PURE__ */ n.jsx("div", { className: "mt-auto", children: r })
         ]
       }
     );
@@ -214,7 +204,7 @@ function O({
       role: "complementary",
       "aria-label": e === "left" ? "Left sidebar" : "Right sidebar",
       children: /* @__PURE__ */ n.jsxs("div", { className: "sidebar-content", children: [
-        !r && /* @__PURE__ */ n.jsx("div", { className: "sidebar-toggle-row", "data-side": e, children: /* @__PURE__ */ n.jsx(
+        !i && /* @__PURE__ */ n.jsx("div", { className: "sidebar-toggle-row", "data-side": e, children: /* @__PURE__ */ n.jsx(
           v,
           {
             className: "sidebar-toggle",
@@ -225,20 +215,20 @@ function O({
           }
         ) }),
         o,
-        i && /* @__PURE__ */ n.jsx("div", { className: "sidebar-footer", children: i })
+        r && /* @__PURE__ */ n.jsx("div", { className: "sidebar-footer", children: r })
       ] })
     }
   );
 }
-function A({
+function I({
   id: e,
   label: t,
   icon: a,
   collapsible: o = !0,
-  children: r,
-  actions: i
+  children: i,
+  actions: r
 }) {
-  const { isSectionCollapsed: f, toggleSection: u } = I(), l = o && f(e), s = () => {
+  const { isSectionCollapsed: f, toggleSection: u } = R(), l = o && f(e), s = () => {
     o && u(e);
   }, d = (c) => {
     o && (c.key === "Enter" || c.key === " ") && (c.preventDefault(), u(e));
@@ -257,23 +247,23 @@ function A({
         children: [
           a && /* @__PURE__ */ n.jsx(a, { size: 16, className: "sidebar-section-icon" }),
           /* @__PURE__ */ n.jsx("span", { className: "sidebar-section-label", children: t }),
-          i && /* @__PURE__ */ n.jsx("span", { onClick: (c) => c.stopPropagation(), children: i }),
-          o && /* @__PURE__ */ n.jsx("span", { className: "sidebar-section-chevron", "aria-hidden": "true", children: l ? /* @__PURE__ */ n.jsx(g, { size: 16 }) : /* @__PURE__ */ n.jsx(T, { size: 16 }) })
+          r && /* @__PURE__ */ n.jsx("span", { onClick: (c) => c.stopPropagation(), children: r }),
+          o && /* @__PURE__ */ n.jsx("span", { className: "sidebar-section-chevron", "aria-hidden": "true", children: l ? /* @__PURE__ */ n.jsx(b, { size: 16 }) : /* @__PURE__ */ n.jsx(P, { size: 16 }) })
         ]
       }
     ),
-    !l && /* @__PURE__ */ n.jsx("div", { className: "sidebar-section-content", children: r })
+    !l && /* @__PURE__ */ n.jsx("div", { className: "sidebar-section-content", children: i })
   ] });
 }
-function _(e, t, a) {
-  const [o, r] = p(
+function D(e, t, a) {
+  const [o, i] = p(
     e.defaultState
-  ), i = F(null), f = b(
+  ), r = F(null), f = g(
     () => `${e.id}::${crypto.randomUUID()}`,
     [e.id, t]
   );
   C(() => {
-    r(e.defaultState);
+    i(e.defaultState);
   }, [e.defaultState]);
   const u = {
     id: f,
@@ -281,19 +271,19 @@ function _(e, t, a) {
     slotId: t,
     attrs: o,
     updateAttrs: (l) => {
-      r((s) => ({ ...s, ...l }));
+      i((s) => ({ ...s, ...l }));
     }
   };
-  return i.current = u, C(() => {
+  return r.current = u, C(() => {
     if (!a) return;
     const l = [];
     for (const s of e.listensTo) {
       const d = e.onEvent[s];
       if (!d) continue;
-      const c = a.on(s, (h) => {
-        const m = i.current;
+      const c = a.on(s, (x) => {
+        const m = r.current;
         if (m)
-          return d(m, h);
+          return d(m, x);
       });
       l.push(c);
     }
@@ -303,49 +293,49 @@ function _(e, t, a) {
     };
   }, [e.listensTo, e.onEvent, a]), u;
 }
-const J = {
+const O = {
   workspaceId: "",
   user: null,
   viewMode: null
-}, W = () => {
+}, $ = () => {
 };
 function te(e) {
-  const t = b(() => {
+  const t = g(() => {
     if ("bindings" in e)
       return e.bindings;
-    const s = M.getInstance().resolveSlot(e.slotId);
+    const s = T.getInstance().resolveSlot(e.slotId);
     return (s == null ? void 0 : s.bindings) ?? [];
   }, ["bindings" in e ? e.bindings : e.slotId]);
   if (t.length === 0) return null;
-  const a = e.slotId, o = "bindings" in e && "bus" in e, r = o ? e.context : e.context ?? J, i = e.bus, f = ("side" in e ? e.side : void 0) ?? "right", u = ("variant" in e ? e.variant : void 0) ?? "full-hide", l = ("iconStripGroups" in e ? e.iconStripGroups : void 0) ?? [];
-  return /* @__PURE__ */ n.jsx(U, { children: /* @__PURE__ */ n.jsx(
-    O,
+  const a = e.slotId, o = "bindings" in e && "bus" in e, i = o ? e.context : e.context ?? O, r = e.bus, f = ("side" in e ? e.side : void 0) ?? "right", u = ("variant" in e ? e.variant : void 0) ?? "full-hide", l = ("iconStripGroups" in e ? e.iconStripGroups : void 0) ?? [];
+  return /* @__PURE__ */ n.jsx(G, { children: /* @__PURE__ */ n.jsx(
+    U,
     {
       side: f,
       variant: u,
       iconStripGroups: l,
       children: t.map((s) => {
         if (s.type !== "block") return null;
-        if (i)
+        if (r)
           return /* @__PURE__ */ n.jsx(
-            K,
+            J,
             {
               binding: s,
               slotId: a,
-              bus: i,
-              context: r
+              bus: r,
+              context: i
             },
             s.id
           );
-        const d = s.component, c = r.actionContext ?? S(), h = r.invokeAction ?? N, m = {
+        const d = s.component, c = i.actionContext ?? S(), x = i.invokeAction ?? k, m = {
           id: `${s.id}::static`,
           blockId: s.id,
           slotId: a,
           attrs: s.defaultState,
-          updateAttrs: W
+          updateAttrs: $
         };
         return /* @__PURE__ */ n.jsx(
-          A,
+          I,
           {
             id: s.id,
             label: s.label,
@@ -353,11 +343,11 @@ function te(e) {
             children: /* @__PURE__ */ n.jsx(
               d,
               {
-                context: r,
+                context: i,
                 instance: m,
                 overrides: s.overrides,
                 actionContext: c,
-                invokeAction: h
+                invokeAction: x
               }
             )
           },
@@ -367,37 +357,37 @@ function te(e) {
     }
   ) });
 }
-function K({
+function J({
   binding: e,
   slotId: t,
   bus: a,
   context: o
 }) {
-  const r = e.component, i = _(e, t, a), f = o.actionContext ?? S(), u = o.invokeAction ?? N, l = b(
+  const i = e.component, r = D(e, t, a), f = o.actionContext ?? S(), u = o.invokeAction ?? k, l = g(
     () => ({
       ...o,
       emitAction: (s, d) => {
         a.emit(`${e.id}.${s}`, {
-          blockInstanceId: i.id,
+          blockInstanceId: r.id,
           blockId: e.id,
           localId: s,
           payload: d
         });
       }
     }),
-    [o, e.id, a, i.id]
+    [o, e.id, a, r.id]
   );
   return /* @__PURE__ */ n.jsx(
-    A,
+    I,
     {
       id: e.id,
       label: e.label,
       icon: e.icon,
       children: /* @__PURE__ */ n.jsx(
-        r,
+        i,
         {
           context: l,
-          instance: i,
+          instance: r,
           overrides: e.overrides,
           actionContext: f,
           invokeAction: u
@@ -408,24 +398,24 @@ function K({
 }
 class w {
   // ── Construction ──────────────────────────────────────────────────────
-  constructor(t, a, o, r = []) {
+  constructor(t, a, o, i = []) {
     /**
      * Local event identifier, e.g. ``"entities-registered"``.
      * Combined with the block's global ID to form the full bus event key.
      */
-    x(this, "id");
+    h(this, "id");
     /** ``"action"`` for auditable events, ``"ui"`` for in-workspace signals. */
-    x(this, "category");
+    h(this, "category");
     /**
      * Audit classification.
      *
      * - ``"created" | "edited" | "deleted"`` — lifecycle or domain mutations.
      * - ``"ui"`` — workspace-internal signal (always paired with ``category: "ui"``).
      */
-    x(this, "core");
+    h(this, "core");
     /** Reserved for future listen-by-tag.  Stored, not consumed. */
-    x(this, "tags");
-    this.id = t, this.category = a, this.core = o, this.tags = r;
+    h(this, "tags");
+    this.id = t, this.category = a, this.core = o, this.tags = i;
   }
   // ── Static factories ──────────────────────────────────────────────────
   /**
@@ -469,64 +459,64 @@ class w {
     };
   }
 }
-function V(e, t) {
+function W(e, t) {
   return t === void 0 ? { type: "entity-reference", displayId: e } : { type: "entity-reference", displayId: e, schemaId: t };
 }
 function ne(e, t) {
-  return V(t, e);
+  return W(t, e);
 }
 export {
   ae as ActionReference,
-  Ne as ApiError,
+  Re as ApiError,
   w as BlockEvent,
-  ie as Button,
+  re as Button,
   ee as ButtonGroupRenderer,
   v as IconButton,
-  re as Menu,
+  ie as Menu,
   ce as ModelReference,
-  Re as NetworkError,
+  Ie as NetworkError,
   le as ObjectReference,
-  Ye as PortableBlockView,
-  Oe as RecordValueInspector,
+  Ze as PortableBlockView,
+  Je as RecordValueInspector,
   de as ServiceReference,
   ue as SlotReference,
   te as SlotSidebar,
-  me as TipTapRenderer,
-  _e as UnavailableRecordCapability,
-  fe as WorkspaceReference,
-  Fe as canonicalJson,
-  Ge as canonicalizeContractJson,
-  ze as contractFingerprint,
-  Ie as del,
-  V as entityReference,
-  he as evaluateCellFormula,
+  ke as TipTapRenderer,
+  We as UnavailableRecordCapability,
+  me as WorkspaceReference,
+  Le as canonicalJson,
+  ze as canonicalizeContractJson,
+  Ue as contractFingerprint,
+  Ae as del,
+  W as entityReference,
+  fe as evaluateCellFormula,
   xe as evaluateFormula,
-  ve as evaluateRow,
-  Je as exportPlatformRecord,
-  pe as externalRoutePath,
-  ge as functionCallsIn,
-  Ae as get,
-  Ze as getActionInvocation,
-  We as getExactRecordRevision,
-  Ke as getPlatformRecord,
-  Ee as getText,
-  et as invokeAction,
-  Ue as isExactJsonNumber,
-  Pe as isNotFoundError,
+  he as evaluateRow,
+  Ke as exportPlatformRecord,
+  ve as externalRoutePath,
+  pe as functionCallsIn,
+  Ee as get,
+  et as getActionInvocation,
+  Ve as getExactRecordRevision,
+  Qe as getPlatformRecord,
+  Pe as getText,
+  tt as invokeAction,
+  De as isExactJsonNumber,
+  Te as isNotFoundError,
   be as legacyWorkspaceUrl,
-  Ve as listPlatformRecords,
-  qe as listRecordActivity,
-  Qe as listRecordGroupRevisions,
-  $e as parseExactContractJson,
-  je as parseFormula,
-  Te as patch,
-  Me as post,
-  Le as put,
-  Ce as registrationId,
-  tt as resolvePortableActionContext,
+  Xe as listPlatformRecords,
+  _e as listRecordActivity,
+  qe as listRecordGroupRevisions,
+  Oe as parseExactContractJson,
+  ge as parseFormula,
+  Me as patch,
+  Be as post,
+  Fe as put,
+  je as registrationId,
+  nt as resolvePortableActionContext,
   ne as schemaReference,
-  we as unimplementedFormulaFunctionsIn,
-  Xe as uploadPlatformAttachment,
-  ye as usesBackendOnlyFunction,
-  ke as workspaceUrl
+  Ce as unimplementedFormulaFunctionsIn,
+  He as uploadPlatformAttachment,
+  we as usesBackendOnlyFunction,
+  ye as workspaceUrl
 };

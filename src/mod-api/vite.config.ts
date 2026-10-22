@@ -13,6 +13,7 @@ export default defineConfig({
         contracts: path.resolve(import.meta.dirname, "src/contracts.ts"),
         theme: path.resolve(import.meta.dirname, "src/theme.ts"),
         records: path.resolve(import.meta.dirname, "src/records.tsx"),
+        host: path.resolve(import.meta.dirname, "src/elnHost.ts"),
       },
       formats: ["es"],
       fileName: (_format, entryName) => `${entryName}.js`,

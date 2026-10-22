@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import { Mod } from "../../../shell/src/mod-system/Mod";
+import { ModRegistry } from "@helix/mod-api/host";
+import { Mod } from "@helix/mod-api/host";
 import manifest from "../modManifest.json";
 import type {
   SlotDeclaration,
   ButtonRegistration,
   SlotBinding,
-} from "../../../shell/src/mod-system/types";
+} from "@helix/mod-api/host";
 
 describe("eln mod registration", () => {
   let registry: ModRegistry;

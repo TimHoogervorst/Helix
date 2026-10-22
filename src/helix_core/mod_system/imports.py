@@ -151,7 +151,7 @@ def _javascript_findings(path: Path, root: Path) -> list[ForbiddenImport]:
         if not match:
             continue
         imported = match.group(1) or match.group(2)
-        if imported == "@helix/mod-api":
+        if imported == "@helix/mod-api" or imported.startswith("@helix/mod-api/"):
             continue
         if imported.startswith("@helix/"):
             findings.append(

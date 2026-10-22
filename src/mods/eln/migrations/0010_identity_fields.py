@@ -2,7 +2,7 @@ from django.db import migrations
 
 
 def migrate_documents_and_actions(apps, schema_editor):
-    from helix_core.identity_migration import migrate_json, translate
+    from mods.eln.identity_migration_support import migrate_json, translate
 
     NotebookEntry = apps.get_model("eln", "NotebookEntry")
     for entry in NotebookEntry.objects.all().iterator():

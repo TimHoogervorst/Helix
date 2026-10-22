@@ -16,8 +16,8 @@ import UnifiedSuggestion, {
   getCommands,
 } from "../UnifiedSuggestion";
 import Reference from "../Reference";
-import { createTestEditor } from "../../../../../shell/src/test/factories";
-import { ModRegistry } from "../../../../../shell/src/mod-system/ModRegistry";
+import { createTestEditor } from "../../../tests/frontendFactories";
+import { ModRegistry } from "@helix/mod-api/host";
 
 // ── Test block node ────────────────────────────────────────────────
 
@@ -93,7 +93,7 @@ function registerTableBlock(overrides?: Record<string, unknown>) {
 // ── Mock API client for fetchItems tests ────────────────────────────
 
 const mockGet = vi.fn();
-vi.mock("../../../../../shell/src/api/client", () => ({
+vi.mock("@helix/mod-api/host", () => ({
   get: (...args: unknown[]) => mockGet(...args),
 }));
 

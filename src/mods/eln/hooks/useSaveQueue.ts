@@ -16,7 +16,7 @@
  * - saveMode flows into the X-Save-Mode request header
  */
 import { useState, useRef, useCallback } from "react";
-import { put, NetworkError } from "../../../shell/src/api/client";
+import { put, NetworkError } from "@helix/mod-api/host";
 import type { EntryDetail } from "../types";
 
 // ── Types ──────────────────────────────────────────────────────────────────

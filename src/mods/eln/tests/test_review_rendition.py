@@ -13,10 +13,10 @@ from django.test import override_settings
 from django.utils import timezone
 from pypdf import PdfReader
 
-from helix_core.core.tests.base import BaseTestCase
-from helix_core.core.models import User
-from helix_core.attachments import upload_attachment
-from helix_core.models import ActionLogEntry, AttachmentRevisionLink, PlatformAttachment
+from .support import BaseTestCase
+from helix_core.public import User
+from helix_core.public import upload_attachment
+from helix_core.public import ActionLogEntry, AttachmentRevisionLink, PlatformAttachment
 from mods.eln.models import HistoricalRendition, NotebookEntry
 
 from .factories import TEXT_DOC
@@ -256,7 +256,7 @@ class ReviewRenditionApiTests(BaseTestCase):
         attachment = PlatformAttachment.objects.get(pk=attachment_id)
         self.assertFalse(attachment.revision_links.exists())
         self.assertIsNotNone(attachment.unreferenced_at)
-        from helix_core.attachments import cleanup_staged_attachments
+        from helix_core.public import cleanup_staged_attachments
 
         cleanup_staged_attachments(now=timezone.now() + timedelta(days=2))
         self.assertFalse(PlatformAttachment.objects.filter(pk=attachment_id).exists())

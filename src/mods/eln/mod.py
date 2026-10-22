@@ -1,11 +1,11 @@
 from django.urls import include, path
 
-from helix_core import SignalKind
-from helix_core.column_types import (
+from helix_core.public import (
     AggregateMeta,
     ColumnType,
     OperatorMeta,
-    registry as column_type_registry,
+    SignalKind,
+    public_column_type_registry as column_type_registry,
 )
 
 
@@ -51,7 +51,7 @@ def register(mod):
     from mods.eln.models import NotebookEntry
     from mods.eln.serializers import NotebookEntrySerializer
     from mods.eln.views import NotebookEntryViewSet
-    from bundled.access.access.scoping import visible_rows_q
+    from helix_core.public import visible_rows_q
 
     # Register the tiptap_content column type so consumers (entity hub,
     # registry table) can discover and render it generically.

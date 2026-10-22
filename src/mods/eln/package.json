@@ -2,7 +2,6 @@
   "name": "@helix/eln",
   "version": "0.1.0",
   "type": "module",
-  "private": true,
   "main": "./index.ts",
   "module": "./index.ts",
   "types": "./index.ts",
@@ -11,7 +10,16 @@
     "./manifest": "./modManifest.json",
     "./modManifest.json": "./modManifest.json"
   },
-  "files": ["index.ts", "modManifest.json"],
+  "scripts": {
+    "test:package": "node --test package-tests/independent-artifact.check.mjs"
+  },
+  "files": [
+    "**/*",
+    "!**/__tests__/**",
+    "!tests/**",
+    "!prototypes/**",
+    "!package-tests/**"
+  ],
   "helix": {
     "importSpecifier": "@helix/eln"
   },

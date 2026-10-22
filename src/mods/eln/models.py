@@ -6,11 +6,11 @@ from django.conf import settings
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
-from helix_core.abstracts import AbstractEntity
-from helix_core.actions.base import AbstractBaseAction
+from helix_core.public import AbstractEntity
+from helix_core.public import AbstractBaseAction
 
 # Re-export for backward compatibility — these are canonical in bundled.labelling.tags.
-from bundled.labelling.tags.models import TAG_COLOR_CHOICES, TAG_ICON_CHOICES, Tag  # noqa: F401
+from helix_core.public import TAG_COLOR_CHOICES, TAG_ICON_CHOICES, Tag  # noqa: F401
 
 
 class NotebookEntry(AbstractEntity):
@@ -170,7 +170,7 @@ class HistoricalRendition(models.Model):
         if self.pk and type(self).objects.filter(pk=self.pk).exists():
             raise ValueError("HistoricalRendition metadata is immutable")
         if self.captured_by_id and not self.captured_by_snapshot:
-            from helix_core.models import user_attribution_snapshot
+            from helix_core.public import user_attribution_snapshot
 
             self.captured_by_snapshot = user_attribution_snapshot(self.captured_by)
         return super().save(*args, **kwargs)

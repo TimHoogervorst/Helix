@@ -9,9 +9,9 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from helix_core.core.models import Folder, Project, User
-from helix_core.core.tests.base import BaseTestCase
-from bundled.access.access.models import (
+from helix_core.public import Folder, Project, User
+from .support import BaseTestCase
+from helix_core.public import (
     FolderShare,
     Grant,
     Organization,
@@ -133,7 +133,7 @@ class LockAcquireTests(_CreateEntryMixin, BaseTestCase):
 
     @staticmethod
     def _create_second_user():
-        from helix_core.core.models import User
+        from helix_core.public import User
 
         return User.objects.create_user(
             username="other_user",
@@ -237,7 +237,7 @@ class LockAccessTests(_CreateEntryMixin, BaseTestCase):
 
     def setUp(self):
         super().setUp()
-        from bundled.access.access.models import (
+        from helix_core.public import (
             FolderShare,
             Organization,
             OrganizationMembership,
@@ -297,7 +297,7 @@ class LockAccessTests(_CreateEntryMixin, BaseTestCase):
 
     def test_team_derived_edit_can_acquire(self):
         from django.contrib.auth.models import Group
-        from bundled.access.access.models import Team
+        from helix_core.public import Team
 
         team_user = User.objects.create_user(username="lock_team", password="pass")
         OrganizationMembership.objects.update_or_create(

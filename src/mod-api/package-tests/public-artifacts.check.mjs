@@ -11,7 +11,7 @@ const packageJson = JSON.parse(
 );
 
 test("built Mod API exports can be consumed from package artifacts", async () => {
-  const [root, editor, blocks, portableBlocks, api, contracts, records, theme] = await Promise.all([
+  const [root, editor, blocks, portableBlocks, api, contracts, records, theme, host] = await Promise.all([
     import("@helix/mod-api"),
     import("@helix/mod-api/editor"),
     import("@helix/mod-api/blocks"),
@@ -20,6 +20,7 @@ test("built Mod API exports can be consumed from package artifacts", async () =>
     import("@helix/mod-api/contracts"),
     import("@helix/mod-api/records"),
     import("@helix/mod-api/theme"),
+    import("@helix/mod-api/host"),
   ]);
 
   assert.equal(typeof root.entityReference, "function");
@@ -40,6 +41,9 @@ test("built Mod API exports can be consumed from package artifacts", async () =>
   assert.equal(typeof records.RecordValueInspector, "function");
   assert.equal(typeof api.post, "function");
   assert.equal(theme.themeTokens.primary, "--color-primary");
+  assert.equal(typeof host.get, "function");
+  assert.equal(typeof host.ModRegistry, "function");
+  assert.equal(typeof host.TableKit, "function");
 });
 
 test("the packed package contains every declared runtime entry point", () => {

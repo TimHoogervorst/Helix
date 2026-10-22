@@ -1,21 +1,19 @@
 from uuid import uuid4
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import override_settings
 
-from helix_core.core.tests.base import BaseTestCase
-from helix_core.models import (
+from .support import BaseTestCase
+from helix_core.public import (
     ActionInvocationReceipt, ActionLogEntry, ActionParticipant, PlatformRecord,
     RetainedContract, ScientificRevision,
 )
-from helix_core.mod_system.contracts import contract_fingerprint, canonical_json
-from helix_core.mod_system.registry import BackendModRegistry
-from helix_core.mod_system.manifest import ModManifest
-from helix_core.public import ModRegistrar
-from helix_core.record_persistence import ProposedEffects
+from helix_core.public import (
+    BackendModRegistry, ModManifest, ModRegistrar, ProposedEffects,
+    canonical_json, contract_fingerprint, use_backend_registry_for_integration,
+)
 from mods.eln.models import ContentVersion, NotebookEntry
 from mods.eln.tests.factories import TEXT_DOC, get_or_create_default_eln_schema
 
@@ -25,8 +23,8 @@ class PlatformDocumentSaveTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.backend_registry = BackendModRegistry()
-        self.registry_patch = patch("helix_core.mod_system.registry.registry", self.backend_registry)
-        self.registry_patch.start()
+        self.registry_context = use_backend_registry_for_integration(self.backend_registry)
+        self.registry_context.__enter__()
         get_or_create_default_eln_schema()
         self.client.force_authenticate(user=self.user)
         package_root = Path(__file__).resolve().parents[1]
@@ -41,7 +39,7 @@ class PlatformDocumentSaveTests(BaseTestCase):
             )
 
     def tearDown(self):
-        self.registry_patch.stop()
+        self.registry_context.__exit__(None, None, None)
         super().tearDown()
 
     def create_entry(self):
@@ -263,7 +261,7 @@ class PlatformDocumentSaveTests(BaseTestCase):
         self.assertTrue(recovery.data["participants"][0]["targetUnavailable"])
 
     def test_source_cleanup_accepts_registry_identity_for_legacy_document_groups(self):
-        from helix_core.record_persistence import delete_source_entity
+        from helix_core.public import delete_source_entity
 
         created = self.create_entry()
         entry = NotebookEntry.objects.get(pk=created["id"])

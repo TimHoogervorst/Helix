@@ -5,8 +5,8 @@ Exercises the full perform_update flow: hash-based no-op short-circuit,
 ContentVersion creation, save_mode via X-Save-Mode header, version-number
 sequencing, and action-log metadata enrichment.
 """
-from helix_core.core.tests.base import BaseTestCase
-from helix_core.models import ActionLogEntry
+from .support import BaseTestCase
+from helix_core.public import ActionLogEntry
 from mods.eln.models import NotebookEntry, ContentVersion
 
 from .factories import TEXT_DOC, ALT_DOC, _CreateEntryMixin

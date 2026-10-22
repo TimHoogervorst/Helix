@@ -11,7 +11,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 // ── Mock API client ───────────────────────────────────────────────────────
 
 const mockGet = vi.fn();
-vi.mock("../../../../shell/src/api/client", () => ({
+vi.mock("@helix/mod-api/host", () => ({
   get: (...args: unknown[]) => mockGet(...args),
 }));
 

@@ -43,6 +43,10 @@
       "types": "./dist/mod-api/src/theme.d.ts",
       "import": "./dist/theme.js"
     },
+    "./host": {
+      "types": "./dist/mod-api/src/elnHost.d.ts",
+      "import": "./dist/host.js"
+    },
     "./manifest": "./modManifest.json",
     "./style.css": "./style.css",
     "./theme.css": "./style.css"

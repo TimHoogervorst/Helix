@@ -1,13 +1,13 @@
 import { Extension, Mark, Node } from "@tiptap/core";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { createContext, useContext } from "react";
-import { PortableBlockView, type PortableBlockContent } from "../../../mod-api/src/portableBlocks";
-import type { ActionInvocationRequest, ActionInvocationOutcome } from "../../../shell/src/mod-system/types";
-import type { ActionContractDefinition } from "../../../mod-api/src/contracts";
+import { PortableBlockView, type PortableBlockContent } from "@helix/mod-api/portable-blocks";
+import type { ActionInvocationRequest, ActionInvocationOutcome } from "@helix/mod-api/host";
+import type { ActionContractDefinition } from "@helix/mod-api/contracts";
 
 export interface ElnPortableBlockHost {
   actionDefinitions: Readonly<Record<string, ActionContractDefinition>>;
-  actionContext: (block: PortableBlockContent, stepId: string) => import("../../../mod-api/src/portableBlocks").PortableActionContext;
+  actionContext: (block: PortableBlockContent, stepId: string) => import("@helix/mod-api/portable-blocks").PortableActionContext;
   buildInvocation: (block: PortableBlockContent, stepId: string) => ActionInvocationRequest;
   beforeInvoke: () => Promise<void>;
   invokeAction: (request: ActionInvocationRequest) => Promise<ActionInvocationOutcome>;

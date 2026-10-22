@@ -7,9 +7,9 @@ mention sync, then conditional save.
 Adding a new sync step (e.g. Protocol widgets) changes this file alone
 — the view layer stays one call.
 """
-from helix_core.core.signals import entry_content_sync
-from helix_core.mentions.node_walker import collect_reference_ids
-from helix_core.mentions.sync import sync_mentions
+from helix_core.public import entry_content_sync
+from helix_core.public import collect_reference_ids
+from helix_core.public import sync_mentions
 
 from .models import NotebookEntry
 

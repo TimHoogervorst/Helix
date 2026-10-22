@@ -8,7 +8,7 @@
  * Future PRDs will wire this to real attachment data.
  */
 import { Paperclip } from "lucide-react";
-import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
+import type { BlockComponentProps } from "@helix/mod-api/host";
 
 /** Placeholder attachment entries. */
 const PLACEHOLDER_ATTACHMENTS = [

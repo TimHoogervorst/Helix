@@ -8,6 +8,7 @@ contract does not expose its storage or Django wiring.
 from __future__ import annotations
 
 import re
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import StrEnum
 from importlib.util import find_spec
@@ -458,6 +459,208 @@ class ModRegistrar:
 
 
 Mod = ModRegistrar
+
+
+_PUBLIC_TYPES: dict[str, tuple[str, str]] = {
+    # Stable Django model and base-model types Mods may extend or serialize.
+    "AbstractEntity": ("helix_core.abstracts", "AbstractEntity"),
+    "AbstractBaseAction": ("helix_core.actions.base", "AbstractBaseAction"),
+    "Mention": ("helix_core.mentions.models", "Mention"),
+    "Folder": ("helix_core.core.models", "Folder"),
+    "Project": ("helix_core.core.models", "Project"),
+    "User": ("helix_core.core.models", "User"),
+    "ActionLogEntry": ("helix_core.models", "ActionLogEntry"),
+    "Schema": ("helix_core.models", "Schema"),
+    "SchemaType": ("helix_core.models", "SchemaType"),
+    "PlatformAttachment": ("helix_core.models", "PlatformAttachment"),
+    "AttachmentRevisionLink": ("helix_core.models", "AttachmentRevisionLink"),
+    "ActionInvocationReceipt": ("helix_core.models", "ActionInvocationReceipt"),
+    "ActionParticipant": ("helix_core.models", "ActionParticipant"),
+    "PlatformRecord": ("helix_core.models", "PlatformRecord"),
+    "RetainedContract": ("helix_core.models", "RetainedContract"),
+    "ScientificRevision": ("helix_core.models", "ScientificRevision"),
+    "ColumnType": ("helix_core.column_types", "ColumnType"),
+    "AggregateMeta": ("helix_core.column_types", "AggregateMeta"),
+    "OperatorMeta": ("helix_core.column_types", "OperatorMeta"),
+    "VersionTarget": ("helix_core.actions.version_target", "VersionTarget"),
+    "ActionLoggingMixin": ("helix_core.actions.mixins", "ActionLoggingMixin"),
+    "ProposedEffects": ("helix_core.record_persistence", "ProposedEffects"),
+    "TAG_COLOR_CHOICES": ("bundled.labelling.tags.models", "TAG_COLOR_CHOICES"),
+    "TAG_ICON_CHOICES": ("bundled.labelling.tags.models", "TAG_ICON_CHOICES"),
+    "Tag": ("bundled.labelling.tags.models", "Tag"),
+    "TagSerializer": ("bundled.labelling.tags.serializers", "TagSerializer"),
+    "UserSerializer": ("bundled.access.users.serializers", "UserSerializer"),
+    "IsOrganizationAdmin": ("bundled.access.access.permissions", "IsOrganizationAdmin"),
+    "IsOrganizationAdminForWrites": ("bundled.access.access.permissions", "IsOrganizationAdminForWrites"),
+    "entry_content_sync": ("helix_core.core.signals", "entry_content_sync"),
+    "user_attribution_snapshot": ("helix_core.models", "user_attribution_snapshot"),
+    "BackendModRegistry": ("helix_core.mod_system.registry", "BackendModRegistry"),
+    "ModManifest": ("helix_core.mod_system.manifest", "ModManifest"),
+    "Grant": ("bundled.access.access.models", "Grant"),
+    "ProjectRole": ("bundled.access.access.models", "ProjectRole"),
+    "FolderShare": ("bundled.access.access.models", "FolderShare"),
+    "Organization": ("bundled.access.access.models", "Organization"),
+    "OrganizationMembership": ("bundled.access.access.models", "OrganizationMembership"),
+    "OrganizationRole": ("bundled.access.access.models", "OrganizationRole"),
+    "ShareLevel": ("bundled.access.access.models", "ShareLevel"),
+    "Team": ("bundled.access.access.models", "Team"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    """Resolve stable shared types lazily after Django has loaded model apps."""
+    target = _PUBLIC_TYPES.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from importlib import import_module
+
+    return getattr(import_module(target[0]), target[1])
+
+
+def public_column_type_registry() -> Any:
+    """Return the registration service for Mod-owned column types."""
+    from helix_core.column_types import registry
+
+    return registry
+
+
+def get_registered_model(reference: ModelReference) -> type:
+    """Resolve a declared model reference through the public registration API."""
+    if not isinstance(reference, ModelReference):
+        raise TypeError("reference must be a ModelReference")
+    from helix_core.mod_system.registry import registry
+
+    try:
+        return registry.get_registered_models()[reference.id]
+    except KeyError as exc:
+        raise LookupError(f"Model reference '{reference.id}' is unavailable") from exc
+
+
+@contextmanager
+def use_backend_registry_for_integration(registry: Any):
+    """Temporarily supply an isolated registry while exercising Mod APIs.
+
+    This is an integration-test seam for Mod-owned backend suites. Production
+    registration uses the host's installed registry automatically.
+    """
+    from unittest.mock import patch
+
+    with patch("helix_core.mod_system.registry.registry", registry):
+        yield
+
+
+def update_status_from_source(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.source_status import update_status_from_source as operation
+
+    return operation(*args, **kwargs)
+
+
+def hydrate_source_path(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.abstracts import hydrate_source_path as operation
+
+    return operation(*args, **kwargs)
+
+
+def collect_reference_ids(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.mentions.node_walker import collect_reference_ids as operation
+
+    return operation(*args, **kwargs)
+
+
+def sync_mentions(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.mentions.sync import sync_mentions as operation
+
+    return operation(*args, **kwargs)
+
+
+def delete_source_descendants(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.source_deletion import delete_source_descendants as operation
+
+    return operation(*args, **kwargs)
+
+
+def delete_platform_record(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.record_persistence import delete_platform_record as operation
+
+    return operation(*args, **kwargs)
+
+
+def delete_source_entity(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.record_persistence import delete_source_entity as operation
+
+    return operation(*args, **kwargs)
+
+
+def link_revision_attachments(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.attachments import link_revision_attachments as operation
+
+    return operation(*args, **kwargs)
+
+
+def upload_attachment(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.attachments import upload_attachment as operation
+
+    return operation(*args, **kwargs)
+
+
+def verify_attachment_content(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.attachments import _verify_content as operation
+
+    return operation(*args, **kwargs)
+
+
+def cleanup_staged_attachments(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.attachments import cleanup_staged_attachments as operation
+
+    return operation(*args, **kwargs)
+
+
+def visible_rows_q(*args: Any, **kwargs: Any) -> Any:
+    from bundled.access.access.scoping import visible_rows_q as operation
+
+    return operation(*args, **kwargs)
+
+
+def effective_role(*args: Any, **kwargs: Any) -> Any:
+    from bundled.access.access.policies import effective_role as operation
+
+    return operation(*args, **kwargs)
+
+
+def role(*args: Any, **kwargs: Any) -> Any:
+    from bundled.access.access.policies import role as operation
+
+    return operation(*args, **kwargs)
+
+
+def log_action(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.actions.logger import log_action as operation
+
+    return operation(*args, **kwargs)
+
+
+def bulk_log_actions(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.actions.logger import bulk_log_actions as operation
+
+    return operation(*args, **kwargs)
+
+
+def logs_action(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.actions.mixins import logs_action as operation
+
+    return operation(*args, **kwargs)
+
+
+def canonical_json(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.mod_system.contracts import canonical_json as operation
+
+    return operation(*args, **kwargs)
+
+
+def contract_fingerprint(*args: Any, **kwargs: Any) -> Any:
+    from helix_core.mod_system.contracts import contract_fingerprint as operation
+
+    return operation(*args, **kwargs)
 
 
 def create_record(**values: Any) -> dict[str, Any]:

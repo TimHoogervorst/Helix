@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import React from "react";
 
-vi.mock("../../../bundled/labelling/tags/hooks/useTagSearch", () => ({
+vi.mock("../tags/hooks/useTagSearch", () => ({
   useTagSearch: () => ({
     query: "",
     setQuery: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock("../../../bundled/labelling/tags/hooks/useTagSearch", () => ({
   }),
 }));
 
-vi.mock("../../../bundled/labelling/tags/api", () => ({
+vi.mock("../tags/api", () => ({
   listTags: vi.fn().mockResolvedValue([]),
   createTag: vi.fn(),
 }));

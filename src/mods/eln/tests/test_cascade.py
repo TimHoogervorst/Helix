@@ -4,13 +4,16 @@ Tests for the NotebookEntry → Entity status cascade signal handler.
 The signal (in ``eln/cascade.py``) fires on ``post_save`` for
 NotebookEntry and updates the status of all linked Entities to match.
 """
-from helix_core.core.tests.base import BaseServiceTestCase
-from helix_core.core.models import Folder
-from helix_core.models import SchemaType, Schema
-from helix_core.mentions.models import Mention
+from django.apps import apps
+
+from .support import BaseServiceTestCase
+from helix_core.public import Folder
+from helix_core.public import SchemaType, Schema
+from helix_core.public import Mention
 from mods.eln.models import NotebookEntry
-from bundled.lims.models import Entity
-from helix_core.source_deletion import delete_source_descendants
+from helix_core.public import delete_source_descendants
+
+Entity = apps.get_model("lims", "Entity")
 
 
 class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):

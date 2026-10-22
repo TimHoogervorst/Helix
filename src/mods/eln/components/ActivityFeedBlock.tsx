@@ -19,9 +19,9 @@
  * presentation — this block owns data fetching, type mapping, and merging.
  */
 import { useEffect, useRef } from "react";
-import type { BlockComponentProps, BlockInstance } from "../../../shell/src/mod-system/types";
+import type { BlockComponentProps, BlockInstance } from "@helix/mod-api/host";
 import { useElnActivity } from "../hooks/useActivity";
-import { Activity } from "../../../shell/src/shared/components/Activity";
+import { Activity } from "@helix/mod-api/host";
 export { mapElnAction } from "../hooks/useActivity";
 
 // ── onEvent handlers (exported for declarative registration) ────────────────

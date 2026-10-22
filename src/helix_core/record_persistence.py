@@ -40,6 +40,9 @@ class ProposedEffects:
     field_values: Mapping[str, Mapping[str, Any]] | None = None
     metadata: Mapping[str, Any] | None = None
     outputs: Mapping[str, Mapping[str, Any]] | None = None
+    creates: list[Mapping[str, Any]] | None = None
+    document_snapshot: Mapping[str, Any] | None = None
+    document_references: list[Mapping[str, Any]] | None = None
 
 
 def _digest(value: Any) -> str:
@@ -645,10 +648,32 @@ def _require_current_read_access(actor, record):
         raise PermissionDenied("You no longer have permission to access this Action outcome.")
 
 
+def _validate_retained_sequence(snapshot, declaration, fingerprint):
+    """Require the submitted complete Sequence to equal one in the saved document."""
+    if not isinstance(snapshot, Mapping) or not isinstance(declaration, dict):
+        raise ActionValidationError({"sequenceDeclaration": "A saved document Action Sequence is required."})
+    found = []
+    pending = [snapshot]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, Mapping):
+            sequence = value.get("actionSequence")
+            if isinstance(sequence, Mapping) and sequence.get("fingerprint") == fingerprint:
+                found.append(_thaw(sequence))
+            pending.extend(value.values())
+        elif isinstance(value, (list, tuple)):
+            pending.extend(value)
+    if len(found) != 1 or found[0] != declaration:
+        raise ActionValidationError({"sequenceDeclaration": "The Action Sequence is missing, ambiguous, or differs from the exact saved document declaration."})
+    sequence_steps = declaration.get("steps")
+    if not isinstance(sequence_steps, list) or len(sequence_steps) < 2:
+        raise ActionValidationError({"sequenceDeclaration": "A composed Action Sequence must declare at least two ordered steps."})
+
+
 @transaction.atomic
 def execute_action_invocation(
     *, actor, invocation_id, sequence_fingerprint, inputs, parameters,
-    targets, expected_state, providers,
+    targets, expected_state, providers, steps=None, sequence_declaration=None,
 ):
     """Execute one registered synchronous Action and persist its replay receipt."""
     from helix_core.mod_system.contracts import parse_contract_json
@@ -668,6 +693,8 @@ def execute_action_invocation(
         "targets": targets,
         "expectedState": expected_state,
         "providers": providers,
+        "steps": steps,
+        "sequenceDeclaration": sequence_declaration,
     }
     request_fingerprint = _digest({"actor": str(actor.pk), **requested})
     receipt = ActionInvocationReceipt.objects.filter(
@@ -686,12 +713,33 @@ def execute_action_invocation(
         raise ValidationError({"targets": "A single Action must name exactly one record target."})
     if not isinstance(expected_state, dict) or set(expected_state) != {"record"}:
         raise ValidationError({"expectedState": "Expected state must name the record target."})
-    if not isinstance(providers, dict) or set(providers) != {"action"}:
-        raise ValidationError({"providers": "A single Action must select one action provider."})
-    if parameters not in ({}, None):
-        raise ActionValidationError({"parameters": "This Action declares no parameters."})
-    action_id = providers["action"]
-    if not isinstance(action_id, str) or not action_id:
+    if steps is None:
+        if not isinstance(providers, dict) or set(providers) != {"action"}:
+            raise ValidationError({"providers": "A single Action must select one action provider."})
+    else:
+        if not isinstance(steps, list) or not 2 <= len(steps) <= 16:
+            raise ActionValidationError({"steps": "A composed Action Sequence must contain 2 to 16 steps."})
+        step_ids = [item.get("id") for item in steps if isinstance(item, dict)]
+        if len(step_ids) != len(steps) or len(set(step_ids)) != len(step_ids) or any(not isinstance(item, str) or not item for item in step_ids):
+            raise ActionValidationError({"steps": "Action step IDs must be unique non-empty strings."})
+        if any(set(step) != {"id", "inputs", "parameters"} for step in steps):
+            raise ActionValidationError({"steps": "Each step must provide only its ID, inputs, and parameters."})
+        if not isinstance(providers, dict) or set(providers) != {"steps"} or not isinstance(providers["steps"], dict) or set(providers["steps"]) != set(step_ids):
+            raise ActionValidationError({"providers": "Each composed Action step must select exactly one provider."})
+        if any(not isinstance(value, str) or not value for value in providers["steps"].values()):
+            raise ActionValidationError({"providers": "Each step provider identity must be a non-empty string."})
+        if inputs != {} or parameters != {}:
+            raise ActionValidationError({"steps": "Composed invocation inputs and parameters belong to their declared steps."})
+        if not isinstance(sequence_declaration, dict):
+            raise ActionValidationError({"sequenceDeclaration": "Composed invocations must include the saved Action Sequence declaration."})
+        if sequence_declaration.get("fingerprint") != sequence_fingerprint:
+            raise ActionValidationError({"sequenceDeclaration": "The Action Sequence fingerprint does not match its declaration."})
+    if parameters is None:
+        parameters = {}
+    if not isinstance(parameters, dict):
+        raise ActionValidationError({"parameters": "Action parameters must be an object."})
+    action_id = providers.get("action") if steps is None else None
+    if steps is None and (not isinstance(action_id, str) or not action_id):
         raise ValidationError({"providers": "The action provider identity is required."})
 
     try:
@@ -728,9 +776,21 @@ def execute_action_invocation(
     from helix_core.core.models import Project
     from helix_core.models import Schema, SchemaType
     Project.objects.select_for_update().get(pk=hint.project_id)
-    schema_hint = Schema.objects.only("schema_type_id").get(pk=hint.schema_id)
-    SchemaType.objects.select_for_update().get(pk=schema_hint.schema_type_id)
-    Schema.objects.select_for_update().get(pk=hint.schema_id)
+    schema_ids = {hint.schema_id}
+    schema_parameters = [parameters] if steps is None else [item.get("parameters", {}) for item in steps]
+    requested_schema = next((item.get("schemaId") for item in reversed(schema_parameters) if isinstance(item, dict) and item.get("schemaId") is not None), None)
+    if requested_schema is not None:
+        try:
+            schema_ids.add(int(requested_schema))
+        except (TypeError, ValueError):
+            raise ActionValidationError({"parameters": "schemaId must identify an available Schema."})
+    schema_hints = list(Schema.objects.filter(pk__in=schema_ids).values_list("pk", "schema_type_id"))
+    if len(schema_hints) != len(schema_ids):
+        raise NotFound("A target Schema is no longer available.")
+    for schema_type_id in sorted({schema_type_id for _, schema_type_id in schema_hints}):
+        SchemaType.objects.select_for_update().get(pk=schema_type_id)
+    for schema_id in sorted(schema_ids):
+        Schema.objects.select_for_update().get(pk=schema_id)
     record = PlatformRecord.objects.select_for_update().select_related(
         "schema__schema_type", "project"
     ).get(pk=record_id)
@@ -760,6 +820,32 @@ def execute_action_invocation(
             or source_document_group.current_revision_id != expected_document_revision_id
         ):
             raise StateConflict("The saved document Revision changed before Action invocation.")
+    target_schema = None
+    if requested_schema is not None:
+        target_schema = Schema.objects.select_related("schema_type").get(pk=int(requested_schema))
+
+    if steps is not None:
+        _validate_retained_sequence(
+            source_document_group.current_revision.snapshot if source_document_group is not None else None,
+            sequence_declaration, sequence_fingerprint,
+        )
+        return _execute_composed_action_invocation(
+            actor=actor,
+            record=record,
+            record_group=revision_group,
+            document_group=source_document_group,
+            registration_map=providers["steps"],
+            steps=steps,
+            sequence_fingerprint=sequence_fingerprint,
+            invocation_id=invocation_id,
+            request_fingerprint=request_fingerprint,
+            expected_token=expected_token,
+            expected_revision_id=expected_revision_id,
+            expected_document_revision_id=expected_document_revision_id,
+            observed_schema_state=observed_schema_state,
+            target_schema=target_schema,
+            sequence_declaration=sequence_declaration,
+        )
 
     registration = registry.get_record_action(action_id)
     if registration is None:
@@ -773,6 +859,14 @@ def execute_action_invocation(
         raise ProviderUnavailable("The provider's exact Action Contract is unavailable.")
     envelope = parse_contract_json(retained.canonical_envelope)
     definition = envelope["definition"]
+    parameter_definitions = definition.get("parameters", {})
+    if set(parameters) != set(parameter_definitions):
+        raise ActionValidationError({"parameters": "Parameters must match the Action Contract's declared parameters."})
+    try:
+        for name, value in parameters.items():
+            _validate_contract_value(parameter_definitions[name], value, name)
+    except ValidationError as exc:
+        raise ActionValidationError(exc.detail)
     if definition.get("targets", {}).get("record") != "helix.record":
         raise ActionValidationError({"contract": "The Action Contract does not target Platform records."})
     if definition.get("effects", {}).get("record") != "edited":
@@ -809,7 +903,30 @@ def execute_action_invocation(
         "contract_id": contract_id,
         "contract_version": contract_version,
         "deadline_monotonic": deadline,
+        "parameters": parameters,
+        "target_schema": None if target_schema is None else {
+            "id": target_schema.pk,
+            "content_hash": target_schema.content_hash,
+            "schema_type_id": target_schema.schema_type_id,
+            "schema_type_hash": target_schema.schema_type.content_hash,
+            "columns": [*(target_schema.schema_type.columns or []), *(target_schema.columns or [])],
+        },
+        "document_snapshot": (
+            source_document_group.current_revision.snapshot
+            if source_document_group is not None else None
+        ),
+        "document_target": (
+            {"model_reference": source_document_group.target_model_reference,
+             "object_id": source_document_group.target_object_id}
+            if source_document_group is not None else None
+        ),
     })
+    observed_target_schema = (
+        None if target_schema is None else (
+            target_schema.pk, target_schema.content_hash,
+            target_schema.schema_type_id, target_schema.schema_type.content_hash,
+        )
+    )
     try:
         proposed = registration["handler"](context, _freeze(inputs))
     except ValidationError as exc:
@@ -820,8 +937,18 @@ def execute_action_invocation(
         raise ProviderUnavailable("The Action provider exceeded the 30 second execution budget.")
     if not isinstance(proposed, ProposedEffects):
         raise ActionValidationError({"effects": "Action providers must return ProposedEffects."})
-    if proposed.field_values is None and proposed.metadata is None:
+    if (
+        proposed.field_values is None and proposed.metadata is None
+        and not proposed.creates and proposed.document_snapshot is None
+    ):
         raise ActionValidationError({"effects": "The provider proposed no declared record change."})
+    declared_effects = definition.get("effects", {})
+    if proposed.creates and declared_effects.get("records") != "created":
+        raise ActionValidationError({"effects": "The Action Contract does not declare record creation."})
+    if proposed.document_snapshot is not None and declared_effects.get("document") != "edited":
+        raise ActionValidationError({"effects": "The Action Contract does not declare a document edit."})
+    if proposed.document_references and declared_effects.get("document") != "edited":
+        raise ActionValidationError({"effects": "The Action Contract does not declare a document edit."})
     declared_outputs = definition.get("outputs", {})
     output_values = proposed.outputs or {}
     if set(output_values) != set(declared_outputs):
@@ -852,9 +979,42 @@ def execute_action_invocation(
         raise StateConflict("The record changed while the Action was being prepared.")
     if _schema_state(record) != observed_schema_state or effective_role(actor, record) != "edit":
         raise StateConflict("The Schema mapping or authorization changed while the Action was prepared.")
+    if target_schema is not None:
+        target_schema.refresh_from_db()
+        target_schema.schema_type.refresh_from_db()
+        current_target_schema = (
+            target_schema.pk, target_schema.content_hash,
+            target_schema.schema_type_id, target_schema.schema_type.content_hash,
+        )
+        if current_target_schema != observed_target_schema:
+            raise StateConflict("The target Schema mapping changed while the Action was prepared.")
 
     before_revision = revision_group.current_revision
     before_state_token = record.state_token
+    if proposed.creates or proposed.document_snapshot is not None:
+        return _commit_created_record_effects(
+            actor=actor,
+            record=record,
+            record_group=revision_group,
+            document_group=source_document_group,
+            registration=registration,
+            action_id=action_id,
+            contract_id=contract_id,
+            contract_version=contract_version,
+            invocation_id=invocation_id,
+            sequence_fingerprint=sequence_fingerprint,
+            request_fingerprint=request_fingerprint,
+            server_fingerprint=server_fingerprint,
+            output_values=output_values,
+            creates=proposed.creates or [],
+            document_snapshot=proposed.document_snapshot,
+            actor_id=str(actor.pk),
+            before_record_revision=before_revision,
+            before_state_token=before_state_token,
+            target_schema=target_schema,
+            declared_outputs=declared_outputs,
+            document_references=proposed.document_references or [],
+        )
     try:
         record_response = edit_record(
             actor=actor,
@@ -931,6 +1091,495 @@ def execute_action_invocation(
         outcome=outcome,
     )
     return outcome
+
+
+def _execute_composed_action_invocation(
+    *, actor, record, record_group, document_group, registration_map, steps,
+    sequence_fingerprint, invocation_id, request_fingerprint, expected_token,
+    expected_revision_id, expected_document_revision_id,
+    observed_schema_state, target_schema,
+    sequence_declaration,
+):
+    """Prepare a short Action Sequence, then commit its accumulated effects once."""
+    from helix_core.mod_system.contracts import parse_contract_json
+    from helix_core.mod_system.registry import registry
+    from helix_core.models import ActionInvocationReceipt, RetainedContract
+
+    providers = []
+    outputs_by_step = {}
+    creates = []
+    document_snapshot = None
+    document_references = []
+    final_registration = None
+    final_definition = None
+    final_outputs = {}
+    execution_started = time.monotonic()
+    deadline = execution_started + 30.0
+    original_document = document_group.current_revision.snapshot if document_group is not None else None
+    original_document_revision_id = document_group.current_revision_id if document_group is not None else None
+
+    declared_steps = sequence_declaration["steps"]
+    if len(steps) != len(declared_steps):
+        raise ActionValidationError({"steps": "Invocation steps must match the saved Action Sequence exactly."})
+    for index, (step, declared_step) in enumerate(zip(steps, declared_steps)):
+        step_id = step["id"]
+        if step_id != declared_step.get("id"):
+            raise ActionValidationError({"steps": "Invocation step order and IDs must match the saved Action Sequence."})
+        registration = registry.get_record_action(registration_map[step_id])
+        if registration is None:
+            raise ProviderUnavailable(f"The provider for Action step '{step_id}' is unavailable.")
+        retained = RetainedContract.objects.filter(
+            kind="action", contract_id=registration["action_contract_id"],
+            version=registration["action_contract_version"],
+        ).first()
+        if retained is None:
+            raise ProviderUnavailable(f"The exact Action Contract for step '{step_id}' is unavailable.")
+        definition = parse_contract_json(retained.canonical_envelope)["definition"]
+        action_ref = declared_step.get("action")
+        if not isinstance(action_ref, Mapping) or action_ref.get("kind") != "action" or (
+            action_ref.get("id") != registration["action_contract_id"]
+            or action_ref.get("version") != registration["action_contract_version"]
+        ):
+            raise ActionValidationError({"steps": {step_id: "Selected provider no longer matches the exact Action Contract in the saved Sequence."}})
+        declared_inputs = declared_step.get("inputs")
+        declared_targets = declared_step.get("targets")
+        declared_parameters = declared_step.get("parameters")
+        if not isinstance(declared_inputs, Mapping) or set(declared_inputs) != set(definition.get("inputs", {})):
+            raise ActionValidationError({"steps": {step_id: "Saved Sequence connections must match the Action Contract input ports."}})
+        if not isinstance(declared_parameters, Mapping) or set(declared_parameters) != set(definition.get("parameters", {})):
+            raise ActionValidationError({"steps": {step_id: "Saved Sequence parameters must match the Action Contract."}})
+        if any(not isinstance(value, Mapping) or set(value) != {"type", "value"} for value in declared_parameters.values()):
+            raise ActionValidationError({"steps": {step_id: "Saved Sequence parameters must use exact typed values."}})
+        if not isinstance(declared_targets, Mapping) or declared_targets != {"record": "record"}:
+            raise ActionValidationError({"steps": {step_id: "Saved Sequence targets must name the Platform record."}})
+        if definition.get("targets", {}).get("record") != "helix.record" or definition.get("effects", {}).get("record") != "edited":
+            raise ActionValidationError({"steps": {step_id: "Every composed step must target and declare the Platform record."}})
+
+        raw_inputs = step.get("inputs", {})
+        parameters = step.get("parameters", {})
+        if not isinstance(raw_inputs, dict) or not isinstance(parameters, dict):
+            raise ActionValidationError({"steps": {step_id: "Step inputs and parameters must be objects."}})
+        if set(parameters) != set(definition.get("parameters", {})):
+            raise ActionValidationError({"steps": {step_id: "Parameters must match the Action Contract."}})
+        if any(parameters[name] != declared_parameters[name]["value"] for name in parameters):
+            raise ActionValidationError({"steps": {step_id: "Invocation parameters differ from the saved Sequence declaration."}})
+        try:
+            for name, value in parameters.items():
+                _validate_contract_value(definition["parameters"][name], value, name)
+            if set(raw_inputs) != set(definition.get("inputs", {})):
+                raise ValidationError({"inputs": "Inputs must match the Action Contract."})
+            resolved_inputs = {}
+            for name, value in raw_inputs.items():
+                type_node = definition["inputs"][name]
+                if isinstance(value, dict) and value.get("kind") == "step":
+                    if set(value) != {"kind", "stepId", "port"} or value["stepId"] not in outputs_by_step:
+                        raise ValidationError({"inputs": f"Input '{name}' must reference an earlier step output."})
+                    connection = declared_inputs.get(name)
+                    if not isinstance(connection, Mapping) or connection.get("kind") != "step" or connection.get("stepId") != value["stepId"] or connection.get("port") != value["port"]:
+                        raise ValidationError({"inputs": f"Input '{name}' does not match its saved Sequence connection."})
+                    typed_output = outputs_by_step[value["stepId"]].get(value["port"])
+                    if not isinstance(typed_output, Mapping) or set(typed_output) != {"type", "value"}:
+                        raise ValidationError({"inputs": f"Step output for '{name}' is unavailable."})
+                    if typed_output["type"] != type_node.get("type"):
+                        raise ValidationError({"inputs": f"Step output for '{name}' has an incompatible type."})
+                    resolved_inputs[name] = _thaw(typed_output["value"])
+                else:
+                    resolved_inputs[name] = value
+                _validate_contract_value(type_node, resolved_inputs[name], name)
+        except ValidationError as exc:
+            raise ActionValidationError({"steps": {step_id: exc.detail}})
+
+        context = _freeze({
+            "actor_id": actor.pk,
+            "record_id": str(record.pk),
+            "state_token": str(record.state_token),
+            "action_id": registration_map[step_id],
+            "contract_id": registration["action_contract_id"],
+            "contract_version": registration["action_contract_version"],
+            "deadline_monotonic": deadline,
+            "sequence_fingerprint": sequence_fingerprint,
+            "step_id": step_id,
+            "step_outputs": outputs_by_step,
+            "parameters": parameters,
+            "target_schema": None if target_schema is None else {
+                "id": target_schema.pk,
+                "content_hash": target_schema.content_hash,
+                "schema_type_id": target_schema.schema_type_id,
+                "schema_type_hash": target_schema.schema_type.content_hash,
+                "columns": [*(target_schema.schema_type.columns or []), *(target_schema.columns or [])],
+            },
+            "document_snapshot": document_snapshot if document_snapshot is not None else original_document,
+            "document_target": (
+                {"model_reference": document_group.target_model_reference,
+                 "object_id": document_group.target_object_id}
+                if document_group is not None else None
+            ),
+        })
+        try:
+            proposed = registration["handler"](context, _freeze(resolved_inputs))
+        except ValidationError as exc:
+            raise ActionValidationError({"steps": {step_id: exc.detail}})
+        except Exception as exc:
+            raise ProviderUnavailable(f"The Action provider for step '{step_id}' failed before proposing effects.") from exc
+        if time.monotonic() > deadline:
+            raise ProviderUnavailable("The Action Sequence exceeded the 30 second execution budget.")
+        if not isinstance(proposed, ProposedEffects):
+            raise ActionValidationError({"steps": {step_id: "Providers must return ProposedEffects."}})
+
+        declared_effects = definition["effects"]
+        if proposed.creates and declared_effects.get("records") != "created":
+            raise ActionValidationError({"steps": {step_id: "The Action Contract does not declare record creation."}})
+        if (proposed.document_snapshot is not None or proposed.document_references) and declared_effects.get("document") != "edited":
+            raise ActionValidationError({"steps": {step_id: "The Action Contract does not declare document editing."}})
+        if proposed.field_values is not None or proposed.metadata is not None:
+            raise ActionValidationError({"steps": {step_id: "Composed record field edits are not supported by this Action Sequence."}})
+
+        step_outputs = _thaw(proposed.outputs or {})
+        declared_outputs = definition.get("outputs", {})
+        if set(step_outputs) != set(declared_outputs):
+            raise ActionValidationError({"steps": {step_id: "Outputs must match the Action Contract."}})
+        try:
+            for name, type_node in declared_outputs.items():
+                typed = step_outputs[name]
+                if not isinstance(typed, Mapping) or set(typed) != {"type", "value"} or typed["type"] != type_node.get("type"):
+                    raise ValidationError({"outputs": f"Output '{name}' must match its declared type."})
+                _validate_contract_value(type_node, typed["value"], name)
+        except ValidationError as exc:
+            raise ActionValidationError({"steps": {step_id: exc.detail}})
+
+        outputs_by_step[step_id] = step_outputs
+        creates.extend(proposed.creates or [])
+        if proposed.document_snapshot is not None:
+            document_snapshot = _thaw(proposed.document_snapshot)
+        document_references.extend(proposed.document_references or [])
+        providers.append({
+            "stepId": step_id,
+            "actionId": registration_map[step_id],
+            "modId": registration["provider_mod_id"],
+            "modVersion": registration["provider_mod_version"],
+            "contractId": registration["action_contract_id"],
+            "contractVersion": registration["action_contract_version"],
+        })
+        final_registration = registration
+        final_definition = definition
+        final_outputs = step_outputs
+
+    if not creates and document_snapshot is None:
+        raise ActionValidationError({"steps": "The Action Sequence proposed no persistent effect."})
+    record.refresh_from_db()
+    record.schema.refresh_from_db()
+    record.schema.schema_type.refresh_from_db()
+    record_group.refresh_from_db()
+    if (
+        record.state_token != expected_token
+        or (expected_revision_id is not None and record_group.current_revision_id != expected_revision_id)
+        or _schema_state(record) != observed_schema_state
+    ):
+        raise StateConflict("The record or Schema changed while the Action Sequence was being prepared.")
+    from bundled.access.access.policies import effective_role
+    if effective_role(actor, record) != "edit":
+        raise StateConflict("Authorization changed while the Action Sequence was being prepared.")
+    if document_group is not None:
+        document_group.refresh_from_db()
+        if document_group.current_revision_id != expected_document_revision_id or document_group.current_revision_id != original_document_revision_id:
+            raise StateConflict("The saved document Revision changed while the Action Sequence was being prepared.")
+    observed_target_schema = (
+        None if target_schema is None else (
+            target_schema.pk, target_schema.content_hash,
+            target_schema.schema_type_id, target_schema.schema_type.content_hash,
+        )
+    )
+    if target_schema is not None:
+        target_schema.refresh_from_db()
+        target_schema.schema_type.refresh_from_db()
+        if observed_target_schema != (
+            target_schema.pk, target_schema.content_hash,
+            target_schema.schema_type_id, target_schema.schema_type.content_hash,
+        ):
+            raise StateConflict("The target Schema mapping changed while the Action Sequence was being prepared.")
+
+    outcome = _commit_created_record_effects(
+        actor=actor,
+        record=record,
+        record_group=record_group,
+        document_group=document_group,
+        registration=final_registration,
+        action_id=registration_map[steps[-1]["id"]],
+        contract_id=final_registration["action_contract_id"],
+        contract_version=final_registration["action_contract_version"],
+        invocation_id=invocation_id,
+        sequence_fingerprint=sequence_fingerprint,
+        request_fingerprint=request_fingerprint,
+        server_fingerprint=_digest({"sequence": sequence_fingerprint, "providers": providers, "steps": steps}),
+        output_values=final_outputs,
+        creates=creates,
+        document_snapshot=document_snapshot,
+        actor_id=str(actor.pk),
+        before_record_revision=record_group.current_revision,
+        before_state_token=expected_token,
+        target_schema=target_schema,
+        declared_outputs=final_definition.get("outputs", {}),
+        document_references=document_references,
+    )
+    last_step_id = steps[-1]["id"]
+    if "created" in outcome.get("outputs", {}):
+        outputs_by_step[last_step_id]["created"] = outcome["outputs"]["created"]
+    outcome["providers"] = providers
+    outcome["stepOutputs"] = outputs_by_step
+    receipt = ActionInvocationReceipt.objects.get(
+        actor_stable_id=str(actor.pk), invocation_id=invocation_id,
+    )
+    receipt.outcome = outcome
+    receipt.save(update_fields=["outcome"])
+    return outcome
+
+
+def _commit_created_record_effects(
+    *, actor, record, record_group, document_group, registration, action_id,
+    contract_id, contract_version, invocation_id, sequence_fingerprint,
+    request_fingerprint, server_fingerprint, output_values, creates,
+    document_snapshot, actor_id, before_record_revision, before_state_token,
+    target_schema, declared_outputs, document_references,
+):
+    """Commit a provider's Platform record creates and document edit together."""
+    from helix_core.models import (
+        ActionInvocationReceipt, ActionLogEntry, ActionParticipant,
+        PlatformRecord, RecordRevisionGroup, ScientificRevision,
+    )
+
+    if len(creates) > 1000:
+        raise ActionValidationError({"rows": "An Action may create at most 1000 records."})
+    if document_snapshot is not None and document_group is None:
+        raise ActionValidationError({"document": "A document edit requires an exact saved document Revision."})
+    if document_snapshot is not None and not isinstance(document_snapshot, Mapping):
+        raise ActionValidationError({"document": "The document effect must be a JSON object."})
+    if not creates and document_snapshot is None:
+        raise ActionValidationError({"effects": "The provider proposed no supported registration effects."})
+    if document_references and document_snapshot is None:
+        raise ActionValidationError({"document": "Document references require a saved document edit."})
+
+    created = []
+    keys = set()
+    source_instance = _registration_source_instance(document_group)
+    for index, proposal in enumerate(creates):
+        if not isinstance(proposal, Mapping):
+            raise ActionValidationError({"rows": {index: "Expected an object."}})
+        key = proposal.get("key")
+        name = proposal.get("name")
+        schema_id = proposal.get("schema_id")
+        if not isinstance(key, str) or not key or key in keys:
+            raise ActionValidationError({"rows": {index: "A unique non-empty create key is required."}})
+        keys.add(key)
+        if not isinstance(name, str) or not name.strip():
+            raise ActionValidationError({"rows": {index: {"name": "Name is required."}}})
+        try:
+            schema = target_schema if target_schema is not None and str(target_schema.pk) == str(schema_id) else None
+            if schema is None:
+                from helix_core.models import Schema
+                schema = Schema.objects.select_related("schema_type").get(pk=schema_id)
+        except (ValueError, TypeError, Schema.DoesNotExist):
+            raise ActionValidationError({"rows": {index: {"schema_id": "The target Schema is unavailable."}}})
+        if target_schema is not None and schema.pk != target_schema.pk:
+            raise ActionValidationError({"rows": {index: {"schema_id": "Created records must use the selected Schema."}}})
+        try:
+            values = _validate_values(schema, proposal.get("field_values", {}))
+        except ValidationError as exc:
+            raise ActionValidationError({"rows": {index: exc.detail}})
+        metadata = proposal.get("metadata", {})
+        if not isinstance(metadata, Mapping):
+            raise ActionValidationError({"rows": {index: {"metadata": "Expected an object."}}})
+        created_record = PlatformRecord(
+            name=name.strip(), author=actor, last_editor=actor,
+            project=record.project, schema=schema,
+            properties=dict(metadata), field_values=values,
+        )
+        if source_instance is not None:
+            created_record.set_source(source_instance)
+        else:
+            created_record.set_source(record.project)
+        created_record.save()
+        revision = create_initial_snapshot(created_record, actor)
+        from helix_core.attachments import link_revision_attachments
+        link_revision_attachments(project_id=record.project_id, values=values, revision=revision)
+        created.append((key, created_record, revision))
+
+    next_document_revision = None
+    document_before_revision = document_group.current_revision if document_group is not None else None
+    document_changed = False
+    if document_snapshot is not None:
+        snapshot = _thaw(document_snapshot)
+        contract_ref = snapshot.get("contract")
+        if contract_ref is not None:
+            if not isinstance(contract_ref, Mapping) or set(contract_ref) != {"kind", "id", "version"} or "document" not in snapshot:
+                raise ActionValidationError({"document": "The proposed document must preserve its exact contract binding."})
+            _validate_contract_value({"type": "contract", **contract_ref}, snapshot["document"], "document")
+        _apply_created_record_references(snapshot, document_references, created)
+        current = document_group.current_revision
+        document_changed = current is None or current.snapshot != snapshot
+        next_document_revision = current
+        if document_changed:
+            next_document_revision = ScientificRevision.objects.create(
+                group=document_group,
+                sequence=document_group.revisions.count() + 1,
+                snapshot=snapshot,
+                content_hash=_digest(snapshot),
+                created_by=actor,
+            )
+            document_group.current_revision = next_document_revision
+            document_group.save(update_fields=["current_revision"])
+            record.last_editor = actor
+            record.state_token = uuid4()
+            record.save(update_fields=["last_editor", "state_token", "updated_at"])
+
+    # One ledger row is the shared Action for every created Entity and the
+    # optional document Revision. Participant rows carry each subject's role.
+    action = ActionLogEntry.objects.create(
+        performed_by=actor,
+        action=action_id,
+        action_type="edited",
+        target_model_reference=(document_group.target_model_reference if document_group else "helix.record"),
+        target_object_id=(document_group.target_object_id if document_group else str(record.pk)),
+        initiating_mod_id=registration["provider_mod_id"],
+        initiating_mod_version=registration["provider_mod_version"],
+        request_id=uuid4(),
+        metadata={
+            "action_contract": {"id": contract_id, "version": contract_version},
+            "source_record_id": str(record.pk),
+            "document_group_id": str(document_group.pk) if document_group else None,
+            "document_before_revision_id": str(document_before_revision.pk) if document_before_revision else None,
+            "document_after_revision_id": str(next_document_revision.pk) if next_document_revision else None,
+            "created_record_ids": {key: str(item.pk) for key, item, _revision in created},
+            "created_count": len(created),
+        },
+    )
+    if document_group is not None:
+        ActionParticipant.objects.create(
+            action=action,
+            record=record,
+            target_model_reference=document_group.target_model_reference,
+            target_object_id=document_group.target_object_id,
+            role="edited" if document_changed else "used",
+        )
+    participants = []
+    for key, item, revision in created:
+        ActionParticipant.objects.create(
+            action=action,
+            record=item,
+            target_model_reference="helix.record",
+            target_object_id=str(item.pk),
+            role="created",
+        )
+        participants.append({
+            "targetRole": "createdRecord",
+            "targetType": "helix.record",
+            "targetId": str(item.pk),
+            "createKey": key,
+            "role": "created",
+            "after": {"revisionId": str(revision.pk), "sequence": revision.sequence},
+        })
+    if document_group is not None:
+        participants.insert(0, {
+            "targetRole": "document",
+            "targetType": document_group.target_model_reference,
+            "targetId": document_group.target_object_id,
+            "role": "edited" if document_changed else "used",
+            "before": ({
+                "revisionId": str(document_before_revision.pk),
+                "sequence": document_before_revision.sequence,
+            } if document_before_revision else None),
+            "after": {
+                "revisionId": str(next_document_revision.pk),
+                "sequence": next_document_revision.sequence,
+                "stateToken": str(record.state_token),
+            } if next_document_revision else None,
+        })
+
+    resolved_outputs = dict(output_values)
+    if "created" in declared_outputs:
+        if declared_outputs["created"].get("type") != "json":
+            raise ActionValidationError({"outputs": "The created-key output must declare JSON."})
+        resolved_outputs["created"] = {
+            "type": "json", "value": {key: str(item.pk) for key, item, _revision in created},
+        }
+    outcome = {
+        "invocationId": invocation_id,
+        "actionId": action.pk,
+        "outputs": resolved_outputs,
+        "created": {key: str(item.pk) for key, item, _revision in created},
+        "createdRecords": {
+            key: {
+                "id": str(item.pk),
+                "displayId": item.display_id,
+                "revisionId": str(revision.pk),
+                "sequence": revision.sequence,
+            }
+            for key, item, revision in created
+        },
+        "providers": [{
+            "stepId": "action", "actionId": action_id,
+            "modId": registration["provider_mod_id"],
+            "modVersion": registration["provider_mod_version"],
+            "contractId": contract_id, "contractVersion": contract_version,
+        }],
+        "participants": participants,
+        "replayed": False,
+    }
+    ActionInvocationReceipt.objects.create(
+        actor=actor, actor_stable_id=actor_id, invocation_id=invocation_id,
+        fingerprint=server_fingerprint, request_fingerprint=request_fingerprint,
+        target_ids={
+            "record": str(record.pk), "project": record.project_id,
+            "created_records": [str(item.pk) for _key, item, _revision in created],
+        },
+        outcome=outcome,
+    )
+    return outcome
+
+
+def _apply_created_record_references(snapshot, references, created):
+    records = {key: record for key, record, _revision in created}
+    for index, reference in enumerate(references):
+        if not isinstance(reference, Mapping) or set(reference) != {"key", "path"}:
+            raise ActionValidationError({"document": {index: "A reference requires only a create key and JSON path."}})
+        key, path = reference["key"], reference["path"]
+        if key not in records or not isinstance(path, (list, tuple)) or not path:
+            raise ActionValidationError({"document": {index: "The document reference target is invalid."}})
+        parent = snapshot
+        try:
+            for segment in path[:-1]:
+                parent = parent[segment]
+            row = parent[path[-1]]
+        except (KeyError, IndexError, TypeError):
+            raise ActionValidationError({"document": {index: "The document reference path does not exist."}})
+        if not isinstance(row, dict):
+            raise ActionValidationError({"document": {index: "A created record reference must target an object."}})
+        record = records[key]
+        row.update({
+            "entityId": str(record.pk),
+            "recordId": str(record.pk),
+            "displayId": record.display_id,
+            "isRegistered": True,
+            "registrationError": None,
+        })
+
+
+def _thaw(value):
+    if isinstance(value, Mapping):
+        return {key: _thaw(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_thaw(item) for item in value]
+    return value
+
+
+def _registration_source_instance(document_group):
+    if document_group is None or not document_group.target_model_reference:
+        return None
+    try:
+        from helix_core.mod_system.registry import registry
+        model = registry.resolve_content_source_model("entry")
+        return model.objects.filter(pk=document_group.target_object_id).first()
+    except (LookupError, ValueError, TypeError, AttributeError):
+        return None
 
 
 def _lock_record_access_rows(actor, record):

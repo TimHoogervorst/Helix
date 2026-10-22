@@ -12,6 +12,7 @@ from .public import (
     SignalKind,
     TypedService,
     ContentSourceProvider,
+    ProposedEffects,
     make_app_config,
 )
 
@@ -27,6 +28,7 @@ __all__ = [
     "SignalKind",
     "TypedService",
     "ContentSourceProvider",
+    "ProposedEffects",
     "make_app_config",
     "AbstractBaseAction",
     "ActionLoggingMixin",

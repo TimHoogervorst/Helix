@@ -52,6 +52,7 @@ HELIX_CONTRACT_PUBLISHERS = {
 # Keep this narrow and immutable in configuration: no manifest self-claims.
 HELIX_CONTRACT_PUBLISHER_PACKAGES = {
     "helix.eln": "helix.timhoogervorst",
+    "helix.lims": "helix.timhoogervorst",
 }
 
 # A deployment may provide the build-time catalog.  Validate it against a

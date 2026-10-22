@@ -11,6 +11,7 @@ export interface ElnPortableBlockHost {
   buildInvocation: (block: PortableBlockContent, stepId: string) => ActionInvocationRequest;
   beforeInvoke: () => Promise<void>;
   invokeAction: (request: ActionInvocationRequest) => Promise<ActionInvocationOutcome>;
+  invokeStep: (block: PortableBlockContent, stepId: string) => Promise<ActionInvocationOutcome>;
   providerOptions: (block: PortableBlockContent, stepId: string) => readonly { id: string; label: string }[];
   selectedProvider: (block: PortableBlockContent, stepId: string) => string | undefined;
   selectProvider: (block: PortableBlockContent, stepId: string, providerId: string) => void;
@@ -26,8 +27,8 @@ function PortableNodeView({ node }: NodeViewProps) {
     ? source.attrs as Record<string, unknown>
     : {};
   const candidate = attrs.portableBlock && typeof attrs.portableBlock === "object"
-    ? attrs.portableBlock as PortableBlockContent
-    : attrs as PortableBlockContent;
+    ? attrs.portableBlock as unknown as PortableBlockContent
+    : attrs as unknown as PortableBlockContent;
   const portableBlock = candidate.actionSequence
     ? { ...candidate, id: typeof candidate.id === "string" ? candidate.id : tag }
     : null;

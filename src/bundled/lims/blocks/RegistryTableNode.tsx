@@ -13,8 +13,10 @@
  *
  * Schema is locked once loaded — no swap action.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { ElnPortableBlockHostContext } from "../../../mods/eln/editor/portableBlockExtensions";
+import type { PortableBlockContent } from "../../../mod-api/src/portableBlocks";
 import { Database, Loader, Trash2, Plus, RefreshCw, Upload } from "lucide-react";
 import { get, del, post } from "../../../shell/src/api/client";
 import type { EntityTypeSummary } from "../types";
@@ -39,7 +41,9 @@ import type { LimsEditorContext as ElnSidebarData } from "./sidebarData";
 /** A single row in the registry table, extending GridRow with registration state. */
 export interface RegistryTableRow {
   /** Entity ID — null for unregistered rows. */
-  entityId: number | null;
+  entityId: number | string | null;
+  /** Platform Record UUID for rows registered through the shared Action. */
+  recordId?: string | null;
   /** Display ID like "BLOOD1", assigned by server on registration. */
   displayId: string;
   /** Entity name — stored at row level for the Name pseudo-column. */
@@ -292,6 +296,7 @@ interface RegistryTableContentProps {
    * as `{blockId}.{localId}` and emits on the workspace bus.
    */
   emitAction?: (localId: string, payload?: Record<string, unknown>) => void;
+  registerRowsAction?: () => Promise<{ createdRecords?: Record<string, { id: string; displayId: string }> }>;
 }
 
 // ── Inner Content Component ─────────────────────────────────────────────────
@@ -317,6 +322,7 @@ export function RegistryTableContent({
   previewMode = false,
   workspaceId,
   emitAction,
+  registerRowsAction,
 }: RegistryTableContentProps) {
   // ── Picker state ────────────────────────────────────────────────────
   const [showPicker, setShowPicker] = useState(false);
@@ -509,7 +515,8 @@ export function RegistryTableContent({
       // If the row is registered, call the API to delete the entity
       if (row?.entityId !== null && row?.entityId !== undefined) {
         try {
-          await del(`/lims/entities/${row.entityId}/`);
+          if (row.recordId) await del(`/records/${encodeURIComponent(row.recordId)}/`);
+          else await del(`/lims/entities/${row.entityId}/`);
         } catch {
           // Even if API call fails, remove from local state
           console.warn(
@@ -605,6 +612,27 @@ export function RegistryTableContent({
 
     if (nonGreenRows.length > 0) {
       try {
+        if (registerRowsAction) {
+          const response = await registerRowsAction();
+          for (const { index, row } of nonGreenRows) {
+            const registered = response.createdRecords?.[row.displayId];
+            if (!registered) {
+              updatedRows[index] = { ...updatedRows[index], registrationError: "The Action result did not include this row." };
+              continue;
+            }
+            const hash = computeRowSnapshot(row);
+            updatedRows[index] = {
+              ...updatedRows[index],
+              entityId: registered.id,
+              recordId: registered.id,
+              displayId: registered.displayId,
+              isRegistered: true,
+              lastRegisteredValueHash: hash,
+              lastRegisteredSchemaContentHash: schemaContentHash,
+              registrationError: null,
+            };
+          }
+        } else {
         const payload = {
           schema_id: schemaId,
           entry_id: entryId ?? null,
@@ -640,6 +668,7 @@ export function RegistryTableContent({
             ...updatedRows[originalIndex],
             values: registeredValues,
             entityId: result.entity_id,
+            recordId: null,
             displayId: result.display_id,
             isRegistered: true,
             lastRegisteredValueHash: hash,
@@ -658,6 +687,7 @@ export function RegistryTableContent({
             ...updatedRows[originalIndex],
             registrationError: error.message,
           };
+        }
         }
       } catch (err) {
         // Network or unexpected error — mark all sent rows as errored
@@ -997,7 +1027,10 @@ export function RegistryTableContent({
                 aria-label={DOT_LABELS[dotColor]}
                 data-testid={`status-bar-${dotColor}`}
               />
-              {row.isRegistered && row.entityId !== null && row.displayId && (
+              {row.isRegistered && row.recordId && row.displayId && (
+                <Link className="text-primary underline" to={`/records/${encodeURIComponent(row.recordId)}`}>{row.displayId}</Link>
+              )}
+              {row.isRegistered && !row.recordId && typeof row.entityId === "number" && row.displayId && (
                 <MentionBadge
                   displayId={row.displayId}
                   clickable
@@ -1008,6 +1041,7 @@ export function RegistryTableContent({
                     type: "entity",
                     id: row.entityId,
                     icon: "📦",
+                    color: "var(--color-success)",
                     workspaceId: "lims",
                   }}
                 />
@@ -1087,30 +1121,75 @@ export function RegistryTableContent({
  * Receives `BlockComponentProps` (no NodeViewWrapper — BlockNodeView
  * provides one). Renders the same inner content.
  */
-export const RegistryTableBlockComponent = createBlockAdapter(
-  RegistryTableContent,
-  ({ instance, context, overrides = {} }) => {
-    const attrs = instance.attrs as Record<string, unknown>;
-    const entryContext = context.entry as ElnSidebarData | undefined;
-    const projectId = entryContext?.projectId ?? entryContext?.entry?.project ?? null;
-    const folderId = entryContext?.folderId ?? null;
+function registryActionSequence(
+  blockId: string,
+  schemaId: number,
+  columns: GridColumn[],
+): NonNullable<PortableBlockContent["actionSequence"]> {
+  return {
+    fingerprint: "helix.lims.registry-register.sequence.v1",
+    steps: [{
+      id: "register",
+      action: { kind: "action" as const, id: "helix.lims.registry-register", version: "1.0.0" },
+      inputs: { rows: { kind: "block" as const, blockId, path: ["rows"] } },
+      parameters: {
+        schemaId: { type: { type: "number" }, value: schemaId },
+        fieldMapping: {
+          type: { type: "json" },
+          value: Object.fromEntries(columns.filter((column) => column.type !== "formula" && typeof column.id === "string").map((column) => [column.id, column.id])),
+        },
+        blockId: { type: { type: "string" }, value: blockId },
+      },
+      targets: { record: "record" },
+  }],
+  } as NonNullable<PortableBlockContent["actionSequence"]>;
+}
 
-    return {
-      schemaId: (attrs.schemaId as number | null) ?? null,
-      schemaName: (attrs.schemaName as string | null) ?? null,
-      schemaContentHash:
-        (attrs.schemaContentHash as string | null) ?? null,
-      title: (attrs.title as string) || "Registry Table",
-      columns: (attrs.columns as GridColumn[]) ?? [],
-      rows: (attrs.rows as RegistryTableRow[]) ?? [],
-       projectId,
-       folderId,
-      entryId: entryContext?.entry?.id ?? null,
-      updateAttrs: instance.updateAttrs,
-      readOnly: context.viewMode === "view",
-      previewMode: context.viewMode === "prototype",
-      workspaceId: context.workspaceId,
-      emitAction: context.viewMode === "prototype" ? undefined : context.emitAction,
+export function RegistryTableBlockComponent({ instance, context }: import("../../../shell/src/mod-system/types").BlockComponentProps) {
+  const host = useContext(ElnPortableBlockHostContext);
+  const attrs = instance.attrs as Record<string, unknown>;
+  const schemaId = (attrs.schemaId as number | null) ?? null;
+  const columns = (attrs.columns as GridColumn[]) ?? [];
+  const blockId = typeof attrs.id === "string" ? attrs.id : instance.id;
+  const actionSequence = (attrs.actionSequence as PortableBlockContent["actionSequence"] | undefined)
+    ?? (schemaId === null ? undefined : registryActionSequence(blockId, schemaId, columns));
+  const entryContext = context.entry as ElnSidebarData | undefined;
+  const projectId = entryContext?.projectId ?? entryContext?.entry?.project ?? null;
+  const folderId = entryContext?.folderId ?? null;
+
+  useEffect(() => {
+    if (host && context.viewMode === "edit" && schemaId !== null && (!attrs.id || !attrs.actionSequence)) {
+      instance.updateAttrs({
+        id: blockId,
+        actionSequence: registryActionSequence(blockId, schemaId, columns),
+      });
+    }
+  }, [host, context.viewMode, schemaId, blockId, attrs.id, attrs.actionSequence, columns, instance]);
+
+  const registerRowsAction = host && actionSequence ? async () => {
+    const block: PortableBlockContent = {
+      id: blockId,
+      content: { type: { type: "json" }, value: attrs },
+      actionSequence,
     };
-  },
-);
+    return await host.invokeStep(block, "register") as { createdRecords?: Record<string, { id: string; displayId: string }> };
+  } : undefined;
+
+  return <RegistryTableContent
+    schemaId={schemaId}
+    schemaName={(attrs.schemaName as string | null) ?? null}
+    schemaContentHash={(attrs.schemaContentHash as string | null) ?? null}
+    title={(attrs.title as string) || "Registry Table"}
+    columns={columns}
+    rows={(attrs.rows as RegistryTableRow[]) ?? []}
+    projectId={projectId}
+    folderId={folderId}
+    entryId={entryContext?.entry?.id ?? null}
+    updateAttrs={instance.updateAttrs}
+    readOnly={context.viewMode === "view"}
+    previewMode={context.viewMode === "prototype"}
+    workspaceId={context.workspaceId}
+    emitAction={context.viewMode === "prototype" ? undefined : context.emitAction}
+    registerRowsAction={registerRowsAction}
+  />;
+}

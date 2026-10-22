@@ -677,6 +677,8 @@ class ActionInvocationSerializer(serializers.Serializer):
     targets = serializers.JSONField()
     expectedState = serializers.JSONField()
     providers = serializers.JSONField()
+    steps = serializers.JSONField(required=False, allow_null=True)
+    sequenceDeclaration = serializers.JSONField(required=False, allow_null=True)
 
 
 class PayloadTooLarge(APIException):
@@ -731,6 +733,8 @@ class ActionInvocationCollectionView(APIView):
             targets=values["targets"],
             expected_state=values["expectedState"],
             providers=values["providers"],
+            steps=values.get("steps"),
+            sequence_declaration=values.get("sequenceDeclaration"),
         )
         return Response({key: value for key, value in outcome.items() if key != "record"})
 

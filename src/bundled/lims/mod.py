@@ -57,6 +57,11 @@ def _seed_builtin_metrics():
 
 def register(mod):
     """Called by ModLoader after topological sort. Populates the backend registry."""
+    from bundled.lims.actions import (
+        ACTION_CONTRACT_ID,
+        ACTION_CONTRACT_VERSION,
+        propose_registry_registration,
+    )
     from bundled.lims.models import Entity
     from bundled.lims.serializers import EntitySerializer
     from bundled.lims.views import EntityViewSet
@@ -82,6 +87,13 @@ def register(mod):
         )
 
     entity = mod.register_model("entity", Entity)
+    mod.register_record_action(
+        "registry-register",
+        label="Register saved Registry Table rows",
+        action_contract_id=ACTION_CONTRACT_ID,
+        action_contract_version=ACTION_CONTRACT_VERSION,
+        handler=propose_registry_registration,
+    )
     result_entity = mod.register_model("result-entity", "bundled.lims.models.ResultEntity")
     mod.register_source_kind(
         "entity",

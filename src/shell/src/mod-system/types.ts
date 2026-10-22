@@ -308,11 +308,19 @@ export interface SlotContext {
 export interface ActionInvocationRequest {
   readonly invocationId: string;
   readonly sequenceFingerprint: string;
+  /** Complete declaration copied from the exact saved document Block. */
+  readonly sequenceDeclaration?: Readonly<Record<string, unknown>>;
   readonly inputs: Readonly<Record<string, unknown>>;
   readonly parameters: Readonly<Record<string, unknown>>;
   readonly targets: Readonly<Record<string, unknown>>;
   readonly expectedState: Readonly<Record<string, unknown>>;
-  readonly providers: Readonly<Record<string, string>>;
+  readonly providers: Readonly<Record<string, string | Readonly<Record<string, string>>>>;
+  /** Optional ordered provider steps for one atomic composed Action Sequence. */
+  readonly steps?: readonly {
+    readonly id: string;
+    readonly inputs: Readonly<Record<string, unknown>>;
+    readonly parameters: Readonly<Record<string, unknown>>;
+  }[];
 }
 
 export interface ActionInvocationOutcome {

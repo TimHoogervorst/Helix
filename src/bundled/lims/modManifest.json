@@ -4,5 +4,6 @@
   "version": "0.1.0",
   "requiresHelix": ">=1.0.0",
   "artifacts": ["frontend", "backend"],
-  "dependsOn": []
+  "dependsOn": [],
+  "contracts": ["contracts/register-rows.json"]
 }

@@ -53,7 +53,10 @@ function collectPortableBlocks(value: unknown, blocks = new Map<string, Portable
       : candidateAttrs as PortableBlockContent | undefined;
     if (candidate) {
       const id = typeof candidate.id === "string" ? candidate.id : String(source?.type ?? "");
-      blocks.set(id, { ...candidate, id });
+      const content = candidate.content ?? (Array.isArray(candidateAttrs?.rows)
+        ? { type: { type: "json" }, value: candidateAttrs }
+        : undefined);
+      blocks.set(id, { ...candidate, id, ...(content ? { content } : {}) });
     }
     for (const child of Object.values(object)) collectPortableBlocks(child, blocks);
   }
@@ -373,6 +376,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       return {
         invocationId: crypto.randomUUID(),
         sequenceFingerprint: block.actionSequence!.fingerprint,
+        sequenceDeclaration: block.actionSequence as unknown as Readonly<Record<string, unknown>>,
         inputs: unwrap(context.inputs),
         parameters: unwrap(context.parameters),
         targets: { record: saved.platform_record_id },
@@ -388,6 +392,10 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     },
     beforeInvoke: beforePortableAction,
     invokeAction: invokePortableAction,
+    invokeStep: async (block, stepId) => {
+      await beforePortableAction();
+      return invokePortableAction(portableBlockHost.buildInvocation(block, stepId));
+    },
   }), [actionDefinitions, recordActionProviders, selectedPortableProviders, recordInputValues, portableBlocks, beforePortableAction, invokePortableAction]);
 
   const { actions } = useActivity(entryId);

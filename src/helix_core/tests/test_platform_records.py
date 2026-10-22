@@ -1,6 +1,7 @@
 """Public record API contracts for Mod-independent scientific persistence."""
 
 from unittest.mock import patch
+from copy import deepcopy
 from uuid import UUID, uuid4
 import hashlib
 import shutil
@@ -20,6 +21,7 @@ from bundled.access.access.models import (
 from helix_core.core.models import Folder, Project, User
 from helix_core.models import (
     ActionLogEntry,
+    ActionParticipant,
     PlatformRecord,
     RetainedContract,
     Schema,
@@ -847,10 +849,443 @@ class PlatformRecordApiTests(TestCase):
         self.assertEqual(PlatformRecord.objects.count(), 0)
         self.assertEqual(ScientificRevision.objects.count(), 0)
         self.assertEqual(ActionLogEntry.objects.count(), 4)
-
         changed = {**invocation, "inputs": {"concentration": 8.5}}
         conflict = self.client.post("/api/action-invocations/", changed, format="json")
         self.assertEqual(conflict.status_code, 409, conflict.data)
+
+    def test_action_invocation_commits_created_records_and_document_revision_as_one_action(self):
+        source = self.client.post("/api/records/", self.create_payload(name="Saved table"), format="json")
+        self.assertEqual(source.status_code, 201, source.data)
+        table_rows = [{
+            "displayId": "#new-1", "entityId": None, "__name": "Registered sample",
+            "values": {"Concentration": 8.5}, "isRegistered": False,
+        }]
+        document_group = save_revision_group(
+            actor=self.user,
+            record_id=source.data["id"],
+            group_key="document",
+            state_token=source.data["state_token"],
+            request_id=uuid4(),
+            snapshot={"document": {"type": "doc", "content": [{"type": "registry-table", "attrs": {
+                "id": "registry-1", "schemaId": self.schema.pk,
+                "columns": [{"id": "field-concentration", "name": "Concentration", "type": "number"}],
+                "rows": table_rows,
+            }}]}},
+            target_model_reference="eln.entry",
+            target_object_id="entry-17",
+        )
+        contract = {
+            "formatVersion": 1, "kind": "action", "id": "fixture.science.register-rows",
+            "version": "1.0.0", "description": "Register saved rows",
+            "definition": {
+                "inputs": {"rows": {"type": "json"}}, "parameters": {
+                    "schemaId": {"type": "number"}, "fieldMapping": {"type": "json"},
+                    "blockId": {"type": "string"},
+                },
+                "outputs": {"created": {"type": "json"}},
+                "targets": {"record": "helix.record"},
+                "effects": {"record": "edited", "records": "created", "document": "edited"},
+            },
+        }
+        RetainedContract.objects.create(
+            kind="action", contract_id=contract["id"], version="1.0.0",
+            fingerprint=contract_fingerprint(contract),
+            canonical_envelope=canonical_json(contract).decode("utf-8"),
+        )
+        registrar = ModRegistrar(ModManifest(
+            id="fixture.science", display_name="Fixture Science", version="1.0.0",
+            requires_helix=">=1.0.0", artifacts=("backend",), depends_on=(),
+        ), self.backend_registry)
+        from bundled.lims.actions import propose_registry_registration
+        provider = registrar.register_record_action(
+            "register-rows", label="Register saved rows",
+            action_contract_id=contract["id"], action_contract_version="1.0.0",
+            handler=propose_registry_registration,
+        )
+        invocation = {
+            "invocationId": "register-invocation-17", "sequenceFingerprint": "register-sequence-v1",
+            "inputs": {"rows": table_rows}, "parameters": {
+                "schemaId": self.schema.pk,
+                "fieldMapping": {"field-concentration": "field-concentration"},
+                "blockId": "registry-1",
+            },
+            "targets": {"record": source.data["id"]},
+            "expectedState": {"record": {
+                "stateToken": document_group["state_token"],
+                "revisionId": source.data["revision"]["id"],
+                "schemaState": source.data["schema_state"],
+                "documentGroupId": document_group["group_id"],
+                "documentRevisionId": document_group["revision_id"],
+            }},
+            "providers": {"action": provider.id},
+        }
+        before_actions = ActionLogEntry.objects.count()
+        result = self.client.post("/api/action-invocations/", invocation, format="json")
+        self.assertEqual(result.status_code, 200, result.data)
+        self.assertEqual(ActionLogEntry.objects.count(), before_actions + 1)
+        created_record = PlatformRecord.objects.exclude(pk=source.data["id"]).get()
+        self.assertEqual(created_record.name, "Registered sample")
+        self.assertEqual(created_record.field_values["field-concentration"]["value"], 8.5)
+        saved_document = PlatformRecord.objects.get(pk=source.data["id"]).revision_groups.get(group_key="document").current_revision.snapshot
+        saved_row = saved_document["document"]["content"][0]["attrs"]["rows"][0]
+        self.assertEqual(saved_row["entityId"], str(created_record.pk))
+        self.assertEqual(saved_row["displayId"], created_record.display_id)
+        self.assertTrue(saved_row["isRegistered"])
+        action = ActionLogEntry.objects.get(pk=result.data["actionId"])
+        self.assertEqual(ActionParticipant.objects.filter(action=action).count(), 2)
+        self.assertTrue(ActionParticipant.objects.filter(
+            action=action, target_model_reference="eln.entry", target_object_id="entry-17",
+        ).exists())
+        self.assertEqual(result.data["participants"][1]["after"]["sequence"], 1)
+        replay = self.client.post("/api/action-invocations/", invocation, format="json")
+        self.assertEqual(replay.status_code, 200, replay.data)
+        self.assertTrue(replay.data["replayed"])
+        self.assertEqual(replay.data["actionId"], result.data["actionId"])
+        self.assertEqual(PlatformRecord.objects.count(), 2)
+
+    def test_action_invocation_rolls_back_all_created_records_when_one_row_fails(self):
+        created = self.client.post("/api/records/", self.create_payload(name="Saved table"), format="json")
+        contract = {
+            "formatVersion": 1, "kind": "action", "id": "fixture.science.register-invalid-rows",
+            "version": "1.0.0", "description": "Register rows",
+            "definition": {
+                "inputs": {}, "parameters": {}, "outputs": {},
+                "targets": {"record": "helix.record"},
+                "effects": {"record": "edited", "records": "created"},
+            },
+        }
+        RetainedContract.objects.create(
+            kind="action", contract_id=contract["id"], version="1.0.0",
+            fingerprint=contract_fingerprint(contract),
+            canonical_envelope=canonical_json(contract).decode("utf-8"),
+        )
+        registrar = ModRegistrar(ModManifest(
+            id="fixture.science", display_name="Fixture Science", version="1.0.0",
+            requires_helix=">=1.0.0", artifacts=("backend",), depends_on=(),
+        ), self.backend_registry)
+        registrar.register_record_action(
+            "register-invalid-rows", label="Register rows",
+            action_contract_id=contract["id"], action_contract_version="1.0.0",
+            handler=lambda _context, _inputs: ProposedEffects(creates=[
+                {"key": "row-1", "name": "Would succeed", "schema_id": self.schema.pk,
+                 "field_values": {"field-concentration": {"type": "number", "value": 1.0}}},
+                {"key": "row-2", "name": "Must roll back", "schema_id": self.schema.pk,
+                 "field_values": {"unknown-field": {"type": "number", "value": 2.0}}},
+            ]),
+        )
+        invocation = {
+            "invocationId": "register-invalid-17", "sequenceFingerprint": "register-sequence-v1",
+            "inputs": {}, "parameters": {}, "targets": {"record": created.data["id"]},
+            "expectedState": {"record": {
+                "stateToken": created.data["state_token"], "revisionId": created.data["revision"]["id"],
+                "schemaState": created.data["schema_state"],
+            }},
+            "providers": {"action": "fixture.science:register-invalid-rows"},
+        }
+        before_actions = ActionLogEntry.objects.count()
+        result = self.client.post("/api/action-invocations/", invocation, format="json")
+        self.assertEqual(result.status_code, 422, result.data)
+        self.assertEqual(PlatformRecord.objects.count(), 1)
+        self.assertEqual(ScientificRevision.objects.count(), 1)
+        self.assertEqual(ActionLogEntry.objects.count(), before_actions)
+
+    def test_composed_action_sequence_feeds_saved_producer_output_into_registration_once(self):
+        source = self.client.post("/api/records/", self.create_payload(name="Composed table"), format="json")
+        rows = [{
+            "displayId": "#new-composed", "entityId": None, "__name": "Composed sample",
+            "values": {"Concentration": 4.25}, "isRegistered": False,
+        }]
+        sequence_declaration = {
+            "fingerprint": "fixture.saved-produce-register.v1",
+            "steps": [
+                {"id": "produce", "action": {"kind": "action", "id": "fixture.science.saved-row-producer", "version": "1.0.0"},
+                 "inputs": {}, "parameters": {}, "targets": {"record": "record"}},
+                {"id": "register", "action": {"kind": "action", "id": "helix.lims.registry-register", "version": "1.0.0"},
+                 "inputs": {"rows": {"kind": "step", "stepId": "produce", "port": "rows"}},
+                 "parameters": {
+                     "schemaId": {"type": {"type": "number"}, "value": self.schema.pk},
+                     "fieldMapping": {"type": {"type": "json"}, "value": {"field-concentration": "field-concentration"}},
+                     "blockId": {"type": {"type": "string"}, "value": "registry-composed"},
+                 }, "targets": {"record": "record"}},
+            ],
+        }
+        document_group = save_revision_group(
+            actor=self.user, record_id=source.data["id"], group_key="document",
+            state_token=source.data["state_token"], request_id=uuid4(),
+            snapshot={"document": {"type": "doc", "content": [{"type": "registry-table", "attrs": {
+                "id": "registry-composed", "schemaId": self.schema.pk,
+                "columns": [{"id": "field-concentration", "name": "Concentration", "type": "number"}],
+                "rows": rows, "actionSequence": sequence_declaration,
+            }}]}},
+            target_model_reference="eln.entry", target_object_id="entry-composed",
+        )
+        producer_contract = {
+            "formatVersion": 1, "kind": "action", "id": "fixture.science.saved-row-producer",
+            "version": "1.0.0", "description": "Read saved fixture rows once",
+            "definition": {
+                "inputs": {}, "parameters": {}, "outputs": {"rows": {"type": "json"}},
+                "targets": {"record": "helix.record"}, "effects": {"record": "edited"},
+            },
+        }
+        RetainedContract.objects.create(
+            kind="action", contract_id=producer_contract["id"], version="1.0.0",
+            fingerprint=contract_fingerprint(producer_contract),
+            canonical_envelope=canonical_json(producer_contract).decode("utf-8"),
+        )
+        registrar = ModRegistrar(ModManifest(
+            id="fixture.science", display_name="Fixture Science", version="1.0.0",
+            requires_helix=">=1.0.0", artifacts=("backend",), depends_on=(),
+        ), self.backend_registry)
+        producer_calls = []
+
+        def to_json(value):
+            if hasattr(value, "items"):
+                return {key: to_json(item) for key, item in value.items()}
+            if isinstance(value, (list, tuple)):
+                return [to_json(item) for item in value]
+            return value
+
+        def produce_saved_rows(context, _inputs):
+            producer_calls.append(context["step_id"])
+            saved_rows = context["document_snapshot"]["document"]["content"][0]["attrs"]["rows"]
+            return ProposedEffects(outputs={"rows": {"type": "json", "value": to_json(saved_rows)}})
+
+        producer = registrar.register_record_action(
+            "saved-row-producer", label="Fixture row producer",
+            action_contract_id=producer_contract["id"], action_contract_version="1.0.0",
+            handler=produce_saved_rows,
+        )
+        from bundled.lims.actions import ACTION_CONTRACT_ID, ACTION_CONTRACT_VERSION, propose_registry_registration
+        RetainedContract.objects.get(kind="action", contract_id=ACTION_CONTRACT_ID, version=ACTION_CONTRACT_VERSION)
+        registration = registrar.register_record_action(
+            "register-saved-rows", label="Register saved rows",
+            action_contract_id=ACTION_CONTRACT_ID, action_contract_version=ACTION_CONTRACT_VERSION,
+            handler=propose_registry_registration,
+        )
+        invocation = {
+            "invocationId": "composed-register-1", "sequenceFingerprint": "fixture.saved-produce-register.v1",
+            "sequenceDeclaration": sequence_declaration,
+            "inputs": {}, "parameters": {}, "targets": {"record": source.data["id"]},
+            "expectedState": {"record": {
+                "stateToken": document_group["state_token"],
+                "revisionId": source.data["revision"]["id"],
+                "schemaState": source.data["schema_state"],
+                "documentGroupId": document_group["group_id"],
+                "documentRevisionId": document_group["revision_id"],
+            }},
+            "providers": {"steps": {"produce": producer.id, "register": registration.id}},
+            "steps": [
+                {"id": "produce", "inputs": {}, "parameters": {}},
+                {"id": "register", "inputs": {"rows": {"kind": "step", "stepId": "produce", "port": "rows"}},
+                 "parameters": {
+                     "schemaId": self.schema.pk,
+                     "fieldMapping": {"field-concentration": "field-concentration"},
+                     "blockId": "registry-composed",
+                 }},
+            ],
+        }
+        mismatched = deepcopy(invocation)
+        mismatched["invocationId"] = "composed-sequence-mismatch"
+        mismatched["sequenceDeclaration"]["steps"][0]["id"] = "altered"
+        self.assertEqual(self.client.post("/api/action-invocations/", mismatched, format="json").status_code, 422)
+        unknown_step = deepcopy(invocation)
+        unknown_step["invocationId"] = "composed-unknown-step"
+        unknown_step["steps"][0]["id"] = "unknown"
+        self.assertEqual(self.client.post("/api/action-invocations/", unknown_step, format="json").status_code, 422)
+        provider = self.backend_registry._record_actions.pop(producer.id)
+        removed = deepcopy(invocation)
+        removed["invocationId"] = "composed-provider-removed"
+        self.assertEqual(self.client.post("/api/action-invocations/", removed, format="json").status_code, 503)
+        self.backend_registry._record_actions[producer.id] = provider
+        replacement = deepcopy(provider)
+        replacement["action_contract_id"] = "helix.lims.registry-register"
+        self.backend_registry._record_actions[producer.id] = replacement
+        replaced = deepcopy(invocation)
+        replaced["invocationId"] = "composed-provider-replaced"
+        self.assertEqual(self.client.post("/api/action-invocations/", replaced, format="json").status_code, 422)
+        self.backend_registry._record_actions[producer.id] = provider
+        before_actions = ActionLogEntry.objects.count()
+        result = self.client.post("/api/action-invocations/", invocation, format="json")
+        self.assertEqual(result.status_code, 200, getattr(result, "data", None))
+        self.assertEqual(producer_calls, ["produce"])
+        self.assertEqual(ActionLogEntry.objects.count(), before_actions + 1)
+        created = PlatformRecord.objects.exclude(pk=source.data["id"]).get()
+        saved_row = PlatformRecord.objects.get(pk=source.data["id"]).revision_groups.get(group_key="document").current_revision.snapshot["document"]["content"][0]["attrs"]["rows"][0]
+        self.assertEqual(saved_row["recordId"], str(created.pk))
+        self.assertEqual(result.data["stepOutputs"]["register"]["created"]["value"]["#new-composed"], str(created.pk))
+        self.assertEqual(len(result.data["providers"]), 2)
+        self.assertEqual(ActionParticipant.objects.filter(action_id=result.data["actionId"]).count(), 2)
+        replay = self.client.post("/api/action-invocations/", invocation, format="json")
+        self.assertEqual(replay.status_code, 200, getattr(replay, "data", None))
+        self.assertTrue(replay.data["replayed"])
+        self.assertEqual(replay.data["created"], result.data["created"])
+        self.assertEqual(producer_calls, ["produce"])
+
+    def test_composed_action_sequence_rolls_back_earlier_producer_effects_on_later_failure(self):
+        source = self.client.post("/api/records/", self.create_payload(name="Composed rollback"), format="json")
+        rows = [{
+            "displayId": "#new-failure", "entityId": None, "__name": "Failure sample",
+            "values": {"Concentration": 2.0}, "isRegistered": False,
+        }]
+        sequence_declaration = {
+            "fingerprint": "fixture.atomic-produce-register.v1",
+            "steps": [
+                {"id": "produce", "action": {"kind": "action", "id": "fixture.science.atomic-producer", "version": "1.0.0"},
+                 "inputs": {}, "parameters": {}, "targets": {"record": "record"}},
+                {"id": "register", "action": {"kind": "action", "id": "helix.lims.registry-register", "version": "1.0.0"},
+                 "inputs": {"rows": {"kind": "step", "stepId": "produce", "port": "rows"}},
+                 "parameters": {
+                     "schemaId": {"type": {"type": "number"}, "value": self.schema.pk},
+                     "fieldMapping": {"type": {"type": "json"}, "value": {"field-concentration": "missing-field"}},
+                     "blockId": {"type": {"type": "string"}, "value": "registry-failure"},
+                 }, "targets": {"record": "record"}},
+            ],
+        }
+        document_group = save_revision_group(
+            actor=self.user, record_id=source.data["id"], group_key="document",
+            state_token=source.data["state_token"], request_id=uuid4(),
+            snapshot={"document": {"type": "doc", "content": [{"type": "registry-table", "attrs": {
+                "id": "registry-failure", "schemaId": self.schema.pk,
+                "columns": [{"id": "field-concentration", "name": "Concentration", "type": "number"}],
+                "rows": rows, "actionSequence": sequence_declaration,
+            }}]}},
+            target_model_reference="eln.entry", target_object_id="entry-failure",
+        )
+        producer_contract = {
+            "formatVersion": 1, "kind": "action", "id": "fixture.science.atomic-producer",
+            "version": "1.0.0", "description": "Propose one record and saved rows",
+            "definition": {
+                "inputs": {}, "parameters": {},
+                "outputs": {"rows": {"type": "json"}},
+                "targets": {"record": "helix.record"},
+                "effects": {"record": "edited", "records": "created"},
+            },
+        }
+        RetainedContract.objects.create(
+            kind="action", contract_id=producer_contract["id"], version="1.0.0",
+            fingerprint=contract_fingerprint(producer_contract),
+            canonical_envelope=canonical_json(producer_contract).decode("utf-8"),
+        )
+        registrar = ModRegistrar(ModManifest(
+            id="fixture.science", display_name="Fixture Science", version="1.0.0",
+            requires_helix=">=1.0.0", artifacts=("backend",), depends_on=(),
+        ), self.backend_registry)
+        def propose_earlier_record(_context, _inputs):
+            return ProposedEffects(
+                creates=[{"key": "producer-record", "name": "Must roll back", "schema_id": self.schema.pk,
+                          "field_values": {"field-concentration": {"type": "number", "value": 99.0}}}],
+                outputs={"rows": {"type": "json", "value": rows}},
+            )
+        producer = registrar.register_record_action(
+            "atomic-producer", label="Atomic producer",
+            action_contract_id=producer_contract["id"], action_contract_version="1.0.0",
+            handler=propose_earlier_record,
+        )
+        from bundled.lims.actions import ACTION_CONTRACT_ID, ACTION_CONTRACT_VERSION, propose_registry_registration
+        registration = registrar.register_record_action(
+            "atomic-register", label="Atomic registration",
+            action_contract_id=ACTION_CONTRACT_ID, action_contract_version=ACTION_CONTRACT_VERSION,
+            handler=propose_registry_registration,
+        )
+        invocation = {
+            "invocationId": "composed-register-fail", "sequenceFingerprint": "fixture.atomic-produce-register.v1",
+            "sequenceDeclaration": sequence_declaration,
+            "inputs": {}, "parameters": {}, "targets": {"record": source.data["id"]},
+            "expectedState": {"record": {
+                "stateToken": document_group["state_token"], "revisionId": source.data["revision"]["id"],
+                "schemaState": source.data["schema_state"], "documentGroupId": document_group["group_id"],
+                "documentRevisionId": document_group["revision_id"],
+            }},
+            "providers": {"steps": {"produce": producer.id, "register": registration.id}},
+            "steps": [
+                {"id": "produce", "inputs": {}, "parameters": {}},
+                {"id": "register", "inputs": {"rows": {"kind": "step", "stepId": "produce", "port": "rows"}},
+                 "parameters": {
+                     "schemaId": self.schema.pk,
+                     "fieldMapping": {"field-concentration": "missing-field"},
+                     "blockId": "registry-failure",
+                 }},
+            ],
+        }
+        before_actions = ActionLogEntry.objects.count()
+        before_revisions = ScientificRevision.objects.count()
+        result = self.client.post("/api/action-invocations/", invocation, format="json")
+        self.assertEqual(result.status_code, 422, getattr(result, "data", None))
+        self.assertEqual(PlatformRecord.objects.count(), 1)
+        self.assertEqual(ScientificRevision.objects.count(), before_revisions)
+        self.assertEqual(ActionLogEntry.objects.count(), before_actions)
+
+    def test_independently_committed_producer_survives_later_registration_failure(self):
+        source = self.client.post("/api/records/", self.create_payload(name="Independent producer"), format="json")
+        rows = [{"displayId": "#independent", "entityId": None, "__name": "Independent sample",
+                 "values": {"Concentration": 3.0}, "isRegistered": False}]
+        document_group = save_revision_group(
+            actor=self.user, record_id=source.data["id"], group_key="document",
+            state_token=source.data["state_token"], request_id=uuid4(),
+            snapshot={"document": {"type": "doc", "content": [{"type": "registry-table", "attrs": {
+                "id": "registry-independent", "schemaId": self.schema.pk,
+                "columns": [{"id": "field-concentration", "name": "Concentration", "type": "number"}],
+                "rows": rows,
+            }}]}},
+            target_model_reference="eln.entry", target_object_id="entry-independent",
+        )
+        producer_contract = {
+            "formatVersion": 1, "kind": "action", "id": "fixture.science.independent-producer",
+            "version": "1.0.0", "description": "Commit a record before registration",
+            "definition": {"inputs": {}, "parameters": {}, "outputs": {},
+                           "targets": {"record": "helix.record"},
+                           "effects": {"record": "edited", "records": "created"}},
+        }
+        RetainedContract.objects.create(
+            kind="action", contract_id=producer_contract["id"], version="1.0.0",
+            fingerprint=contract_fingerprint(producer_contract),
+            canonical_envelope=canonical_json(producer_contract).decode("utf-8"),
+        )
+        registrar = ModRegistrar(ModManifest(
+            id="fixture.science", display_name="Fixture Science", version="1.0.0",
+            requires_helix=">=1.0.0", artifacts=("backend",), depends_on=(),
+        ), self.backend_registry)
+        producer = registrar.register_record_action(
+            "independent-producer", label="Independent producer",
+            action_contract_id=producer_contract["id"], action_contract_version="1.0.0",
+            handler=lambda _context, _inputs: ProposedEffects(creates=[{
+                "key": "independent-record", "name": "Independently committed",
+                "schema_id": self.schema.pk,
+                "field_values": {"field-concentration": {"type": "number", "value": 8.0}},
+            }]),
+        )
+        producer_invocation = {
+            "invocationId": "independent-producer-commit", "sequenceFingerprint": "legacy-single-action",
+            "inputs": {}, "parameters": {}, "targets": {"record": source.data["id"]},
+            "expectedState": {"record": {"stateToken": document_group["state_token"]}},
+            "providers": {"action": producer.id},
+        }
+        committed = self.client.post("/api/action-invocations/", producer_invocation, format="json")
+        self.assertEqual(committed.status_code, 200, getattr(committed, "data", None))
+        created_id = next(iter(committed.data["created"].values()))
+
+        from bundled.lims.actions import ACTION_CONTRACT_ID, ACTION_CONTRACT_VERSION, propose_registry_registration
+        registration = registrar.register_record_action(
+            "independent-register", label="Invalid registration",
+            action_contract_id=ACTION_CONTRACT_ID, action_contract_version=ACTION_CONTRACT_VERSION,
+            handler=propose_registry_registration,
+        )
+        failed = self.client.post("/api/action-invocations/", {
+            "invocationId": "independent-registration-failure", "sequenceFingerprint": "legacy-single-action",
+            "inputs": {"rows": rows}, "parameters": {
+                "schemaId": self.schema.pk,
+                "fieldMapping": {"field-concentration": "missing-field"},
+                "blockId": "registry-independent",
+            }, "targets": {"record": source.data["id"]},
+            "expectedState": {"record": {
+                "stateToken": document_group["state_token"], "revisionId": source.data["revision"]["id"],
+                "schemaState": source.data["schema_state"],
+                "documentGroupId": document_group["group_id"],
+                "documentRevisionId": document_group["revision_id"],
+            }}, "providers": {"action": registration.id},
+        }, format="json")
+        self.assertEqual(failed.status_code, 422, getattr(failed, "data", None))
+        self.assertTrue(PlatformRecord.objects.filter(pk=created_id).exists())
 
     def test_account_deletion_preserves_record_history_and_actor_snapshots(self):
         self.user.first_name = "Researcher"

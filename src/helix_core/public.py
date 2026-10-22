@@ -19,6 +19,7 @@ from helix_core.column_types import ColumnType
 from helix_core.mod_system.manifest import ModManifest
 from helix_core.mod_system.registry import ContentSourceProvider
 from helix_core.capabilities import validate_accepted_capabilities, validate_capabilities
+from helix_core.record_persistence import ProposedEffects
 
 _MOD_ID = re.compile(r"^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+$")
 _LOCAL_KEY = re.compile(r"^[a-z][a-z0-9]*(?:[-.]?[a-z0-9]+)*$")

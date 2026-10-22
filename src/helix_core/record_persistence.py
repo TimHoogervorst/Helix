@@ -1459,6 +1459,11 @@ def _commit_created_record_effects(
             )
             document_group.current_revision = next_document_revision
             document_group.save(update_fields=["current_revision"])
+            from helix_core.attachments import link_revision_attachments
+            link_revision_attachments(
+                project_id=record.project_id, values=snapshot,
+                revision=next_document_revision,
+            )
             record.last_editor = actor
             record.state_token = uuid4()
             record.save(update_fields=["last_editor", "state_token", "updated_at"])

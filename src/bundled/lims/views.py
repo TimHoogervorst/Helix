@@ -119,14 +119,16 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             raise PermissionDenied(
                 "You do not have permission to create entities in this Project."
             )
-        instance = serializer.save(
-            author=self.request.user,
-            project=project,
-        )
-        self._maybe_log(
-            "create",
-            instance=instance,
-            validated_data=serializer.validated_data,
+        from helix_core.record_persistence import mutate_provider_record
+
+        mutate_provider_record(
+            write=lambda: serializer.save(author=self.request.user, project=project),
+            actor=self.request.user,
+            action="lims.entity.created",
+            target_model_reference="lims.entity",
+            request_id=self._request_id,
+            client_ip=self._client_ip,
+            metadata={"changed_fields": sorted(serializer.validated_data)},
         )
 
     def perform_update(self, serializer):
@@ -144,12 +146,22 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             new_source = instance.resolve_source(source_type, source_id)
             if effective_role(self.request.user, new_source) != "edit":
                 raise ValidationError("You do not have permission to move the entity there.")
-            instance.set_source(new_source)
-        serializer.save()
-        self._maybe_log(
-            self.action,
-            instance=serializer.instance,
-            validated_data=serializer.validated_data,
+        from helix_core.record_persistence import mutate_provider_record
+
+        def write_update():
+            if "source_type" in serializer.validated_data or "source_id" in serializer.validated_data:
+                instance.set_source(new_source)
+            return serializer.save()
+
+        mutate_provider_record(
+            write=write_update,
+            instance=instance,
+            actor=self.request.user,
+            action="lims.entity.edited",
+            target_model_reference="lims.entity",
+            request_id=self._request_id,
+            client_ip=self._client_ip,
+            metadata={"changed_fields": sorted(serializer.validated_data)},
         )
 
     @logs_action(
@@ -306,6 +318,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return Response({"deleted": count})
 
     @action(detail=False, methods=["post"], url_path="batch-register")
+    @transaction.atomic
     def batch_register(self, request):
         """Batch-register (create or update) LIMS entities.
 
@@ -431,6 +444,8 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         results = []
         errors = []
+        before_snapshots = {}
+        from helix_core.record_persistence import _provider_snapshot
 
         for row_index, row in enumerate(rows):
             entity_id = row.get("entity_id")
@@ -615,6 +630,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                             "message": "The entity must belong to the project.",
                         })
                         continue
+                    before_snapshots.setdefault(str(entity.pk), _provider_snapshot(entity))
                     update_fields = ["name", "properties"]
                     entity.name = name
                     entity.properties = persisted_values
@@ -661,6 +677,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         name=name, schema=schema
                     ).first()
                 if existing:
+                    before_snapshots.setdefault(str(existing.pk), _provider_snapshot(existing))
                     existing.properties = persisted_values
                     existing.save(update_fields=["properties"])
                     results.append({
@@ -700,27 +717,29 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "schema_content_hash": schema.content_hash,
                     })
 
-        # Action logging — log eln.entities.registered
+        # One shared Action records the batch; per-record snapshots and
+        # participants commit in the same transaction as the entity writes.
         if author and results:
-            try:
-                with transaction.atomic():
-                    log_action(
-                        user=author,
-                        action="eln.entities.registered",
-                        target_type="lims.entities",
-                        target_id=schema_id,
-                        metadata={
-                            "schema_id": schema_id,
-                            "count": len(results),
-                            "entity_ids": [r["entity_id"] for r in results],
-                        },
-                        request_id=getattr(self, "_request_id", None),
-                        client_ip=request.META.get("REMOTE_ADDR", "") or None,
-                    )
-            except Exception:
-                logger.exception(
-                    "Action logging failed for EntityViewSet.batch_register"
-                )
+            from helix_core.record_persistence import record_provider_batch
+
+            entity_ids = [result["entity_id"] for result in results]
+            records = list(Entity.objects.filter(pk__in=entity_ids).select_related("schema__schema_type"))
+            record_provider_batch(
+                records=records,
+                before_snapshots=before_snapshots,
+                actor=author,
+                action="eln.entities.registered",
+                target_model_reference="lims.entities",
+                target_object_id=schema_id,
+                request_id=getattr(self, "_request_id", None),
+                client_ip=request.META.get("REMOTE_ADDR", "") or None,
+                metadata={
+                    "schema_id": schema_id,
+                    "count": len(results),
+                    "entity_ids": entity_ids,
+                },
+                action_writer=log_action,
+            )
 
         return Response({"results": results, "errors": errors})
 

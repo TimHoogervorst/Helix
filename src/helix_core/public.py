@@ -354,6 +354,38 @@ class ModRegistrar:
             provider_mod_version=self.version,
         )
 
+    def register_record_action(
+        self,
+        local_key: str,
+        *,
+        label: str,
+        action_contract_id: str,
+        action_contract_version: str,
+        handler: Callable[[Any, Any], Any],
+    ) -> ActionReference:
+        """Register an exact-contract Action handler that only proposes effects.
+
+        The handler receives immutable execution context and input mappings. It
+        must return ``ProposedEffects``; the Platform validates and persists
+        those effects through its record persistence boundary.
+        """
+        reference = ActionReference(self.id, local_key)
+        if not isinstance(action_contract_id, str) or not action_contract_id:
+            raise ValueError("An exact Action Contract identity is required")
+        if not isinstance(action_contract_version, str) or not action_contract_version:
+            raise ValueError("An exact Action Contract version is required")
+        self._registry.register_record_action(
+            self._registry_id,
+            reference.id,
+            label,
+            action_contract_id,
+            action_contract_version,
+            handler,
+            provider_mod_id=self.id,
+            provider_mod_version=self.version,
+        )
+        return reference
+
     def register_urls(self, patterns: list) -> None:
         self._registry.register_urls(self._registry_id, patterns)
 

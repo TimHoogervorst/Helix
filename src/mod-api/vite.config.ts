@@ -11,6 +11,7 @@ export default defineConfig({
         api: path.resolve(import.meta.dirname, "src/api.ts"),
         contracts: path.resolve(import.meta.dirname, "src/contracts.ts"),
         theme: path.resolve(import.meta.dirname, "src/theme.ts"),
+        records: path.resolve(import.meta.dirname, "src/records.tsx"),
       },
       formats: ["es"],
       fileName: (_format, entryName) => `${entryName}.js`,

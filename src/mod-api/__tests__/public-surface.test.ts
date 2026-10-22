@@ -18,6 +18,7 @@ describe("@helix/mod-api public subpaths", () => {
         "./blocks": expect.any(Object),
         "./api": expect.any(Object),
         "./contracts": expect.any(Object),
+        "./records": expect.any(Object),
         "./theme": expect.any(Object),
         "./theme.css": expect.any(String),
       }),
@@ -40,5 +41,15 @@ describe("@helix/mod-api public subpaths", () => {
     expect(api.get).toBeTypeOf("function");
     expect(api.post).toBeTypeOf("function");
     expect(theme.themeTokens.primary).toBe("--color-primary");
+  }, 15_000);
+
+  it("exports provider-independent record readers and the generic inspector", async () => {
+    const records = await import("../src/records");
+
+    expect(records.listPlatformRecords).toBeTypeOf("function");
+    expect(records.getExactRecordRevision).toBeTypeOf("function");
+    expect(records.listRecordActivity).toBeTypeOf("function");
+    expect(records.exportPlatformRecord).toBeTypeOf("function");
+    expect(records.RecordValueInspector).toBeTypeOf("function");
   }, 15_000);
 });

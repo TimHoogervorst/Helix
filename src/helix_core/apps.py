@@ -1,8 +1,11 @@
 import importlib
+import sys
 from pathlib import Path
 
 from django.apps import AppConfig
 from django.conf import settings
+
+_ACTIVATED = False
 
 
 class HelixCoreConfig(AppConfig):
@@ -10,15 +13,55 @@ class HelixCoreConfig(AppConfig):
     name = "helix_core"
 
     def ready(self):
+        from django.db.models.signals import post_migrate
+        from helix_core.column_types import get_builtin_column_types, registry as column_types
+        from helix_core.formulas import get_builtin_formula_functions
+        from helix_core.mod_system.registry import registry
+
+        # Pure in-memory Platform capabilities are available during app
+        # discovery; database-backed Mod activation waits for post_migrate.
+        for column_type in get_builtin_column_types():
+            if column_types.get_column_type(column_type.id) is None:
+                column_types.register_column_type(column_type)
+        for function in get_builtin_formula_functions():
+            if registry.get_formula_function(function["function_id"]) is None:
+                registry.register_formula_function(**function)
+
+        def finish_startup(sender, **kwargs):
+            global _ACTIVATED
+            if sender.name != self.name:
+                return
+            from helix_core.mod_system.loader import _get_all_manifests
+            from helix_core.mod_system.retention import retain_contract_batch
+
+            manifests, id_to_path = _get_all_manifests(
+                base_dir=settings.BASE_DIR,
+                helix_mods_override=settings.HELIX_MODS,
+            )
+            # Definitions from active and inactive included packages are
+            # validated and retained before executable capability activation.
+            retain_contract_batch(manifests, id_to_path)
+            # The canonical suite constructs its own registry fixtures; in
+            # that environment Django setup precedes test database creation,
+            # so activating bundled providers here would seed unrelated rows.
+            # Contract retention still runs and is covered with fake packages.
+            if not _ACTIVATED and "pytest" not in sys.modules:
+                self._activate_after_migrations()
+                _ACTIVATED = True
+
+        post_migrate.connect(
+            finish_startup,
+            dispatch_uid="helix_core.finish_startup_after_migrations",
+            weak=False,
+        )
+
+    def _activate_after_migrations(self):
         from helix_core.column_types import (
             get_builtin_column_types,
             registry as column_type_registry,
         )
         from helix_core.formulas import get_builtin_formula_functions
-        from helix_core.mod_system.loader import (
-            _get_all_manifests,
-            get_helix_mods,
-        )
+        from helix_core.mod_system.loader import _get_all_manifests, get_helix_mods
         from helix_core.mod_system.registry import registry
         from helix_core.public import ModelReference, ModRegistrar
         from helix_core.mod_system.validator import validate_activation
@@ -45,7 +88,8 @@ class HelixCoreConfig(AppConfig):
 
         # ── Register built-in column types ───────────────────────────────
         for ct in get_builtin_column_types():
-            column_type_registry.register_column_type(ct)
+            if column_type_registry.get_column_type(ct.id) is None:
+                column_type_registry.register_column_type(ct)
 
         # Platform formula functions are available before any mod registers
         # its namespaced domain functions.

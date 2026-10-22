@@ -108,6 +108,8 @@ class ModManifest:
     artifacts: tuple[str, ...]
     depends_on: tuple[Dependency, ...]
     description: str | None = None
+    contracts: tuple[str, ...] = ()
+    requires_contracts: tuple[dict[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         raw = {
@@ -120,6 +122,10 @@ class ModManifest:
         }
         if self.description is not None:
             raw["description"] = self.description
+        if self.contracts:
+            raw["contracts"] = list(self.contracts)
+        if self.requires_contracts:
+            raw["requiresContracts"] = list(self.requires_contracts)
         validate_manifest(raw)
 
     @property
@@ -137,4 +143,6 @@ class ModManifest:
             artifacts=tuple(data["artifacts"]),
             depends_on=tuple(Dependency(**dependency) for dependency in data["dependsOn"]),
             description=data.get("description"),
+            contracts=tuple(data.get("contracts", ())),
+            requires_contracts=tuple(data.get("requiresContracts", ())),
         )

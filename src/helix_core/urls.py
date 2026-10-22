@@ -8,6 +8,7 @@ from helix_core.views import (
     ModRegistryView,
     ModBootView,
     ModLifecycleView,
+    RetainedContractView,
     SchemaViewSet,
     SchemaTypeViewSet,
     EntityHubListView,
@@ -39,4 +40,9 @@ urlpatterns = [
     path("mod-registry/", ModRegistryView.as_view(), name="mod-registry"),
     path("mod-boot/", ModBootView.as_view(), name="mod-boot"),
     path("mod-lifecycle/", ModLifecycleView.as_view(), name="mod-lifecycle"),
+    path(
+        "contracts/<str:kind>/<str:contract_id>/<str:version>/",
+        RetainedContractView.as_view(),
+        name="retained-contract",
+    ),
 ]

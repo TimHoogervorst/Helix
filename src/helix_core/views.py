@@ -10,6 +10,7 @@ schema types, and action catalogs) at ``GET /api/mod-registry/``.
 
 import logging
 import uuid
+from django.http import HttpResponse
 
 from django.db.models import F, FloatField, Q
 from django.db.models.functions import Cast
@@ -766,6 +767,23 @@ class ModRegistryView(APIView):
 
         payload = registry.get_registry_payload()
         return Response(payload)
+
+
+class RetainedContractView(APIView):
+    """Read one immutable declarative contract without loading its provider."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, kind, contract_id, version):
+        from helix_core.mod_system.retention import retained_contract_envelope
+
+        found = retained_contract_envelope(kind, contract_id, version)
+        if found is None:
+            return Response({"code": "CONTRACT_NOT_FOUND"}, status=status.HTTP_404_NOT_FOUND)
+        envelope, fingerprint = found
+        response = HttpResponse(envelope, content_type="application/json; charset=utf-8")
+        response["ETag"] = f'"{fingerprint}"'
+        return response
 
 class ModBootView(APIView):
     """Serve the completed backend boot barrier to the frontend.

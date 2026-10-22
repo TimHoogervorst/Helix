@@ -459,6 +459,44 @@ class ModRegistrar:
 Mod = ModRegistrar
 
 
+def create_record(**values: Any) -> dict[str, Any]:
+    """Create a Platform record through its atomic persistence boundary."""
+    from helix_core.record_persistence import create_record as persist
+
+    return persist(**values)
+
+
+def save_revision_group(**values: Any) -> dict[str, Any]:
+    """Persist a Mod-owned snapshot through the Platform revision boundary.
+
+    Mod packages use this public entry point instead of writing Platform
+    revision or Action models directly.
+    """
+    from helix_core.record_persistence import save_revision_group as persist
+
+    return persist(**values)
+
+
+def record_action_state(record_id: str) -> dict[str, Any]:
+    """Return the concurrency state required to invoke a Record Action.
+
+    This is a read-only public service for Mod-owned API adapters. It includes
+    the Platform record token, current default Revision and Schema mapping
+    fingerprint, without exposing persistence internals to the Mod.
+    """
+    from helix_core.record_persistence import _schema_state
+    from helix_core.models import PlatformRecord
+
+    record = PlatformRecord.objects.select_related("schema__schema_type").get(pk=record_id)
+    group = record.revision_groups.select_related("current_revision").get(group_key="record")
+    return {
+        "record_id": str(record.pk),
+        "state_token": str(record.state_token),
+        "revision_id": str(group.current_revision_id),
+        "schema_state": _schema_state(record),
+    }
+
+
 def make_app_config(
     package: str,
     manifest: ModManifest,

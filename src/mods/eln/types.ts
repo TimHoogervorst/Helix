@@ -54,6 +54,12 @@ export interface EntryDetail {
   updated_at: string;
   status: string;
   status_display: string;
+  platform_state_token?: string | null;
+  platform_record_id?: string | null;
+  platform_record_revision_id?: string | null;
+  platform_schema_state?: Record<string, unknown> | null;
+  document_group_id?: string | null;
+  document_revision_id?: string | null;
   tags: Tag[];
   mentions: Mention[];
 }

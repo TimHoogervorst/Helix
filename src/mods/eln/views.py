@@ -138,6 +138,65 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         )
         return schema
 
+    @staticmethod
+    def _create_document_record(entry, actor, request_id=None):
+        """Create the Platform record and its initial portable document Revision."""
+        from helix_core.public import create_record, save_revision_group
+
+        record = create_record(
+            actor=actor,
+            project=entry.project,
+            schema=entry.schema,
+            name=entry.name,
+            field_values={},
+            request_id=request_id or uuid.uuid4(),
+        )
+        saved = save_revision_group(
+            actor=actor,
+            record_id=record["id"],
+            group_key="document",
+            state_token=record["state_token"],
+            request_id=uuid.uuid4(),
+            snapshot={
+                "contract": {"kind": "data", "id": "helix.eln.document", "version": "1.0.0"},
+                "document": entry.content,
+            },
+            target_model_reference="eln.entry",
+            target_object_id=str(entry.pk),
+            action_type="created",
+        )
+        entry.platform_record_id = record["id"]
+        entry.save(update_fields=["platform_record"])
+        return saved
+
+    @staticmethod
+    def _save_entry_document(entry, actor, document, *, state_token, request_id, name=None):
+        from helix_core.public import save_revision_group
+
+        group = entry.platform_record.revision_groups.filter(
+            group_key="document"
+        ).select_related("current_revision").first()
+        if document is None and group and group.current_revision:
+            snapshot = group.current_revision.snapshot
+        else:
+            snapshot = {
+                "contract": {"kind": "data", "id": "helix.eln.document", "version": "1.0.0"},
+                "document": document,
+            }
+        return save_revision_group(
+            actor=actor,
+            record_id=entry.platform_record_id,
+            group_key="document",
+            state_token=state_token,
+            request_id=request_id or uuid.uuid4(),
+            snapshot=snapshot,
+            target_model_reference="eln.entry",
+            target_object_id=str(entry.pk),
+            action_type="edited",
+            record_name=name,
+        )
+
+    @transaction.atomic
     def perform_create(self, serializer):
         from bundled.access.access.policies import effective_role, role
         from rest_framework.exceptions import PermissionDenied
@@ -159,9 +218,15 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             )
         author = self.request.user if self.request.user.is_authenticated else None
         schema = self._get_default_schema()
+        request_id = serializer.validated_data.pop("request_id", None)
         instance = serializer.save(author=author, schema=schema, project=project)
         sync_entry_content(instance)
-        self._maybe_log("create", instance=instance, validated_data=serializer.validated_data)
+        document_result = self._create_document_record(
+            instance,
+            actor=self.request.user,
+            request_id=request_id,
+        )
+        instance._document_save_metadata = document_result
 
     def _can_edit_entry(self, instance):
         """Check whether request.user can edit *instance*.
@@ -183,6 +248,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             delete_source_descendants(instance, actor=self.request.user)
             super().perform_destroy(instance)
 
+    @transaction.atomic
     def perform_update(self, serializer):
         """Save an entry update with content versioning and hash-based no-op.
 
@@ -200,6 +266,8 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         instance = serializer.instance
         validated_data = serializer.validated_data
         content = validated_data.get("content")
+        expected_state_token = validated_data.pop("state_token", None)
+        request_id = validated_data.pop("request_id", None) or uuid.uuid4()
 
         # ── Lock enforcement ───────────────────────────────────────────────
         lock: EntryLock | None = None
@@ -243,21 +311,20 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 )
             instance.set_source(new_source)
 
-        # Determine save_mode from request header.
-        valid_modes = {choice[0] for choice in ContentVersion.SAVE_MODE_CHOICES}
-        save_mode = self.request.headers.get("X-Save-Mode", DEFAULT_SAVE_MODE)
-        if save_mode not in valid_modes:
-            save_mode = DEFAULT_SAVE_MODE
+        # Resolve the authoritative document from its Platform Revision Group.
+        old_content = instance.content
+        current_document = old_content
+        if instance.platform_record_id:
+            document_group = instance.platform_record.revision_groups.filter(
+                group_key="document"
+            ).select_related("current_revision").first()
+            if document_group and document_group.current_revision:
+                current_document = document_group.current_revision.snapshot.get(
+                    "document", old_content
+                )
 
         # ── Determine whether content actually changed ──────────────────
-        content_changed = False
-        if content is not None:
-            incoming_hash = ContentVersion.hash_content(content)
-            latest_version = ContentVersion.latest_for(instance)
-            if latest_version is None:
-                content_changed = True
-            elif latest_version.content_hash != incoming_hash:
-                content_changed = True
+        content_changed = content is not None and content != current_document
             # else: hash matches → content unchanged
 
         # ── Hash-based no-op short-circuit ──────────────────────────────
@@ -283,49 +350,39 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 return  # true no-op — nothing changed
 
         # ── Save & sync ─────────────────────────────────────────────────
-        # Capture pre-save content for fingerprint comparison.
-        # serializer.instance is the DB object before save() mutates it.
-        old_content = serializer.instance.content
+        document_result = None
+        name_changed = validated_data.get("name", instance.name) != instance.name
+        if instance.platform_record_id and (content_changed or name_changed):
+            document_result = self._save_entry_document(
+                instance,
+                self.request.user,
+                content if content_changed else None,
+                state_token=expected_state_token or instance.platform_record.state_token,
+                request_id=request_id,
+                name=validated_data.get("name") if name_changed else None,
+            )
         try:
             instance = serializer.save()
         except DjangoValidationError as exc:
             raise DRFValidationError(exc.message_dict) from exc
-        sync_entry_content(instance, old_content=old_content)
+        if document_result:
+            instance.platform_record.refresh_from_db()
+        if content_changed:
+            sync_entry_content(instance, old_content=old_content)
 
         # ── Create ContentVersion (content changes only) ────────────────
-        version_metadata: dict = {}
-        if content_changed:
-            version_number = ContentVersion.next_version_number(instance)
-            cv = ContentVersion.objects.create(
-                entry=instance,
-                content=instance.content,
-                content_hash=ContentVersion.hash_content(instance.content),
-                version_number=version_number,
-                created_by=self.request.user,
-                save_mode=save_mode,
-            )
-            version_metadata = {
-                "version_id": cv.id,
-                "version_number": version_number,
-                "save_mode": save_mode,
-            }
+        version_metadata = {
+            "revision_id": document_result["revision_id"],
+            "group_id": document_result["group_id"],
+        } if document_result else {}
 
         # ── Log action (delegated to ActionLoggingMixin) ────────────────
         # Suppress eln.entry.edited when the frontend signals that block-level
         # actions exist for this save cycle (X-Block-Actions header). Block
         # actions are the canonical audit record for content changes.
         instance._version_metadata = version_metadata
-        instance._version_target = (
-            VersionTarget(
-                reference=CONTENT_VERSION_REFERENCE,
-                object_id=str(cv.pk),
-                label=str(cv.version_number),
-                content_hash=cv.content_hash,
-            )
-            if content_changed
-            else None
-        )
-        if not self.request.headers.get("X-Block-Actions"):
+        instance._document_save_metadata = version_metadata
+        if not document_result:
             self._maybe_log(
                 self.action,
                 instance=instance,

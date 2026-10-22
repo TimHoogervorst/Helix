@@ -21,6 +21,10 @@ class NotebookEntry(AbstractEntity):
     """
 
     content = models.JSONField(blank=True, default=dict)
+    platform_record = models.OneToOneField(
+        "helix_core.PlatformRecord", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="eln_entry",
+    )
 
     # M2M to tags.Tag — defined on the consumer side (Tag stays pure).
     tags = models.ManyToManyField(

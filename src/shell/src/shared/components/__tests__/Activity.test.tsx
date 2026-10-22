@@ -4,6 +4,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { Activity } from "../Activity";
 import type {
   DisplayActionItem,
@@ -137,6 +138,28 @@ describe("Activity", () => {
     // Renders actor name and message
     expect(screen.getByText("Mira Keller")).toBeInTheDocument();
     expect(screen.getByText("Created an entry")).toBeInTheDocument();
+  });
+
+  it("links ELN save activity to its exact saved document Revision", () => {
+    render(<MemoryRouter><Activity actions={[makeItem({
+      metadata: {
+        record_id: "record-1", group_id: "document-group", revision_id: "document-revision",
+      },
+    })]} /></MemoryRouter>);
+
+    const link = screen.getByRole("link", { name: "Open saved document Revision" });
+    expect(link.getAttribute("href")).toBe("/records/record-1?group_id=document-group&revision_id=document-revision");
+  });
+
+  it("links Action activity to the exact saved document input Revision", () => {
+    render(<MemoryRouter><Activity actions={[makeItem({
+      metadata: { source_document: {
+        record_id: "record-2", group_id: "document-group-2", revision_id: "document-revision-2",
+      } },
+    })]} /></MemoryRouter>);
+
+    expect(screen.getByRole("link", { name: "Open saved document input" }).getAttribute("href"))
+      .toBe("/records/record-2?group_id=document-group-2&revision_id=document-revision-2");
   });
 
   it("renders the unsaved changes indicator", () => {

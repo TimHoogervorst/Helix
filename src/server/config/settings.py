@@ -47,6 +47,12 @@ HELIX_CONTRACT_PUBLISHERS = {
     **_configured_contract_publishers,
     "helix": "helix.timhoogervorst",
 }
+# First-party packages may supply contracts in the reserved namespace only
+# when deployment code explicitly delegates the namespace owner's identity.
+# Keep this narrow and immutable in configuration: no manifest self-claims.
+HELIX_CONTRACT_PUBLISHER_PACKAGES = {
+    "helix.eln": "helix.timhoogervorst",
+}
 
 # A deployment may provide the build-time catalog.  Validate it against a
 # fresh discovery pass before Django starts so package changes cannot boot

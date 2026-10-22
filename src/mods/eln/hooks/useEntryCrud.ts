@@ -157,6 +157,7 @@ export function useEntryCrud({
         name: title.trim(),
         content: fullContent,
         status,
+        state_token: entry?.platform_state_token,
       };
 
       enqueue(payload, "autosave", hasBlockActions).then((saved) => {
@@ -181,14 +182,14 @@ export function useEntryCrud({
         }
       });
     },
-    [effectiveEntryId, title, description, status, contentRef, enqueue, resolveIds, isLockedByOther],
+    [effectiveEntryId, title, description, status, contentRef, enqueue, resolveIds, isLockedByOther, entry?.platform_state_token],
   );
 
   // ── Manual save (returns promise) ──
   const save = useCallback(
     async (_folderId: number | null, tagIds: number[], hasBlockActions?: boolean) => {
-      if (!effectiveEntryId || !title.trim()) return;
-      if (isLockedByOther) return;
+      if (!effectiveEntryId || !title.trim()) return null;
+      if (isLockedByOther) return null;
 
       const fullContent = prependDescription(contentRef.current, description);
 
@@ -196,6 +197,7 @@ export function useEntryCrud({
         name: title.trim(),
         content: fullContent,
         status,
+        state_token: entry?.platform_state_token,
       };
 
       const saved = await enqueue(payload, "manual", hasBlockActions);
@@ -207,8 +209,9 @@ export function useEntryCrud({
       } else {
         applySavedEntry(saved);
       }
+      return saved;
     },
-    [effectiveEntryId, title, description, status, isNew, contentRef, enqueue, applySavedEntry, isLockedByOther],
+    [effectiveEntryId, title, description, status, isNew, contentRef, enqueue, applySavedEntry, isLockedByOther, entry?.platform_state_token],
   );
 
   const setDescription = useCallback((d: string) => {

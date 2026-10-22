@@ -69,7 +69,7 @@ export interface UseEntryWorkspaceReturn {
     lastSavedAt: Date | null;
     queueLength: number;
     isDirty: boolean;
-    save: (tagIds?: number[]) => Promise<void>;
+    save: (tagIds?: number[]) => Promise<EntryDetail | null>;
     deleteEntry: () => Promise<void>;
     applySavedEntry: (entry: EntryDetail) => void;
   };
@@ -82,6 +82,7 @@ export interface UseEntryWorkspaceReturn {
   editor: {
     content: TipTapDoc;
     onUpdate: (editor: Editor) => void;
+    onUpdateContent: (content: TipTapDoc) => void;
     editable: boolean;
     saveSignal: Date | null;
     targetId: number | undefined;
@@ -186,10 +187,13 @@ export function useEntryWorkspace({
   }, [crud.isReady]);
 
   // ── Editor update handler ──
-  const handleEditorUpdate = useCallback((editor: Editor) => {
-    contentRef.current = editor.getJSON() as TipTapDoc;
+  const handleEditorUpdateContent = useCallback((content: TipTapDoc) => {
+    contentRef.current = content;
     setContentVersion((v) => v + 1);
   }, []);
+  const handleEditorUpdate = useCallback((editor: Editor) => {
+    handleEditorUpdateContent(editor.getJSON() as TipTapDoc);
+  }, [handleEditorUpdateContent]);
 
   // ── Body content for TipTapRenderer ──
   const bodyContent = useMemo(() => {
@@ -247,6 +251,7 @@ export function useEntryWorkspace({
     editor: {
       content: bodyContent,
       onUpdate: handleEditorUpdate,
+      onUpdateContent: handleEditorUpdateContent,
       editable: !crud.isLockedByOther,
       saveSignal: crud.lastSavedAt,
       targetId: numericEntryId,

@@ -356,7 +356,11 @@ def contract_identity(envelope: dict[str, Any]) -> tuple[str, str, str]:
     return envelope["kind"], envelope["id"], envelope["version"]
 
 
-def authorize_publisher(mod_id: str, namespace_publishers: dict[str, str]) -> None:
+def authorize_publisher(
+    mod_id: str,
+    namespace_publishers: dict[str, str],
+    delegated_publishers: dict[str, str] | None = None,
+) -> None:
     if not isinstance(namespace_publishers, dict) or any(
         not isinstance(namespace, str)
         or not isinstance(publisher, str)
@@ -366,10 +370,19 @@ def authorize_publisher(mod_id: str, namespace_publishers: dict[str, str]) -> No
     ):
         raise ContractError("Publisher authorization must be a namespace-to-publisher mapping")
     namespace = mod_id.split(".", 1)[0]
+    delegated_publishers = delegated_publishers or {}
+    if not isinstance(delegated_publishers, dict) or any(
+        not isinstance(package, str)
+        or not isinstance(publisher, str)
+        or not package
+        or not publisher
+        for package, publisher in delegated_publishers.items()
+    ):
+        raise ContractError("Contract publisher delegates must be a package-to-publisher mapping")
     if namespace == "helix":
-        if (
-            mod_id != "helix.timhoogervorst"
-            or namespace_publishers.get("helix") != "helix.timhoogervorst"
+        owner = namespace_publishers.get("helix")
+        if owner != "helix.timhoogervorst" or (
+            mod_id != owner and delegated_publishers.get(mod_id) != owner
         ):
             raise ContractError("The helix namespace is reserved")
         return

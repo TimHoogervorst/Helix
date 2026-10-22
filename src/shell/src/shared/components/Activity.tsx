@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import type {
   DisplayActionItem,
   GroupedDisplayItem,
@@ -234,6 +235,13 @@ interface ActivityItemProps {
 }
 
 function ActivityItem({ action, isGroupChild = false }: ActivityItemProps) {
+  const sourceDocument = action.metadata.source_document as Record<string, unknown> | undefined;
+  const recordId = sourceDocument?.record_id ?? action.metadata.record_id;
+  const groupId = sourceDocument?.group_id ?? action.metadata.group_id;
+  const revisionId = sourceDocument?.revision_id ?? action.metadata.revision_id;
+  const revisionLink = typeof recordId === "string" && typeof groupId === "string" && typeof revisionId === "string"
+    ? `/records/${encodeURIComponent(recordId)}?group_id=${encodeURIComponent(groupId)}&revision_id=${encodeURIComponent(revisionId)}`
+    : null;
   return (
     <li
       className="flex items-start gap-2"
@@ -249,6 +257,11 @@ function ActivityItem({ action, isGroupChild = false }: ActivityItemProps) {
           {actorName(action.performedBy)}
         </span>{" "}
         {actionMessage(action)}
+        {revisionLink && <span className="ml-2">
+          <Link className="text-primary underline" to={revisionLink}>
+            {sourceDocument ? "Open saved document input" : "Open saved document Revision"}
+          </Link>
+        </span>}
       </span>
       <span className="shrink-0 text-muted-foreground/70">
         · {relativeTime(action.createdAt)}

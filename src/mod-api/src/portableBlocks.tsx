@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { ComponentType } from "react";
 import type { ActionContractDefinition, ContractReference, ContractType } from "./contracts";
@@ -200,6 +200,11 @@ export interface PortableBlockViewProps {
   readonly actionContext: PortableActionContextResolver;
   /** Build a request from the host's saved state and exact provider selection. */
   readonly buildInvocation: (stepId: string) => ActionInvocationRequest;
+  /** Persist pending editor changes before capturing invocation state. */
+  readonly beforeInvoke?: () => void | Promise<void>;
+  readonly providerOptions?: (stepId: string) => readonly { id: string; label: string }[];
+  readonly selectedProvider?: (stepId: string) => string | undefined;
+  readonly onSelectProvider?: (stepId: string, providerId: string) => void;
   readonly invokeAction: (request: ActionInvocationRequest) => Promise<InvocationOutcome>;
   /** Optional exact compatible viewer; Actions are rendered independently. */
   readonly viewer?: ComponentType<{ readonly value: TypedValue }>;
@@ -233,21 +238,34 @@ export function PortableBlockView({
   actionDefinitions = {},
   actionContext,
   buildInvocation,
+  beforeInvoke,
+  providerOptions,
+  selectedProvider,
+  onSelectProvider,
   invokeAction: runAction,
   viewer: Viewer,
   onDuplicate,
-  duplicateReason = "No compatible fresh-instance duplication policy is available.",
+  duplicateReason = "This host cannot safely duplicate the saved portable content and Action bindings yet.",
   readOnly = false,
 }: PortableBlockViewProps) {
   const [pendingStep, setPendingStep] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const preparedRequests = useRef(new Map<string, ActionInvocationRequest>());
 
   async function invoke(stepId: string) {
-    const context = actionContext(stepId);
     setPendingStep(stepId);
     setMessage(null);
     try {
-      const outcome = await runAction(buildInvocation(stepId));
+      // Keep the exact request across failures so an uncertain response can
+      // be recovered with the same invocation ID and payload.
+      let request = preparedRequests.current.get(stepId);
+      if (!request) {
+        await beforeInvoke?.();
+        request = buildInvocation(stepId);
+        preparedRequests.current.set(stepId, request);
+      }
+      const outcome = await runAction(request);
+      preparedRequests.current.delete(stepId);
       setMessage(outcome.replayed ? `Recovered saved result for ${stepId}.` : `${stepId} completed and was saved.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : `Action ${stepId} failed.`);
@@ -275,6 +293,16 @@ export function PortableBlockView({
         return <article key={step.id} data-action-step={step.id}>
           <h4>{step.id} · {step.action.id}@{step.action.version}</h4>
           {context.provider && <p>Selected provider · {context.provider}</p>}
+          {(providerOptions?.(step.id).length ?? 0) > 1 && <label>
+            Action provider
+            <select
+              aria-label={`${step.id} Action provider`}
+              value={selectedProvider?.(step.id) ?? providerOptions?.(step.id)[0]?.id}
+              onChange={(event) => onSelectProvider?.(step.id, event.currentTarget.value)}
+            >
+              {providerOptions?.(step.id).map((provider) => <option key={provider.id} value={provider.id}>{provider.label}</option>)}
+            </select>
+          </label>}
           <dl aria-label={`${step.id} named bindings`}>
             {Object.entries(context.inputs).map(([port, binding]) => <div key={`input.${port}`}>
               <dt>Input · {port}</dt>

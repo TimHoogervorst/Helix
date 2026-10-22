@@ -109,6 +109,16 @@ def test_contract_publisher_requires_deployment_authority_and_reserves_helix():
     authorize_publisher("helix.timhoogervorst", {"helix": "helix.timhoogervorst"})
 
 
+def test_reserved_namespace_can_delegate_to_an_explicit_first_party_package():
+    publishers = {"helix": "helix.timhoogervorst"}
+    delegates = {"helix.eln": "helix.timhoogervorst"}
+    authorize_publisher("helix.eln", publishers, delegates)
+    with pytest.raises(ContractError, match="reserved"):
+        authorize_publisher("helix.impostor", publishers, delegates)
+    with pytest.raises(ContractError, match="reserved"):
+        authorize_publisher("helix.eln", publishers, {"helix.eln": "helix.impostor"})
+
+
 def test_contract_artifacts_cannot_escape_package_root(tmp_path):
     package = tmp_path / "package"
     package.mkdir()
@@ -175,6 +185,7 @@ def test_contract_retention_is_idempotent_and_conflicts_leave_batch_unchanged(tm
     from helix_core.models import RetainedContract
     from helix_core.mod_system.retention import retain_contract_batch
 
+    RetainedContract.objects.all().delete()
     monkeypatch.syspath_prepend(str(tmp_path))
     original = data_contract(id="acme.publisher.unit")
     manifests, paths = _package_batch(tmp_path, {"unit": original})
@@ -218,6 +229,7 @@ def test_retained_definition_endpoint_returns_exact_envelope_and_fingerprint(cli
 def test_post_migrate_retains_contracts_from_the_included_package_set(tmp_path, monkeypatch):
     from helix_core.models import RetainedContract
 
+    RetainedContract.objects.all().delete()
     monkeypatch.syspath_prepend(str(tmp_path))
     envelope = data_contract(id="acme.publisher.startup")
     manifests, _ = _package_batch(tmp_path, {"startup": envelope})
@@ -244,6 +256,7 @@ def test_bad_tenth_artifact_retains_none_of_the_new_batch_and_keeps_prior_rows(t
     from helix_core.models import RetainedContract
     from helix_core.mod_system.retention import retain_contract_batch
 
+    RetainedContract.objects.all().delete()
     monkeypatch.syspath_prepend(str(tmp_path))
     baseline = data_contract(id="acme.publisher.baseline")
     manifests, paths = _package_batch(tmp_path, {"baseline": baseline})
@@ -269,6 +282,7 @@ def test_consumer_keeps_exact_dependency_after_supplier_package_is_removed(tmp_p
     from helix_core.mod_system.manifest import ModManifest
     from helix_core.mod_system.retention import retain_contract_batch
 
+    RetainedContract.objects.all().delete()
     monkeypatch.syspath_prepend(str(tmp_path))
     supplier_contract = data_contract(id="acme.publisher.unit")
     supplier_manifests, supplier_paths = _package_batch(tmp_path, {"unit": supplier_contract})

@@ -1184,6 +1184,14 @@ class BackendModRegistry:
         # Insert columnTypes at the top level.
         payload["columnTypes"] = column_type_registry.get_registry_payload()
         payload["formulaFunctions"] = self.get_formula_catalog()
+        payload["recordActions"] = sorted(({
+            "id": action["action_id"],
+            "label": action["label"],
+            "contract_id": action["action_contract_id"],
+            "contract_version": action["action_contract_version"],
+            "provider_mod_id": action["provider_mod_id"],
+            "provider_mod_version": action["provider_mod_version"],
+        } for action in self._record_actions.values()), key=lambda action: (action["contract_id"], action["contract_version"], action["id"]))
 
         # Generic registrations are hydrated as plain records.  They are
         # intentionally separate from workspace schema types: consumers can

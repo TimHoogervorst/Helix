@@ -33,13 +33,14 @@ def collect_contract_batch(
 ) -> tuple[list[dict[str, Any]], list[tuple[str, str, str]]]:
     """Read and authorize artifacts for every included package, regardless of activation."""
     publishers = getattr(settings, "HELIX_CONTRACT_PUBLISHERS", {})
+    delegated_publishers = getattr(settings, "HELIX_CONTRACT_PUBLISHER_PACKAGES", {})
     batch: list[dict[str, Any]] = []
     required: list[tuple[str, str, str]] = []
     for mod_id, manifest in manifests.items():
         package = id_to_path[mod_id]
         artifacts = resolve_artifacts(_package_root(package), manifest.contracts)
         if artifacts:
-            authorize_publisher(mod_id, publishers)
+            authorize_publisher(mod_id, publishers, delegated_publishers)
         for envelope in artifacts:
             if envelope["id"].split(".", 1)[0] != mod_id.split(".", 1)[0]:
                 raise ContractError(

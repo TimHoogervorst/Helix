@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PortableBlockView, resolvePortableActionContext } from "../src/portableBlocks";
 import type { ActionInvocationRequest, PortableBlockContent } from "../src/portableBlocks";
@@ -77,7 +77,48 @@ describe("PortableBlockView", () => {
 
     expect(invokeAction).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Run calculate" }));
-    expect(invokeAction).toHaveBeenCalledWith(request);
+    await waitFor(() => expect(invokeAction).toHaveBeenCalledWith(request));
+  });
+
+  it("flushes first and retries an uncertain invocation with the same request", async () => {
+    const beforeInvoke = vi.fn().mockResolvedValue(undefined);
+    const buildInvocation = vi.fn().mockReturnValue(request);
+    const invokeAction = vi.fn()
+      .mockRejectedValueOnce(new Error("response lost"))
+      .mockResolvedValueOnce({ actionId: "action-1", replayed: true });
+    render(<PortableBlockView
+      block={block}
+      actionDefinitions={actionDefinitions}
+      actionContext={() => ({ inputs: {}, parameters: {}, outputs: {}, available: true })}
+      beforeInvoke={beforeInvoke}
+      buildInvocation={buildInvocation}
+      invokeAction={invokeAction}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Run calculate" }));
+    await waitFor(() => expect(invokeAction).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Run calculate" }));
+    await waitFor(() => expect(invokeAction).toHaveBeenCalledTimes(2));
+    expect(beforeInvoke).toHaveBeenCalledTimes(1);
+    expect(buildInvocation).toHaveBeenCalledTimes(1);
+    expect(invokeAction.mock.calls.map(([payload]) => payload)).toEqual([request, request]);
+    expect(await screen.findByText(/Recovered saved result/)).toBeTruthy();
+  });
+
+  it("does not invoke when flushing pending edits fails", async () => {
+    const invokeAction = vi.fn();
+    render(<PortableBlockView
+      block={block}
+      actionDefinitions={actionDefinitions}
+      actionContext={() => ({ inputs: {}, parameters: {}, outputs: {}, available: true })}
+      beforeInvoke={vi.fn().mockRejectedValue(new Error("stale save"))}
+      buildInvocation={() => request}
+      invokeAction={invokeAction}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Run calculate" }));
+    expect(await screen.findByText("stale save")).toBeTruthy();
+    expect(invokeAction).not.toHaveBeenCalled();
   });
 
   it("resolves immutable named ports and keeps declared output separate from the saved result", () => {
@@ -96,6 +137,50 @@ describe("PortableBlockView", () => {
     });
     expect(context.outputs.result).toEqual({ type: { type: "number" }, declared: true, recorded: 8 });
     expect(Object.isFrozen(context.inputs.measurement)).toBe(true);
+  });
+
+  it("resolves saved Block paths and exact Platform Record fields through host resolvers", () => {
+    const bound: PortableBlockContent = {
+      ...block,
+      actionSequence: {
+        ...block.actionSequence!,
+        steps: [{
+          ...block.actionSequence!.steps[0],
+          inputs: {
+            measurement: { kind: "record", reference: { mode: "exact", entityId: "record-2", groupId: "group-2", revisionId: "revision-2", fieldId: "amount" } },
+          },
+        }],
+      },
+    };
+    const context = resolvePortableActionContext(bound, "calculate", actionDefinitions, { available: true }, {
+      record: (source) => source.reference.revisionId === "revision-2"
+        ? { type: { type: "number" }, value: 12 }
+        : undefined,
+      block: (source) => source.blockId === "source-block" && source.path.join(".") === "result.value"
+        ? { type: { type: "number" }, value: 12 }
+        : undefined,
+    });
+
+    expect(context.available).toBe(true);
+    expect(context.inputs.measurement.value).toBe(12);
+
+    const blockBound: PortableBlockContent = {
+      ...bound,
+      actionSequence: {
+        ...bound.actionSequence!,
+        steps: [{
+          ...bound.actionSequence!.steps[0],
+          inputs: { measurement: { kind: "block", blockId: "source-block", path: ["result", "value"] } },
+        }],
+      },
+    };
+    const fromBlock = resolvePortableActionContext(blockBound, "calculate", actionDefinitions, { available: true }, {
+      block: (source) => source.blockId === "source-block" && source.path.join(".") === "result.value"
+        ? { type: { type: "number" }, value: 12 }
+        : undefined,
+    });
+    expect(fromBlock.available).toBe(true);
+    expect(fromBlock.inputs.measurement.value).toBe(12);
   });
 
   it("fails closed when a saved step reads from a later step", () => {

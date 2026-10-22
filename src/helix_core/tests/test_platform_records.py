@@ -29,7 +29,7 @@ from helix_core.models import (
 from helix_core.mod_system.contracts import canonical_json, contract_fingerprint
 from helix_core.mod_system.registry import BackendModRegistry
 from helix_core.mod_system.manifest import ModManifest
-from helix_core.public import ModRegistrar
+from helix_core.public import ModRegistrar, create_record, save_revision_group
 from helix_core.record_persistence import ProposedEffects
 
 
@@ -95,6 +95,58 @@ class PlatformRecordApiTests(TestCase):
         listing = self.client.get("/api/records/")
         self.assertEqual(listing.data["count"], 1)
         self.assertEqual(listing.data["results"][0]["id"], str(record_id))
+
+    def test_mod_document_group_save_returns_committed_revision_and_shared_action(self):
+        created = create_record(
+            actor=self.user, project=self.project, schema=self.schema,
+            name="ELN document", field_values={}, request_id=uuid4(),
+        )
+        document = {"type": "doc", "content": [{"type": "paragraph"}]}
+        request_id = uuid4()
+        first = save_revision_group(
+            actor=self.user, record_id=created["id"], group_key="document",
+            state_token=created["state_token"], request_id=request_id,
+            snapshot={"document": document},
+            target_model_reference="eln.entry", target_object_id="42",
+        )
+
+        replay = save_revision_group(
+            actor=self.user, record_id=created["id"], group_key="document",
+            state_token=created["state_token"], request_id=request_id,
+            snapshot={"document": document},
+            target_model_reference="eln.entry", target_object_id="42",
+        )
+        self.assertEqual(replay, first)
+        group = PlatformRecord.objects.get(pk=created["id"]).revision_groups.get(group_key="document")
+        self.assertEqual(group.target_model_reference, "eln.entry")
+        self.assertEqual(str(group.current_revision_id), first["revision_id"])
+        self.assertEqual(group.current_revision.snapshot["document"], document)
+        action = ActionLogEntry.objects.get(pk=first["action"]["id"])
+        self.assertEqual(action.target_model_reference, "eln.entry")
+        self.assertEqual(action.target_object_id, "42")
+        self.assertEqual(action.metadata["group_id"], first["group_id"])
+        self.assertEqual(action.metadata["revision_id"], first["revision_id"])
+
+        renamed = save_revision_group(
+            actor=self.user, record_id=created["id"], group_key="document",
+            state_token=first["state_token"], request_id=uuid4(),
+            snapshot={"document": document},
+            target_model_reference="eln.entry", target_object_id="42",
+            record_name="Renamed ELN document",
+        )
+        self.assertFalse(renamed["revision_changed"])
+        self.assertEqual(renamed["revision_id"], first["revision_id"])
+        self.assertNotEqual(renamed["state_token"], first["state_token"])
+        self.assertEqual(group.revisions.count(), 1)
+
+        from helix_core.record_persistence import StateConflict
+        with self.assertRaises(StateConflict):
+            save_revision_group(
+                actor=self.user, record_id=created["id"], group_key="document",
+                state_token=first["state_token"], request_id=uuid4(),
+                snapshot={"document": {"type": "doc", "content": []}},
+                target_model_reference="eln.entry", target_object_id="42",
+            )
 
     def test_attachment_upload_is_project_scoped_and_download_requires_retained_revision(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
@@ -599,6 +651,11 @@ class PlatformRecordApiTests(TestCase):
                 "optionalFields": {"attrs": {"type": "json"}},
             },
         }
+        RetainedContract.objects.filter(
+            kind="data",
+            contract_id__in=definitions,
+            version="1.0.0",
+        ).delete()
         for contract_id, definition in definitions.items():
             envelope = {
                 "formatVersion": 1, "kind": "data", "id": contract_id,
@@ -720,6 +777,15 @@ class PlatformRecordApiTests(TestCase):
                 "field-concentration": {"type": "number", "value": inputs["concentration"]},
             }, outputs={"concentration": {"type": "number", "value": inputs["concentration"]}}),
         )
+        capability = self.backend_registry.get_registry_payload()["recordActions"]
+        self.assertIn({
+            "id": "fixture.science:edit-record",
+            "label": "Edit record",
+            "contract_id": action_contract["id"],
+            "contract_version": "1.0.0",
+            "provider_mod_id": "fixture.science",
+            "provider_mod_version": "1.0.0",
+        }, capability)
         invocation = {
             "invocationId": "lab-run-2026-17",
             "inputs": {"concentration": 5.5},

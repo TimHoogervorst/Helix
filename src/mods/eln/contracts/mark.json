@@ -1,0 +1,19 @@
+{
+  "formatVersion": 1,
+  "kind": "data",
+  "id": "helix.eln.mark",
+  "version": "1.0.0",
+  "description": "A portable inline mark with arbitrary retained attributes.",
+  "definition": {
+    "type": {
+      "type": "object",
+      "fields": {
+        "type": { "type": "string", "minLength": 1 }
+      },
+      "optionalFields": {
+        "attrs": { "type": "json" }
+      },
+      "additionalValues": { "type": "json" }
+    }
+  }
+}

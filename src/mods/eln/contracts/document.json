@@ -1,0 +1,22 @@
+{
+  "formatVersion": 1,
+  "kind": "data",
+  "id": "helix.eln.document",
+  "version": "1.0.0",
+  "description": "Portable ELN editor document with nested content retained as JSON.",
+  "definition": {
+    "type": {
+      "type": "object",
+      "fields": {
+        "type": { "type": "string", "enum": ["doc"] },
+        "content": {
+          "type": "array",
+          "items": { "type": "contract", "kind": "data", "id": "helix.eln.block", "version": "1.0.0" }
+        }
+      },
+      "optionalFields": {
+        "attrs": { "type": "json" }
+      }
+    }
+  }
+}

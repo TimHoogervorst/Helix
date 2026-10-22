@@ -41,8 +41,10 @@ export type ContractType =
   | (ContractTypeDescription & {
       readonly type: "object";
       readonly fields: Readonly<Record<string, ContractType>>;
+      readonly optionalFields?: Readonly<Record<string, ContractType>>;
       readonly additionalValues?: ContractType;
     })
+  | (ContractTypeDescription & { readonly type: "json" })
   | (ContractTypeDescription & {
       readonly type: "array";
       readonly items: ContractType;

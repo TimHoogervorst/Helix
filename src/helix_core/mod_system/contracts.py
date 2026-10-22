@@ -146,7 +146,7 @@ def _validate_type(node: Any, where: str, depth: int = 0) -> None:
         if "enum" in node and any(not isinstance(value, bool) for value in _enum(node, where)):
             raise ContractError(f"{where} boolean enum must contain only booleans")
     elif kind == "object":
-        _keys(node, {"type", "fields"}, {"type", "fields", "additionalValues", "description"}, where)
+        _keys(node, {"type", "fields"}, {"type", "fields", "optionalFields", "additionalValues", "description"}, where)
         fields = node["fields"]
         if not isinstance(fields, dict) or any(
             not isinstance(name, str) or not _STABLE_NAME.fullmatch(name)
@@ -155,8 +155,18 @@ def _validate_type(node: Any, where: str, depth: int = 0) -> None:
             raise ContractError(f"{where} fields must use stable names")
         for name, field_type in fields.items():
             _validate_type(field_type, f"{where}.{name}", depth + 1)
+        optional_fields = node.get("optionalFields", {})
+        if not isinstance(optional_fields, dict) or any(
+            not isinstance(name, str) or not _STABLE_NAME.fullmatch(name) or name in fields
+            for name in optional_fields
+        ):
+            raise ContractError(f"{where} optionalFields must use stable names not already in fields")
+        for name, field_type in optional_fields.items():
+            _validate_type(field_type, f"{where}.{name}", depth + 1)
         if "additionalValues" in node:
             _validate_type(node["additionalValues"], f"{where}.additionalValues", depth + 1)
+    elif kind == "json":
+        _keys(node, {"type"}, {"type", "description"}, where)
     elif kind == "array":
         _keys(node, {"type", "items"}, {"type", "items", "minItems", "maxItems", "description"}, where)
         _validate_type(node["items"], f"{where}[]", depth + 1)

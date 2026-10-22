@@ -4,6 +4,11 @@
   "version": "0.1.0",
   "requiresHelix": ">=1.0.0",
   "artifacts": ["frontend", "backend"],
+  "contracts": [
+    "contracts/document.json",
+    "contracts/block.json",
+    "contracts/mark.json"
+  ],
   "dependsOn": [
     {"id": "helix.lims", "version": "^0.1.0"},
     {"id": "helix.tags", "version": "^0.1.0"}

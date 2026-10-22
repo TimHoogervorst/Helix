@@ -1,6 +1,7 @@
 import json
 import importlib
 from decimal import Decimal, localcontext
+from pathlib import Path
 
 import pytest
 from django.apps import apps
@@ -293,3 +294,14 @@ def test_consumer_keeps_exact_dependency_after_supplier_package_is_removed(tmp_p
 
     row = RetainedContract.objects.get()
     assert (row.contract_id, row.version) == (supplier_contract["id"], "1.0.0")
+
+
+def test_eln_portable_document_artifacts_validate_as_a_recursive_contract_batch():
+    package = Path(__file__).parents[2] / "mods" / "eln"
+    manifest = json.loads((package / "modManifest.json").read_text(encoding="utf-8"))
+    artifacts = resolve_artifacts(package, manifest["contracts"])
+
+    assert {contract["id"] for contract in artifacts} == {
+        "helix.eln.document", "helix.eln.block", "helix.eln.mark",
+    }
+    validate_dependency_closure(artifacts)

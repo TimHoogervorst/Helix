@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import time
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -427,7 +428,9 @@ def _freeze(value):
     return value
 
 
-def _validate_contract_value(type_node, value, where):
+def _validate_contract_value(type_node, value, where, depth=0):
+    if depth > 64:
+        raise ValidationError({"inputs": f"Input '{where}' exceeds the maximum document depth."})
     kind = type_node.get("type") if isinstance(type_node, dict) else None
     valid = {
         "string": lambda v: isinstance(v, str),
@@ -438,23 +441,84 @@ def _validate_contract_value(type_node, value, where):
         "recordReference": lambda v: isinstance(v, dict) and isinstance(v.get("id"), str),
         "attachmentReference": lambda v: isinstance(v, dict) and isinstance(v.get("id"), str),
     }
+    if kind == "json":
+        def is_json(item, remaining):
+            if remaining < 0:
+                return False
+            if item is None or isinstance(item, (str, bool, int)):
+                return True
+            if isinstance(item, float):
+                return math.isfinite(item)
+            if isinstance(item, list):
+                return all(is_json(nested, remaining - 1) for nested in item)
+            if isinstance(item, dict):
+                return all(isinstance(key, str) and is_json(nested, remaining - 1) for key, nested in item.items())
+            return False
+        if not is_json(value, 64 - depth):
+            raise ValidationError({"inputs": f"Input '{where}' must be a finite JSON value within the maximum depth."})
+        return
     if kind in valid and not valid[kind](value):
         raise ValidationError({"inputs": f"Input '{where}' does not match its declared type."})
+    if kind in {"string", "date", "datetime", "number", "boolean"}:
+        if "enum" in type_node and not any(
+            type(candidate) is type(value) and candidate == value
+            or kind == "number" and not isinstance(candidate, bool)
+            and isinstance(candidate, (int, float)) and candidate == value
+            for candidate in type_node["enum"]
+        ):
+            raise ValidationError({"inputs": f"Input '{where}' is not one of its declared values."})
+        if kind == "string" and (
+            len(value) < type_node.get("minLength", 0)
+            or len(value) > type_node.get("maxLength", math.inf)
+        ):
+            raise ValidationError({"inputs": f"Input '{where}' does not match its declared length bounds."})
+        if kind == "number" and (
+            value < type_node.get("minimum", -math.inf)
+            or value > type_node.get("maximum", math.inf)
+        ):
+            raise ValidationError({"inputs": f"Input '{where}' does not match its declared numeric bounds."})
     if kind == "object":
-        if not isinstance(value, dict) or set(value) != set(type_node["fields"]):
+        fields = type_node["fields"]
+        optional_fields = type_node.get("optionalFields", {})
+        allowed = set(fields) | set(optional_fields)
+        extra = set(value) - allowed if isinstance(value, dict) else set()
+        if (
+            not isinstance(value, dict)
+            or not set(fields) <= set(value)
+            or (extra and "additionalValues" not in type_node)
+        ):
             raise ValidationError({"inputs": f"Input '{where}' does not match its declared fields."})
-        for name, nested in type_node["fields"].items():
-            _validate_contract_value(nested, value[name], f"{where}.{name}")
+        for name, nested in fields.items():
+            _validate_contract_value(nested, value[name], f"{where}.{name}", depth + 1)
+        for name, nested in optional_fields.items():
+            if name in value:
+                _validate_contract_value(nested, value[name], f"{where}.{name}", depth + 1)
+        if "additionalValues" in type_node:
+            for name in extra:
+                _validate_contract_value(type_node["additionalValues"], value[name], f"{where}.{name}", depth + 1)
     if kind == "array":
         if not isinstance(value, list):
             raise ValidationError({"inputs": f"Input '{where}' must be a list."})
+        if len(value) < type_node.get("minItems", 0) or len(value) > type_node.get("maxItems", math.inf):
+            raise ValidationError({"inputs": f"Input '{where}' does not match its declared item bounds."})
         for index, item in enumerate(value):
-            _validate_contract_value(type_node["items"], item, f"{where}[{index}]")
+            _validate_contract_value(type_node["items"], item, f"{where}[{index}]", depth + 1)
     if kind == "optional" and value is not None:
-        _validate_contract_value(type_node["valueType"], value, where)
+        _validate_contract_value(type_node["valueType"], value, where, depth + 1)
     if kind == "contract":
         if not isinstance(value, dict):
             raise ValidationError({"inputs": f"Input '{where}' must be a contract value."})
+        if type_node.get("kind") != "data":
+            raise ValidationError({"inputs": f"Input '{where}' must reference a Data Contract."})
+        from helix_core.models import RetainedContract
+        from helix_core.mod_system.contracts import parse_contract_json
+        retained = RetainedContract.objects.filter(
+            kind="data", contract_id=type_node["id"], version=type_node["version"]
+        ).first()
+        if retained is None:
+            raise ValidationError({"inputs": f"Input '{where}' references a Data Contract that is not retained."})
+        envelope = parse_contract_json(retained.canonical_envelope)
+        _validate_contract_value(envelope["definition"]["type"], value, where, depth + 1)
 
 
 def _require_current_read_access(actor, record):

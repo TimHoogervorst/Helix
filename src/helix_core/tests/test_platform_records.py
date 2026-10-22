@@ -560,6 +560,77 @@ class PlatformRecordApiTests(TestCase):
         self.assertEqual(invalid.status_code, 400, invalid.data)
         self.assertEqual(PlatformRecord.objects.count(), 1)
 
+    def test_recursive_document_contract_validates_nested_blocks_and_opaque_attributes(self):
+        from helix_core.record_persistence import _validate_contract_value
+        from rest_framework.exceptions import ValidationError
+
+        definitions = {
+            "helix.eln.document": {
+                "type": "object",
+                "fields": {
+                    "type": {"type": "string", "enum": ["doc"]},
+                    "content": {"type": "array", "items": {
+                        "type": "contract", "kind": "data",
+                        "id": "helix.eln.block", "version": "1.0.0",
+                    }},
+                },
+                "optionalFields": {"attrs": {"type": "json"}},
+            },
+            "helix.eln.block": {
+                "type": "object",
+                "fields": {"type": {"type": "string", "minLength": 1}},
+                "optionalFields": {
+                    "attrs": {"type": "json"},
+                    "content": {"type": "array", "items": {
+                        "type": "contract", "kind": "data",
+                        "id": "helix.eln.block", "version": "1.0.0",
+                    }},
+                    "text": {"type": "string"},
+                    "marks": {"type": "array", "items": {
+                        "type": "contract", "kind": "data",
+                        "id": "helix.eln.mark", "version": "1.0.0",
+                    }},
+                },
+                "additionalValues": {"type": "json"},
+            },
+            "helix.eln.mark": {
+                "type": "object",
+                "fields": {"type": {"type": "string", "minLength": 1}},
+                "optionalFields": {"attrs": {"type": "json"}},
+            },
+        }
+        for contract_id, definition in definitions.items():
+            envelope = {
+                "formatVersion": 1, "kind": "data", "id": contract_id,
+                "version": "1.0.0", "description": "Test retained document schema.",
+                "definition": {"type": definition},
+            }
+            RetainedContract.objects.create(
+                kind="data", contract_id=contract_id, version="1.0.0",
+                fingerprint=contract_fingerprint(envelope),
+                canonical_envelope=canonical_json(envelope).decode("utf-8"),
+            )
+
+        document_type = {
+            "type": "contract", "kind": "data",
+            "id": "helix.eln.document", "version": "1.0.0",
+        }
+        value = {
+            "type": "doc",
+            "attrs": {"source": ["external", {"version": 7}]},
+            "content": [{
+                "type": "paragraph", "attrs": {"vendor": {"key": True}},
+                "content": [{"type": "text", "text": "hello", "marks": [
+                    {"type": "highlight", "attrs": {"color": "violet"}},
+                ]}],
+            }],
+        }
+        _validate_contract_value(document_type, value, "document")
+
+        invalid = {**value, "type": "unsupported-document"}
+        with self.assertRaises(ValidationError):
+            _validate_contract_value(document_type, invalid, "document")
+
     def test_registered_action_provider_edits_record_through_atomic_boundary(self):
         created = self.client.post("/api/records/", self.create_payload(), format="json")
         self.assertEqual(created.status_code, 201, created.data)

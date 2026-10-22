@@ -8,7 +8,6 @@ from django.apps import apps
 
 from .support import BaseServiceTestCase
 from helix_core.public import Folder
-from helix_core.public import SchemaType, Schema
 from helix_core.public import Mention
 from mods.eln.models import NotebookEntry
 from helix_core.public import delete_source_descendants
@@ -19,30 +18,19 @@ Entity = apps.get_model("lims", "Entity")
 class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
     """Tests for cascade_entry_status_to_entities signal handler."""
 
-    @classmethod
-    def setUpTestData(cls):
-        super().setUpTestData()
-        cls.lims_schema_type = SchemaType.objects.create(
-            display_name="Entity", workspace_id="lims", model="bundled.lims.models.Entity",
-        )
-        cls.eln_schema_type = SchemaType.objects.create(
-            display_name="ELN Entry", workspace_id="eln", model="mods.eln.models.NotebookEntry",
-        )
-
     def setUp(self):
         super().setUp()
-        self.eln_schema = Schema.objects.create(
-            name="Default", prefix="E", schema_type=self.eln_schema_type,
-        )
+        from mods.eln.tests.factories import get_or_create_default_eln_schema
+        from helix_core.public import Schema
+
+        self.eln_schema = get_or_create_default_eln_schema()
         self.entry = NotebookEntry.objects.create(
             name="Test Entry",
             source=self.folder,
             author=self.user,
             schema=self.eln_schema,
         )
-        self.schema = Schema.objects.create(
-            name="Blood", prefix="BLOOD", schema_type=self.lims_schema_type,
-        )
+        self.schema = Schema.objects.get(prefix="BLOOD")
         self.entity = Entity.objects.create(
             name="Sample A",
             schema=self.schema,
@@ -243,26 +231,13 @@ class CascadeEntryStatusToEntitiesTests(BaseServiceTestCase):
 class SourceDeletionTests(BaseServiceTestCase):
     """Source deletion removes descendants without following references."""
 
-    @classmethod
-    def setUpTestData(cls):
-        super().setUpTestData()
-        cls.eln_schema_type = SchemaType.objects.create(
-            display_name="ELN Entry", workspace_id="eln",
-            model="mods.eln.models.NotebookEntry",
-        )
-        cls.lims_schema_type = SchemaType.objects.create(
-            display_name="Entity", workspace_id="lims",
-            model="bundled.lims.models.Entity",
-        )
-
     def setUp(self):
         super().setUp()
-        self.eln_schema = Schema.objects.create(
-            name="Entry", prefix="E", schema_type=self.eln_schema_type,
-        )
-        self.lims_schema = Schema.objects.create(
-            name="Entity", prefix="S", schema_type=self.lims_schema_type,
-        )
+        from mods.eln.tests.factories import get_or_create_default_eln_schema
+        from helix_core.public import Schema
+
+        self.eln_schema = get_or_create_default_eln_schema()
+        self.lims_schema = Schema.objects.get(prefix="BLOOD")
         self.entry = NotebookEntry.objects.create(
             name="Entry", source=self.folder, author=self.user,
             schema=self.eln_schema,

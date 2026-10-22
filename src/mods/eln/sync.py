@@ -37,8 +37,8 @@ def sync_entry_content(
     1. Fingerprint pre-check — if *old_content* is provided and the
        reference fingerprint didn't change vs the current content, skip
        the expensive signal dispatch and mention sync entirely.
-       Text-only auto-saves are just a ContentVersion insert +
-       entry.content pointer update.
+       Text-only auto-saves are persisted as Platform document Revisions
+       by the entry save boundary, without running reference synchronization.
     2. ``entry_content_sync`` signal — extension point for mods to hook
        into the sync pipeline (e.g. entity sync, protocol widgets).
     3. ``sync_mentions`` — walks the (possibly patched) JSON for reference

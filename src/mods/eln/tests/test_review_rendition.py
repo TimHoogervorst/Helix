@@ -223,7 +223,7 @@ class ReviewRenditionApiTests(BaseTestCase):
     def test_audit_failure_rolls_back_review_and_removes_staged_pdf(self):
         entry_data, entry = self.create_entry()
         self.client.raise_request_exception = False
-        with patch("helix_core.actions.log_action", side_effect=RuntimeError("audit unavailable")):
+        with patch("helix_core.actions.logger.log_action", side_effect=RuntimeError("audit unavailable")):
             response = self.capture(entry_data)
 
         self.assertEqual(response.status_code, 500)

@@ -207,6 +207,18 @@ def test_packaged_manifest_is_loaded_from_entry_point_package_without_importing_
     assert loaded.version == "1.2.3"
 
 
+def test_public_mod_composition_resolves_explicit_packages_in_dependency_order():
+    from helix_core.public import get_bundled_mod_packages, get_mod_app_configs
+
+    bundled = get_bundled_mod_packages()
+    apps = get_mod_app_configs([*bundled, "mods.eln"])
+
+    assert "mods.eln" in apps
+    assert apps.index("bundled.lims") < apps.index("mods.eln")
+    assert apps.index("bundled.labelling.tags") < apps.index("mods.eln")
+    assert get_mod_app_configs(bundled) == get_mod_app_configs(list(bundled))
+
+
 def test_app_config_exposes_one_stable_django_label():
     from helix_core import make_app_config
 

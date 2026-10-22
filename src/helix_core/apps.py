@@ -45,7 +45,12 @@ class HelixCoreConfig(AppConfig):
             # that environment Django setup precedes test database creation,
             # so activating bundled providers here would seed unrelated rows.
             # Contract retention still runs and is covered with fake packages.
-            if not _ACTIVATED and "pytest" not in sys.modules:
+            activate_during_tests = getattr(
+                settings, "HELIX_ACTIVATE_MODS_IN_TESTS", False
+            )
+            if not _ACTIVATED and (
+                "pytest" not in sys.modules or activate_during_tests
+            ):
                 self._activate_after_migrations()
                 _ACTIVATED = True
 
@@ -196,6 +201,9 @@ class HelixCoreConfig(AppConfig):
                 for mod_id, path in id_to_path.items()
                 if path in BUNDLED_MODS
             }
+
+        if "pytest" in sys.modules:
+            active_ids.update(getattr(settings, "HELIX_TEST_ACTIVE_MODS", []))
 
         for dotted_path in sorted_paths:
             mod_id = next(

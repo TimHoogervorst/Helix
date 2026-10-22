@@ -11,7 +11,7 @@ const runtimeExtensions = new Set([".py", ".ts", ".tsx"]);
 async function walk(directory) {
   const files = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
-    if (["node_modules", "__pycache__", ".git"].includes(entry.name)) continue;
+    if (["node_modules", "__pycache__", ".git", "prototypes", "package-tests"].includes(entry.name)) continue;
     const target = path.join(directory, entry.name);
     if (entry.isDirectory()) files.push(...await walk(target));
     else files.push(target);
@@ -52,12 +52,17 @@ test("ELN runtime sources resolve inside this package or through public APIs", a
   assert.deepEqual(failures, [], failures.join("\n"));
 });
 
-test("ELN npm artifact contains its runtime sources and declarations", () => {
+test("ELN npm artifact contains its runtime sources and declarations", async () => {
   const npmCli = process.env.npm_execpath;
   assert.ok(npmCli, "run this check through npm so npm's CLI path is available");
   const packed = JSON.parse(execFileSync(process.execPath, [npmCli, "pack", "--dry-run", "--json"], { cwd: root, encoding: "utf8" }))[0];
   const included = new Set(packed.files.map(({ path: file }) => file));
-  for (const required of ["index.ts", "api.ts", "apps.py", "views.py", "mod.py", "contracts/document.json", "migrations/0001_initial.py", "workspace/ElnWorkspace.tsx", "editor/extensions/UnifiedSuggestion.ts"]) {
+  const requiredFiles = ["index.ts", "api.ts", "apps.py", "views.py", "mod.py", "contracts/document.json", "workspace/ElnWorkspace.tsx", "editor/extensions/UnifiedSuggestion.ts"];
+  const migrations = (await walk(path.join(root, "migrations")))
+    .filter((file) => file.endsWith(".py"))
+    .map((file) => path.relative(root, file).replaceAll(path.sep, "/"));
+  requiredFiles.push(...migrations);
+  for (const required of requiredFiles) {
     assert.ok(included.has(required), `${required} is missing from the ELN package`);
   }
   assert.ok(![...included].some((file) => file.startsWith("tests/") || file.includes("/__tests__/")), "test sources should not ship in the ELN runtime package");

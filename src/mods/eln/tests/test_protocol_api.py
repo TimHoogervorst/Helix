@@ -3,11 +3,9 @@ Tests for the Protocol API endpoints.
 
 Exercises full CRUD, validation, soft-delete, and is_active filtering.
 """
-from unittest.mock import patch
-
 from .support import BaseTestCase
 from mods.eln.models import Protocol
-from helix_core.public import Organization, OrganizationMembership, OrganizationRole
+from helix_core.public import ActionLogEntry, Organization, OrganizationMembership, OrganizationRole
 
 
 VALID_ITEMS = [
@@ -16,14 +14,13 @@ VALID_ITEMS = [
     {"type": "step", "text": "Incubate at 37°C for 30 min."},
 ]
 
-MIXIN_LOG_ACTION_PATH = "helix_core.actions.mixins.log_action"
-
-
-def _log_kwargs(mock):
-    """Return the keyword-args dict from the *first* call to *mock*."""
-    if mock.call_count == 0:
-        return {}
-    return mock.call_args[1]
+def _protocol_action(action, target_id=None):
+    query = ActionLogEntry.objects.filter(
+        action=action, target_model_reference="eln.protocol"
+    )
+    if target_id is not None:
+        query = query.filter(target_object_id=str(target_id))
+    return query.order_by("-created_at").first()
 
 
 class ProtocolApiTests(BaseTestCase):
@@ -319,11 +316,6 @@ class ProtocolActionLoggingTests(BaseTestCase):
             defaults={"organization": org, "role": OrganizationRole.ADMIN},
         )
         self.client.force_authenticate(user=self.user)
-        self._patcher = patch(MIXIN_LOG_ACTION_PATH)
-        self.mock_log = self._patcher.start()
-
-    def tearDown(self):
-        self._patcher.stop()
 
     def test_create_protocol_logs_action(self):
         response = self.client.post(
@@ -332,12 +324,9 @@ class ProtocolActionLoggingTests(BaseTestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 201)
-        self.mock_log.assert_called_once()
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action"], "eln.protocol.created")
-        self.assertEqual(kwargs["target_type"], "eln.protocol")
-        self.assertEqual(kwargs["target_id"], response.data["id"])
-        self.assertEqual(kwargs["user"], self.user)
+        action = _protocol_action("eln.protocol.created", response.data["id"])
+        self.assertIsNotNone(action)
+        self.assertEqual(action.performed_by, self.user)
 
     def test_update_protocol_logs_action(self):
         protocol = Protocol.objects.create(name="Old", items=VALID_ITEMS)
@@ -347,11 +336,7 @@ class ProtocolActionLoggingTests(BaseTestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 200)
-        self.mock_log.assert_called_once()
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action"], "eln.protocol.edited")
-        self.assertEqual(kwargs["target_type"], "eln.protocol")
-        self.assertEqual(kwargs["target_id"], protocol.id)
+        self.assertIsNotNone(_protocol_action("eln.protocol.edited", protocol.id))
 
     def test_partial_update_protocol_logs_action(self):
         protocol = Protocol.objects.create(name="PatchMe", items=VALID_ITEMS)
@@ -361,19 +346,13 @@ class ProtocolActionLoggingTests(BaseTestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 200)
-        self.mock_log.assert_called_once()
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action"], "eln.protocol.edited")
+        self.assertIsNotNone(_protocol_action("eln.protocol.edited", protocol.id))
 
     def test_soft_delete_protocol_logs_action(self):
         protocol = Protocol.objects.create(name="Temporary", items=VALID_ITEMS)
         response = self.client.delete(f"/api/eln/protocols/{protocol.id}/")
         self.assertEqual(response.status_code, 204)
-        self.mock_log.assert_called_once()
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action"], "eln.protocol.deleted")
-        self.assertEqual(kwargs["target_type"], "eln.protocol")
-        self.assertEqual(kwargs["target_id"], protocol.id)
+        self.assertIsNotNone(_protocol_action("eln.protocol.deleted", protocol.id))
 
     def test_create_protocol_captures_client_ip(self):
         self.client.post(
@@ -381,10 +360,11 @@ class ProtocolActionLoggingTests(BaseTestCase):
             {"name": "IP Test", "items": VALID_ITEMS},
             format="json",
         )
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["client_ip"], "127.0.0.1")
+        action = _protocol_action("eln.protocol.created")
+        self.assertIsNotNone(action)
+        self.assertEqual(action.client_ip, "127.0.0.1")
 
     def test_get_does_not_log(self):
         Protocol.objects.create(name="ReadOnly", items=VALID_ITEMS)
         self.client.get("/api/eln/protocols/")
-        self.mock_log.assert_not_called()
+        self.assertFalse(ActionLogEntry.objects.filter(action__startswith="eln.protocol.").exists())

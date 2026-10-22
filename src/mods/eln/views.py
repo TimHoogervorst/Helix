@@ -27,7 +27,7 @@ from helix_core.public import visible_rows_q
 
 from helix_core.public import ActionLogEntry, Schema
 
-from .models import NotebookEntry, ContentVersion, EntryLock, HistoricalRendition, Protocol
+from .models import NotebookEntry, EntryLock, HistoricalRendition, Protocol
 from .config import CONTENT_VERSION_REFERENCE, ENTRY_MODEL_REFERENCE
 from .serializers import (
     NotebookEntrySerializer,
@@ -44,9 +44,6 @@ from .renditions import (
 )
 
 eln_logger = logging.getLogger(__name__)
-
-
-DEFAULT_SAVE_MODE = "manual"
 
 
 class LockedException(APIException):
@@ -463,17 +460,17 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_update(self, serializer):
-        """Save an entry update with content versioning and hash-based no-op.
+        """Save an entry update through the Platform Revision boundary.
 
         Flow:
         0. Check lock — reject 423 if another user holds a non-stale lock.
         1. Enforce access — reject 403 for Read viewers, cross-subtree moves.
         2. Validate same-project move — reject cross-Project folder changes.
-        3. Hash incoming content, compare with latest ContentVersion.
+        3. Compare incoming content with the current Platform document Revision.
            If hash matches AND no other fields changed → return early (no-op).
         4. Save the entry via the serializer.
         5. Run the sync pipeline.
-        6. Create a ContentVersion only if content actually changed.
+        6. Save a new Platform document Revision only if content changed.
         7. Log an "edited" action with version metadata (if content changed).
         """
         instance = serializer.instance
@@ -583,7 +580,6 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         if content_changed:
             sync_entry_content(instance, old_content=old_content)
 
-        # ── Create ContentVersion (content changes only) ────────────────
         version_metadata = {
             "revision_id": document_result["revision_id"],
             "group_id": document_result["group_id"],

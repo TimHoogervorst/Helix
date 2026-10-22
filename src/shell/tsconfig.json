@@ -20,6 +20,8 @@
     "baseUrl": ".",
     "paths": {
       "@helix/mod-api": ["../mod-api/src/index.ts"],
+      "@helix/mod-api/portable-blocks": ["../mod-api/src/portableBlocks.tsx"],
+      "@helix/mod-api/host": ["../mod-api/src/elnHost.ts"],
       "@helix/mod-api/*": ["../mod-api/src/*"]
     }
   },

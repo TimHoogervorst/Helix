@@ -485,6 +485,7 @@ _PUBLIC_TYPES: dict[str, tuple[str, str]] = {
     "VersionTarget": ("helix_core.actions.version_target", "VersionTarget"),
     "ActionLoggingMixin": ("helix_core.actions.mixins", "ActionLoggingMixin"),
     "ProposedEffects": ("helix_core.record_persistence", "ProposedEffects"),
+    "StateConflict": ("helix_core.record_persistence", "StateConflict"),
     "TAG_COLOR_CHOICES": ("bundled.labelling.tags.models", "TAG_COLOR_CHOICES"),
     "TAG_ICON_CHOICES": ("bundled.labelling.tags.models", "TAG_ICON_CHOICES"),
     "Tag": ("bundled.labelling.tags.models", "Tag"),
@@ -701,6 +702,13 @@ def record_action_state(record_id: str) -> dict[str, Any]:
     }
 
 
+def lock_record_revision_for_update(*args: Any, **kwargs: Any) -> Any:
+    """Lock and load a record Revision through the public persistence boundary."""
+    from helix_core.record_persistence import lock_record_revision_for_update as operation
+
+    return operation(*args, **kwargs)
+
+
 def make_app_config(
     package: str,
     manifest: ModManifest,
@@ -761,3 +769,23 @@ def load_entry_point_manifest(entry_point_name: str, package: str) -> ModManifes
             f"'{manifest.id}'"
         )
     return manifest
+
+
+def get_bundled_mod_packages() -> list[str]:
+    """Return the package names for the Platform's default bundled Mods."""
+    from helix_core.mod_system.bundled import BUNDLED_MODS
+
+    return list(BUNDLED_MODS)
+
+
+def get_mod_app_configs(
+    packages: list[str], *, base_dir: str | Path | None = None
+) -> list[str]:
+    """Resolve package names to Django app paths in dependency order.
+
+    This public composition seam is intended for application configuration
+    that explicitly installs Mod packages, including independent package tests.
+    """
+    from helix_core.mod_system.loader import get_helix_mods
+
+    return get_helix_mods(base_dir=base_dir, helix_mods_override=list(packages))

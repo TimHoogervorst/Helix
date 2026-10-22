@@ -4,8 +4,7 @@
   "type": "module",
   "workspaces": [
     "src/mod-api",
-    "src/mods/eln",
-    "src/mods/hello_world"
+    "src/mods/*"
   ],
   "scripts": {
     "dev": "cd src/shell && vite",

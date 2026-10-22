@@ -1,0 +1,13 @@
+# Apply this override for every phase of the D2-D4 deployment scenario.
+# Keep COMPOSE_PROJECT_NAME identical so both named volumes survive rebuilds.
+services:
+  backend:
+    entrypoint: ["/app/acceptance-entrypoint.sh"]
+    command: []
+    environment:
+      MEDIA_ROOT: /helix-acceptance-media
+    volumes:
+      - lifecycle_media:/helix-acceptance-media
+
+volumes:
+  lifecycle_media:

@@ -2,6 +2,7 @@
 Django settings for Helix project.
 """
 import os
+import json
 import sys
 from pathlib import Path
 
@@ -31,6 +32,13 @@ ALLOWED_HOSTS = ["*"]
 # package roots (e.g. ["bundled.lims"]). Normal startup uses the closed bundled
 # list plus installed ``helix.mods`` entry points.
 HELIX_MODS = None
+
+# Namespace ownership is deployment configuration, never inferred from a
+# package's self-declared manifest. Keys are contract namespaces and values
+# are the exact Mod publisher IDs authorized to create new definitions.
+HELIX_CONTRACT_PUBLISHERS = json.loads(
+    os.environ.get("HELIX_CONTRACT_PUBLISHERS", "{}")
+)
 
 # A deployment may provide the build-time catalog.  Validate it against a
 # fresh discovery pass before Django starts so package changes cannot boot

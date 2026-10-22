@@ -542,5 +542,31 @@ class ModInstallation(models.Model):
         db_table = "helix_mod_installation"
         ordering = ["mod_id"]
 
+
+class RetainedContract(models.Model):
+    """Immutable meaning retained independently from an executable Mod."""
+
+    kind = models.CharField(max_length=16)
+    contract_id = models.CharField(max_length=255)
+    version = models.CharField(max_length=64)
+    fingerprint = models.CharField(max_length=64)
+    canonical_envelope = models.TextField()
+
+    class Meta:
+        db_table = "helix_retained_contract"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("kind", "contract_id", "version"),
+                name="helix_contract_exact_identity",
+            )
+        ]
+        ordering = ["kind", "contract_id", "version"]
+
+
+class ContractRetentionLock(models.Model):
+    """Singleton row serializing even initially empty retention batches."""
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+
     def __str__(self):
         return f"{self.display_name} ({self.mod_id})"

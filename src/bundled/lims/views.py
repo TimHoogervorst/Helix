@@ -100,7 +100,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 "You do not have permission to delete this entity."
             )
         with transaction.atomic():
-            delete_source_descendants(instance)
+            delete_source_descendants(instance, actor=self.request.user)
             super().perform_destroy(instance)
 
     def perform_create(self, serializer):
@@ -312,7 +312,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             for entity in list(Entity.objects.all()):
                 if not Entity.objects.filter(pk=entity.pk).exists():
                     continue
-                delete_source_descendants(entity)
+                delete_source_descendants(entity, actor=request.user)
                 entity.delete()
                 count += 1
         return Response({"deleted": count})

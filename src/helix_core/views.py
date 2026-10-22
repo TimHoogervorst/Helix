@@ -748,8 +748,10 @@ class ActionInvocationDetailView(APIView):
         if receipt is None:
             from rest_framework.exceptions import NotFound
             raise NotFound("Action invocation not found.")
-        _authorize_invocation_replay(request.user, receipt)
+        target_available = _authorize_invocation_replay(request.user, receipt)
         outcome = dict(receipt.outcome)
+        from helix_core.record_persistence import mark_unavailable_action_targets
+        mark_unavailable_action_targets(outcome, target_available)
         outcome.pop("record", None)
         outcome["replayed"] = True
         return Response(outcome)
@@ -836,6 +838,21 @@ class PlatformRecordDetailView(APIView):
         from helix_core.record_persistence import _record_response
         return Response(_record_response(self.get_record(request, record_id)))
 
+    def delete(self, request, record_id):
+        from django.db import transaction
+        from bundled.access.access.policies import role
+        from rest_framework.exceptions import PermissionDenied
+        from helix_core.record_persistence import delete_platform_record
+
+        record = self.get_record(request, record_id)
+        if role(request.user, record.project) != "edit":
+            raise PermissionDenied("You do not have permission to delete this record.")
+        from helix_core.source_deletion import delete_source_descendants
+        with transaction.atomic():
+            delete_source_descendants(record, actor=request.user)
+            delete_platform_record(record, actor=request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     def get_form(self, request, record_id):
         record = self.get_record(request, record_id)
         from helix_core.record_persistence import _record_response, _schema_fields
@@ -860,6 +877,7 @@ class PlatformRecordDetailView(APIView):
                         "sequence": revision.sequence,
                         "content_hash": revision.content_hash,
                         "snapshot": revision.snapshot,
+                        "created_by": revision.created_by_snapshot or None,
                         "created_at": revision.created_at,
                     }
                     for revision in group.revisions.all()
@@ -990,7 +1008,7 @@ class PlatformRecordActivityView(PlatformRecordDetailView):
                 return links
             results.append({
                 "id": action.pk, "action": action.action, "action_type": action.action_type,
-                "performed_by": action.performed_by_id, "created_at": action.created_at,
+                "performed_by": action.performed_by_snapshot or None, "created_at": action.created_at,
                 "descriptions": descriptions,
                 "subject": {"id": str(record.pk), "roles": subject_roles},
                 "before": revision_links(metadata.get("before_revisions", [])),
@@ -1262,11 +1280,12 @@ def _serialize_action_row(row) -> dict:
     ``target_type``, ``target_id``, ``metadata``, ``created_at``, and
     ``performed_by`` (nested user dict).
     """
-    performed_by = None
-    if row.performed_by is not None:
+    performed_by = row.performed_by_snapshot or None
+    if not performed_by and row.performed_by is not None:
         performed_by = {
             "id": row.performed_by.pk,
             "username": row.performed_by.username,
+            "displayName": row.performed_by.get_full_name().strip() or row.performed_by.username,
         }
 
     created_at = None

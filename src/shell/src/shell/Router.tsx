@@ -7,6 +7,7 @@ import NotFound from "../shared/components/NotFound";
 import type { WorkspaceReference } from "../mod-system/references";
 import { legacyWorkspaceUrl } from "../mod-system/references";
 import Unavailable from "../shared/components/Unavailable";
+import ContractDefinitionPage from "../contracts/ContractDefinitionPage";
 
 /** Shared loading fallback for lazy-loaded route components. */
 function RouteLoadingFallback() {
@@ -105,6 +106,10 @@ function Router() {
         {/* App-level redirects */}
         <Route path="/" element={<Navigate to="/library" replace />} />
         <Route path="/eln" element={<Navigate to="/library" replace />} />
+        <Route
+          path="/contracts/:kind/:contractId/:version"
+          element={wrapRoute(ContractDefinitionPage)}
+        />
         {hubRoutes}
         {layoutRoutes}
         {legacyWorkspaceRoutes}

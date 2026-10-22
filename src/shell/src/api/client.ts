@@ -3,6 +3,7 @@ const BASE_URL = "/api";
 interface RequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
   signal?: AbortSignal;
+  responseType?: "json" | "text";
 }
 
 class ApiError extends Error {
@@ -38,7 +39,7 @@ const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 // ── Request ────────────────────────────────────────────────────────────────
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, headers: customHeaders, ...rest } = options;
+  const { body, headers: customHeaders, responseType = "json", ...rest } = options;
   const method = (rest.method || "GET").toUpperCase();
 
   const headers: Record<string, string> = {
@@ -86,11 +87,17 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     return undefined as T;
   }
 
+  if (responseType === "text") return (await response.text()) as T;
   return response.json();
 }
 
 export function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   return request<T>(path, { method: "GET", signal });
+}
+
+/** Get a same-origin JSON payload as raw text when exact number tokens matter. */
+export function getText(path: string, signal?: AbortSignal): Promise<string> {
+  return request<string>(path, { method: "GET", signal, responseType: "text" });
 }
 
 export function post<T>(

@@ -27,6 +27,10 @@
       "types": "./dist/mod-api/src/api.d.ts",
       "import": "./dist/api.js"
     },
+    "./contracts": {
+      "types": "./dist/mod-api/src/contracts.d.ts",
+      "import": "./dist/contracts.js"
+    },
     "./theme": {
       "types": "./dist/mod-api/src/theme.d.ts",
       "import": "./dist/theme.js"

@@ -460,7 +460,7 @@ class BackendModRegistry:
             color: Open key string referencing a ColorToken key
                    (e.g. ``"muted"``).
         """
-        from django.db import OperationalError, ProgrammingError
+        from django.db import OperationalError, ProgrammingError, transaction
 
         from helix_core.models import Schema, SchemaType
 
@@ -470,27 +470,55 @@ class BackendModRegistry:
             capabilities = []
 
         try:
-            schema_type, _ = SchemaType.objects.update_or_create(
-                model=model,
-                defaults={
-                    "display_name": display_name,
-                    "workspace_id": workspace_id,
-                    "columns": columns,
-                    "capabilities": capabilities,
-                },
-            )
+            with transaction.atomic():
+                # Match Action invocation lock order: SchemaType before Schema.
+                # Boot/re-registration updates are live schema mutations too.
+                schema_type = SchemaType.objects.select_for_update().filter(
+                    model=model
+                ).first()
+                if schema_type is None:
+                    schema_type, _ = SchemaType.objects.update_or_create(
+                        model=model,
+                        defaults={
+                            "display_name": display_name,
+                            "workspace_id": workspace_id,
+                            "columns": columns,
+                            "capabilities": capabilities,
+                        },
+                    )
+                else:
+                    schema_type.display_name = display_name
+                    schema_type.workspace_id = workspace_id
+                    schema_type.columns = columns
+                    schema_type.capabilities = capabilities
+                    schema_type.save(update_fields=[
+                        "display_name", "workspace_id", "columns", "capabilities"
+                    ])
 
-            Schema.objects.update_or_create(
-                schema_type=schema_type,
-                is_default=True,
-                defaults={
-                    "name": schema_name,
-                    "prefix": prefix,
-                    "columns": columns,
-                    "icon": icon,
-                    "color": color,
-                },
-            )
+                schema = Schema.objects.select_for_update().filter(
+                    schema_type=schema_type, is_default=True
+                ).first()
+                if schema is None:
+                    Schema.objects.update_or_create(
+                        schema_type=schema_type,
+                        is_default=True,
+                        defaults={
+                            "name": schema_name,
+                            "prefix": prefix,
+                            "columns": columns,
+                            "icon": icon,
+                            "color": color,
+                        },
+                    )
+                else:
+                    schema.name = schema_name
+                    schema.prefix = prefix
+                    schema.columns = columns
+                    schema.icon = icon
+                    schema.color = color
+                    schema.save(update_fields=[
+                        "name", "prefix", "columns", "icon", "color"
+                    ])
         except (OperationalError, ProgrammingError):
             # DB not available (e.g. during makemigrations) — skip.
             # The schema type will be created on next boot when the DB

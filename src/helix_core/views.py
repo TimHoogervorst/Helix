@@ -11,7 +11,7 @@ schema types, and action catalogs) at ``GET /api/mod-registry/``.
 import logging
 import json
 import uuid
-from django.http import HttpResponse
+from django.http import FileResponse, HttpResponse
 
 from django.db.models import F, FloatField, Q
 from django.db.models.functions import Cast
@@ -816,6 +816,34 @@ class PlatformRecordCollectionView(APIView):
         return Response(response, status=status.HTTP_201_CREATED)
 
 
+class ProjectAttachmentUploadView(APIView):
+    """Stage immutable content in a Project before a scientific record save."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, project_id):
+        from bundled.access.access.policies import role
+        from helix_core.core.models import Project
+        from helix_core.attachments import upload_attachment
+        from rest_framework.exceptions import NotFound, PermissionDenied
+
+        try:
+            project = Project.objects.get(pk=project_id)
+        except (Project.DoesNotExist, ValueError):
+            raise NotFound("Project not found.")
+        if role(request.user, project) != "edit":
+            raise PermissionDenied("You do not have permission to upload files to this Project.")
+        uploaded = request.FILES.get("file")
+        if uploaded is None:
+            raise serializers.ValidationError({"file": "A multipart file is required."})
+        attachment = upload_attachment(project=project, actor=request.user, uploaded_file=uploaded)
+        return Response({
+            "id": str(attachment.pk), "filename": attachment.filename,
+            "mediaType": attachment.media_type, "size": attachment.size,
+            "sha256": attachment.sha256, "status": attachment.status,
+        }, status=status.HTTP_201_CREATED)
+
+
 class PlatformRecordDetailView(APIView):
     """Generic read and form execution endpoints for a Platform record."""
 
@@ -838,6 +866,7 @@ class PlatformRecordDetailView(APIView):
         from helix_core.record_persistence import _record_response
         return Response(_record_response(self.get_record(request, record_id)))
 
+
     def delete(self, request, record_id):
         from django.db import transaction
         from bundled.access.access.policies import role
@@ -853,6 +882,24 @@ class PlatformRecordDetailView(APIView):
             delete_platform_record(record, actor=request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    def download_attachment(self, request, record_id, attachment_id):
+        from django.utils.http import content_disposition_header
+        from helix_core.attachments import open_revision_attachment
+
+        record = self.get_record(request, record_id)
+        revision_id = request.query_params.get("revision_id")
+        if not revision_id:
+            raise serializers.ValidationError({"revision_id": "An exact retained Revision is required."})
+        attachment, content = open_revision_attachment(
+            record=record, revision_id=revision_id,
+            attachment_id=attachment_id, actor=request.user,
+        )
+        response = FileResponse(content, content_type=attachment.media_type or "application/octet-stream")
+        response["Content-Disposition"] = content_disposition_header(False, attachment.filename)
+        response["X-Content-Type-Options"] = "nosniff"
+        response["Content-Length"] = str(attachment.size)
+        return response
+
     def get_form(self, request, record_id):
         record = self.get_record(request, record_id)
         from helix_core.record_persistence import _record_response, _schema_fields
@@ -864,6 +911,7 @@ class PlatformRecordDetailView(APIView):
         return Response(response)
 
     def get_revisions(self, request, record_id):
+        from helix_core.attachments import attachment_metadata
         record = self.get_record(request, record_id)
         revisions = []
         for group in record.revision_groups.prefetch_related("revisions").all():
@@ -877,6 +925,7 @@ class PlatformRecordDetailView(APIView):
                         "sequence": revision.sequence,
                         "content_hash": revision.content_hash,
                         "snapshot": revision.snapshot,
+                        "attachments": attachment_metadata(revision.snapshot, record_id=record.pk, revision_id=revision.pk),
                         "created_by": revision.created_by_snapshot or None,
                         "created_at": revision.created_at,
                     }
@@ -901,6 +950,11 @@ class PlatformRecordDetailView(APIView):
             metadata=values.get("metadata"),
         )
         return Response(response)
+
+
+class PlatformRecordAttachmentDownloadView(PlatformRecordDetailView):
+    def get(self, request, record_id, attachment_id):
+        return self.download_attachment(request, record_id, attachment_id)
 
 
 class PlatformRecordFormView(PlatformRecordDetailView):
@@ -941,6 +995,7 @@ class PlatformRecordGroupHistoryView(PlatformRecordDetailView):
         from helix_core.models import RecordRevisionGroup
 
         record = self.get_record(request, record_id)
+        from helix_core.attachments import attachment_metadata
         try:
             group = RecordRevisionGroup.objects.get(pk=group_id, record=record)
         except (RecordRevisionGroup.DoesNotExist, ValueError):
@@ -954,6 +1009,7 @@ class PlatformRecordGroupHistoryView(PlatformRecordDetailView):
                 "id": str(revision.pk), "group_id": str(group.pk), "group_key": group.group_key,
                 "sequence": revision.sequence, "content_hash": revision.content_hash,
                 "snapshot": revision.snapshot, "created_at": revision.created_at,
+                "attachments": attachment_metadata(revision.snapshot, record_id=record.pk, revision_id=revision.pk),
             })
         page, page_size = _record_page_params(request)
         revisions = group.revisions.order_by("-sequence")
@@ -967,6 +1023,7 @@ class PlatformRecordGroupHistoryView(PlatformRecordDetailView):
             "results": [{
                 "id": str(item.pk), "sequence": item.sequence, "content_hash": item.content_hash,
                 "created_at": item.created_at,
+                "attachments": attachment_metadata(item.snapshot, record_id=record.pk, revision_id=item.pk),
             } for item in revisions[start:start + page_size]],
         })
 
@@ -1104,13 +1161,9 @@ class PlatformRecordExportView(PlatformRecordDetailView):
             envelope = parse_contract_json(retained.canonical_envelope)
             definitions[identity] = {"fingerprint": retained.fingerprint, "envelope": envelope}
             pending.extend(_contract_references(envelope["definition"]))
-        try:
-            from helix_core.record_exports import attachment_metadata_for_export
-            attachments = attachment_metadata_for_export(record, state["snapshot"])
-            attachment_capability = {"available": True}
-        except Exception:
-            attachments = []
-            attachment_capability = {"available": False, "reason": "The optional Platform attachment metadata extension is unavailable."}
+        from helix_core.attachments import attachment_metadata
+        attachments = attachment_metadata(state["snapshot"] or {"field_values": values})
+        attachment_capability = {"available": True}
         return Response({
             "formatVersion": 1, "record": {
                 "id": str(record.pk), "display_id": record.display_id, "name": record.name,

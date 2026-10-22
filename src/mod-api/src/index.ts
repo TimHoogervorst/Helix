@@ -97,6 +97,7 @@ export {
 } from "./contracts";
 export {
   exportPlatformRecord,
+  uploadPlatformAttachment,
   getExactRecordRevision,
   getPlatformRecord,
   listPlatformRecords,
@@ -106,6 +107,7 @@ export {
   UnavailableRecordCapability,
 } from "./records";
 export type {
+  AttachmentMetadata,
   PlatformRecord,
   RecordActivity,
   RecordExport,

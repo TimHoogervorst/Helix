@@ -174,6 +174,17 @@ export default function PlatformRecordsPage() {
           <h3 className="mb-2 font-medium">{fieldId}</h3><RecordValueInspector value={value} definitions={recordExport?.definitions} />
         </article>)}
       </section>
+      <section aria-labelledby="record-attachments-title" className="space-y-3">
+        <h2 id="record-attachments-title" className="text-lg font-semibold">{historical ? "Files retained by this Revision" : "Current files"}</h2>
+        {(recordExport?.attachments ?? []).length === 0 ? <p>No files are retained by this state.</p> :
+          <ul className="divide-y divide-[var(--color-ink-hairline)]">
+            {recordExport?.attachments.map((file) => <li key={file.id} className="flex flex-wrap items-center justify-between gap-3 py-2">
+              <div><p className="font-medium">{file.filename}</p>
+                <p className="text-sm text-muted-foreground">{file.mediaType} · {file.size} bytes · SHA-256 {file.sha256}</p></div>
+              <a className="text-primary underline" href={file.downloadUrl} download>Download retained file</a>
+            </li>)}
+          </ul>}
+      </section>
       <section aria-labelledby="record-history-title" className="space-y-3">
         <h2 id="record-history-title" className="text-lg font-semibold">Group history</h2>
         {history.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 border-b border-[var(--color-ink-hairline)] py-2">

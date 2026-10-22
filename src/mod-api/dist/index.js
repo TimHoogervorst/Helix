@@ -1,29 +1,29 @@
 var I = Object.defineProperty;
 var E = (e, t, a) => t in e ? I(e, t, { enumerable: !0, configurable: !0, writable: !0, value: a }) : e[t] = a;
 var x = (e, t, a) => E(e, typeof t != "symbol" ? t + "" : t, a);
-import { c as S, I as v, C as T, M } from "./editor-CuTS04NA.js";
+import { c as S, I as v, C as T, M as A } from "./editor-CuTS04NA.js";
 import { A as ne, B as ae, a as oe, b as re, O as ie, S as ce, d as le, T as de, W as ue, e as me, f as fe, g as he, h as xe, i as ve, l as pe, p as ge, r as be, u as je, j as we, w as ye } from "./editor-CuTS04NA.js";
 import { j as s } from "./jsx-runtime-D1SHvdVE.js";
-import { createContext as A, useState as p, useEffect as w, useCallback as j, useMemo as b, useContext as L, useRef as F } from "react";
+import { createContext as M, useState as p, useEffect as w, useCallback as j, useMemo as b, useContext as L, useRef as P } from "react";
 import "@tiptap/react";
 import "react-dom";
-import { ApiError as Se, NetworkError as Ne, del as Re, get as ke, getText as Ie, isNotFoundError as Ee, patch as Te, post as Me, put as Ae } from "./api.js";
-import { canonicalJson as Fe, canonicalizeContractJson as Ge, contractFingerprint as Pe, isExactJsonNumber as Be, parseExactContractJson as ze } from "./contracts.js";
-import { RecordValueInspector as $e, UnavailableRecordCapability as De, exportPlatformRecord as Oe, getExactRecordRevision as _e, getPlatformRecord as Je, listPlatformRecords as We, listRecordActivity as Ke, listRecordGroupRevisions as qe } from "./records.js";
+import { ApiError as Se, NetworkError as Ne, del as Re, get as ke, getText as Ie, isNotFoundError as Ee, patch as Te, post as Ae, put as Me } from "./api.js";
+import { canonicalJson as Pe, canonicalizeContractJson as Fe, contractFingerprint as Ge, isExactJsonNumber as Be, parseExactContractJson as ze } from "./contracts.js";
+import { RecordValueInspector as $e, UnavailableRecordCapability as De, exportPlatformRecord as Oe, getExactRecordRevision as _e, getPlatformRecord as Je, listPlatformRecords as We, listRecordActivity as Ke, listRecordGroupRevisions as qe, uploadPlatformAttachment as Qe } from "./records.js";
 /**
  * @license lucide-react v1.26.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const G = [["path", { d: "m15 18-6-6 6-6", key: "1wnfg3" }]], C = S("chevron-left", G);
+const F = [["path", { d: "m15 18-6-6 6-6", key: "1wnfg3" }]], C = S("chevron-left", F);
 /**
  * @license lucide-react v1.26.0 - ISC
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
  */
-const P = [["path", { d: "m9 18 6-6-6-6", key: "mthhwq" }]], g = S("chevron-right", P);
+const G = [["path", { d: "m9 18 6-6-6-6", key: "mthhwq" }]], g = S("chevron-right", G);
 function Y({
   bindings: e,
   bus: t,
@@ -47,7 +47,7 @@ function Y({
     );
   }) });
 }
-const N = A(null);
+const N = M(null);
 function B({ children: e }) {
   const [t, a] = p(!1), [n, i] = p(
     () => typeof window < "u" && typeof window.matchMedia == "function" ? window.matchMedia("(max-width: 1023px)").matches : !1
@@ -267,7 +267,7 @@ function k({
 function D(e, t, a) {
   const [n, i] = p(
     e.defaultState
-  ), r = F(null), m = b(
+  ), r = P(null), m = b(
     () => `${e.id}::${crypto.randomUUID()}`,
     [e.id, t]
   );
@@ -312,7 +312,7 @@ function Z(e) {
   const t = b(() => {
     if ("bindings" in e)
       return e.bindings;
-    const o = M.getInstance().resolveSlot(e.slotId);
+    const o = A.getInstance().resolveSlot(e.slotId);
     return (o == null ? void 0 : o.bindings) ?? [];
   }, ["bindings" in e ? e.bindings : e.slotId]);
   if (t.length === 0) return null;
@@ -488,9 +488,9 @@ export {
   de as TipTapRenderer,
   De as UnavailableRecordCapability,
   ue as WorkspaceReference,
-  Fe as canonicalJson,
-  Ge as canonicalizeContractJson,
-  Pe as contractFingerprint,
+  Pe as canonicalJson,
+  Fe as canonicalizeContractJson,
+  Ge as contractFingerprint,
   Re as del,
   W as entityReference,
   me as evaluateCellFormula,
@@ -512,11 +512,12 @@ export {
   ze as parseExactContractJson,
   ge as parseFormula,
   Te as patch,
-  Me as post,
-  Ae as put,
+  Ae as post,
+  Me as put,
   be as registrationId,
   ee as schemaReference,
   je as unimplementedFormulaFunctionsIn,
+  Qe as uploadPlatformAttachment,
   we as usesBackendOnlyFunction,
   ye as workspaceUrl
 };

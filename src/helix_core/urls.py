@@ -24,6 +24,8 @@ from helix_core.views import (
     PlatformRecordGroupHistoryView,
     PlatformRecordActivityView,
     PlatformRecordExportView,
+    ProjectAttachmentUploadView,
+    PlatformRecordAttachmentDownloadView,
 )
 
 # Router for schemas, schema-types, and colors
@@ -38,6 +40,8 @@ registry_router = DefaultRouter()
 registry_router.register(r"entities", EntityHubListView, basename="registry-entity")
 
 urlpatterns = [
+    path("projects/<int:project_id>/attachments/", ProjectAttachmentUploadView.as_view(), name="platform-attachment-upload"),
+    path("records/<uuid:record_id>/attachments/<uuid:attachment_id>/content/", PlatformRecordAttachmentDownloadView.as_view(), name="platform-attachment-download"),
     path("action-invocations/", ActionInvocationCollectionView.as_view(), name="action-invocation-list"),
     path("action-invocations/<str:invocation_id>/", ActionInvocationDetailView.as_view(), name="action-invocation-detail"),
     path("actions/execute/", RecordActionExecuteView.as_view(), name="record-action-execute"),

@@ -2,6 +2,9 @@
 
 from unittest.mock import patch
 from uuid import UUID, uuid4
+import hashlib
+import shutil
+import tempfile
 
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
@@ -32,6 +35,14 @@ from helix_core.record_persistence import ProposedEffects
 
 class PlatformRecordApiTests(TestCase):
     def setUp(self):
+        from django.core.files.storage import FileSystemStorage
+
+        self.attachment_storage_path = tempfile.mkdtemp(prefix="helix-attachments-")
+        self.attachment_storage_patch = patch(
+            "helix_core.attachments.default_storage",
+            FileSystemStorage(location=self.attachment_storage_path),
+        )
+        self.attachment_storage_patch.start()
         self.user = User.objects.create_user(username="record_editor", password="pass")
         self.project = Project.objects.create(name="Record Project")
         Grant.objects.create(project=self.project, user=self.user, role=ProjectRole.EDIT)
@@ -53,6 +64,8 @@ class PlatformRecordApiTests(TestCase):
 
     def tearDown(self):
         self.registry_patch.stop()
+        self.attachment_storage_patch.stop()
+        shutil.rmtree(self.attachment_storage_path, ignore_errors=True)
         super().tearDown()
 
     def create_payload(self, **overrides):
@@ -82,6 +95,166 @@ class PlatformRecordApiTests(TestCase):
         listing = self.client.get("/api/records/")
         self.assertEqual(listing.data["count"], 1)
         self.assertEqual(listing.data["results"][0]["id"], str(record_id))
+
+    def test_attachment_upload_is_project_scoped_and_download_requires_retained_revision(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from helix_core.models import PlatformAttachment
+
+        upload = self.client.post(
+            f"/api/projects/{self.project.pk}/attachments/",
+            {"file": SimpleUploadedFile("first.txt", b"immutable original", content_type="text/plain")},
+            format="multipart",
+        )
+        self.assertEqual(upload.status_code, 201, upload.data)
+        attachment_id = upload.data["id"]
+        self.assertEqual(upload.data["sha256"], hashlib.sha256(b"immutable original").hexdigest())
+        self.assertEqual(PlatformAttachment.objects.get(pk=attachment_id).status, "staged")
+
+        self.schema.schema_type.columns = [{"id": "file", "name": "File", "type": "attachmentReference"}]
+        self.schema.schema_type.save()
+        created = self.client.post("/api/records/", self.create_payload(
+            field_values={"file": {"type": "attachmentReference", "value": {"id": attachment_id}}},
+        ), format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        old_revision = created.data["revision"]["id"]
+        self.assertEqual(created.data["attachments"][0]["sha256"], upload.data["sha256"])
+        self.assertEqual(created.data["attachments"][0]["downloadUrl"],
+                         f"/api/records/{created.data['id']}/attachments/{attachment_id}/content/?revision_id={old_revision}")
+        attachment = PlatformAttachment.objects.get(pk=attachment_id)
+        self.assertEqual(attachment.status, "complete")
+
+        content = self.client.get(
+            f"/api/records/{created.data['id']}/attachments/{attachment_id}/content/?revision_id={old_revision}"
+        )
+        self.assertEqual(content.status_code, 200, getattr(content, "data", None))
+        self.assertEqual(b"".join(content.streaming_content), b"immutable original")
+
+        replacement = self.client.post(
+            f"/api/projects/{self.project.pk}/attachments/",
+            {"file": SimpleUploadedFile("second.txt", b"replacement", content_type="text/plain")},
+            format="multipart",
+        )
+        self.assertEqual(replacement.status_code, 201, replacement.data)
+        edit = self.client.post(f"/api/records/{created.data['id']}/form/", {
+            "state_token": created.data["state_token"],
+            "request_id": str(uuid4()),
+            "field_values": {"file": {"type": "attachmentReference", "value": {"id": replacement.data["id"]}}},
+        }, format="json")
+        self.assertEqual(edit.status_code, 200, edit.data)
+        old_again = self.client.get(
+            f"/api/records/{created.data['id']}/attachments/{attachment_id}/content/?revision_id={old_revision}"
+        )
+        self.assertEqual(old_again.status_code, 200)
+        self.assertEqual(b"".join(old_again.streaming_content), b"immutable original")
+        unavailable_from_replacement = self.client.get(
+            f"/api/records/{created.data['id']}/attachments/{attachment_id}/content/?revision_id={edit.data['revision']['id']}"
+        )
+        self.assertEqual(unavailable_from_replacement.status_code, 404)
+        exported = self.client.get(f"/api/records/{created.data['id']}/export/?group_id={created.data['revision']['group_id']}&revision_id={old_revision}")
+        self.assertEqual(exported.status_code, 200, exported.data)
+        self.assertEqual(exported.data["attachments"][0]["sha256"], upload.data["sha256"])
+
+        outsider = User.objects.create_user(username="attachment_reader", password="pass")
+        denied = APIClient()
+        denied.force_authenticate(user=outsider)
+        denied.raise_request_exception = False
+        denied_response = denied.get(
+            f"/api/records/{created.data['id']}/attachments/{attachment_id}/content/?revision_id={old_revision}"
+        )
+        self.assertEqual(denied_response.status_code, 403)
+
+    def test_corrupt_or_missing_attachment_cannot_be_committed_or_downloaded_silently(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from helix_core.models import PlatformAttachment, PlatformRecord
+
+        uploaded = self.client.post(
+            f"/api/projects/{self.project.pk}/attachments/",
+            {"file": SimpleUploadedFile("missing.txt", b"expected", content_type="text/plain")},
+            format="multipart",
+        )
+        self.assertEqual(uploaded.status_code, 201, uploaded.data)
+        row = PlatformAttachment.objects.get(pk=uploaded.data["id"])
+        from helix_core.attachments import default_storage as storage
+        storage.delete(row.storage_key)
+        self.schema.schema_type.columns = [{"id": "file", "name": "File", "type": "attachmentReference"}]
+        self.schema.schema_type.save()
+        before_records = PlatformRecord.objects.count()
+        failed = self.client.post("/api/records/", self.create_payload(
+            field_values={"file": {"type": "attachmentReference", "value": {"id": uploaded.data["id"]}}},
+        ), format="json")
+        self.assertEqual(failed.status_code, 400, failed.data)
+        self.assertEqual(PlatformRecord.objects.count(), before_records)
+
+        valid = self.client.post(
+            f"/api/projects/{self.project.pk}/attachments/",
+            {"file": SimpleUploadedFile("corrupt.txt", b"original", content_type="text/plain")},
+            format="multipart",
+        )
+        created = self.client.post("/api/records/", self.create_payload(
+            field_values={"file": {"type": "attachmentReference", "value": {"id": valid.data["id"]}}},
+        ), format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        row = PlatformAttachment.objects.get(pk=valid.data["id"])
+        storage.delete(row.storage_key)
+        storage.save(row.storage_key, SimpleUploadedFile("changed", b"changed"))
+        corrupt = self.client.get(
+            f"/api/records/{created.data['id']}/attachments/{row.pk}/content/?revision_id={created.data['revision']['id']}"
+        )
+        self.assertEqual(corrupt.status_code, 500)
+
+    def test_attachment_upload_enforces_stream_limit_and_project_access(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.test import override_settings
+        from rest_framework.test import APIClient
+
+        with override_settings(PLATFORM_ATTACHMENT_MAX_BYTES=3):
+            too_large = self.client.post(
+                f"/api/projects/{self.project.pk}/attachments/",
+                {"file": SimpleUploadedFile("large.bin", b"four", content_type="application/octet-stream")},
+                format="multipart",
+            )
+        self.assertEqual(too_large.status_code, 413, too_large.data)
+
+        truncated = SimpleUploadedFile("truncated.bin", b"short", content_type="application/octet-stream")
+        truncated.size = 10
+        from rest_framework.exceptions import ValidationError
+        from helix_core.attachments import upload_attachment
+        with self.assertRaises(ValidationError):
+            upload_attachment(project=self.project, actor=self.user, uploaded_file=truncated)
+
+        outsider = User.objects.create_user(username="attachment_outsider", password="pass")
+        denied = APIClient()
+        denied.force_authenticate(user=outsider)
+        denied.raise_request_exception = False
+        response = denied.post(
+            f"/api/projects/{self.project.pk}/attachments/",
+            {"file": SimpleUploadedFile("denied.txt", b"secret", content_type="text/plain")},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_audit_failure_rolls_back_attachment_link_and_record_save(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from helix_core.models import AttachmentRevisionLink, PlatformAttachment, PlatformRecord
+
+        staged = self.client.post(
+            f"/api/projects/{self.project.pk}/attachments/",
+            {"file": SimpleUploadedFile("rollback.txt", b"rollback", content_type="text/plain")},
+            format="multipart",
+        )
+        self.assertEqual(staged.status_code, 201, staged.data)
+        self.schema.schema_type.columns = [{"id": "file", "name": "File", "type": "attachmentReference"}]
+        self.schema.schema_type.save()
+        before = PlatformRecord.objects.count()
+        with patch("helix_core.record_persistence._write_action", side_effect=RuntimeError("audit failed")):
+            response = self.client.post("/api/records/", self.create_payload(
+                field_values={"file": {"type": "attachmentReference", "value": {"id": staged.data["id"]}}},
+            ), format="json")
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(PlatformRecord.objects.count(), before)
+        attachment = PlatformAttachment.objects.get(pk=staged.data["id"])
+        self.assertEqual(attachment.status, "staged")
+        self.assertEqual(AttachmentRevisionLink.objects.filter(attachment=attachment).count(), 0)
 
     def test_metadata_only_and_unchanged_value_writes_rotate_state_without_revision(self):
         created = self.client.post("/api/records/", self.create_payload(), format="json")
@@ -231,17 +404,45 @@ class PlatformRecordApiTests(TestCase):
         self.assertEqual({item["id"] for item in exported.data["definitions"]}, {root["id"], nested["id"]})
         self.assertEqual(exported.data["record"]["field_values"]["field-measurement"]["value"]["sample"]["id"], "inaccessible-target")
         self.assertEqual(exported.data["attachments"], [])
-        self.assertFalse(exported.data["capabilities"]["attachmentMetadata"]["available"])
+        self.assertTrue(exported.data["capabilities"]["attachmentMetadata"]["available"])
         self.assertFalse(exported.data["capabilities"]["viewer"]["available"])
 
-        def failing_metadata_exporter(**_kwargs):
-            raise RuntimeError("optional metadata extension failed")
+    def test_attachment_cleanup_removes_expired_stages_and_keeps_revision_links(self):
+        from datetime import timedelta
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.utils import timezone
+        from helix_core.attachments import cleanup_staged_attachments
+        from helix_core.models import PlatformAttachment
 
-        with override_settings(HELIX_ATTACHMENT_METADATA_EXPORTER=failing_metadata_exporter):
-            fallback = self.client.get(f"/api/records/{record.data['id']}/export/")
-        self.assertEqual(fallback.status_code, 200, fallback.data)
-        self.assertEqual(fallback.data["attachments"], [])
-        self.assertFalse(fallback.data["capabilities"]["attachmentMetadata"]["available"])
+        first = self.client.post(
+            f"/api/projects/{self.project.pk}/attachments/",
+            {"file": SimpleUploadedFile("retained.txt", b"retained", content_type="text/plain")},
+            format="multipart",
+        )
+        staged = self.client.post(
+            f"/api/projects/{self.project.pk}/attachments/",
+            {"file": SimpleUploadedFile("orphan.txt", b"orphan", content_type="text/plain")},
+            format="multipart",
+        )
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(staged.status_code, 201)
+        self.schema.schema_type.columns = [{"id": "file", "name": "File", "type": "attachmentReference"}]
+        self.schema.schema_type.save()
+        record = self.client.post("/api/records/", self.create_payload(
+            field_values={"file": {"type": "attachmentReference", "value": {"id": first.data["id"]}}},
+        ), format="json")
+        self.assertEqual(record.status_code, 201, record.data)
+        old = timezone.now() - timedelta(days=2)
+        PlatformAttachment.objects.filter(pk__in=[first.data["id"], staged.data["id"]]).update(created_at=old)
+
+        self.assertEqual(cleanup_staged_attachments(), 1)
+        self.assertTrue(PlatformAttachment.objects.filter(pk=first.data["id"]).exists())
+        self.assertFalse(PlatformAttachment.objects.filter(pk=staged.data["id"]).exists())
+        deleted = self.client.delete(f"/api/records/{record.data['id']}/")
+        self.assertEqual(deleted.status_code, 204)
+        PlatformAttachment.objects.filter(pk=first.data["id"]).update(unreferenced_at=old)
+        self.assertEqual(cleanup_staged_attachments(), 1)
+        self.assertFalse(PlatformAttachment.objects.filter(pk=first.data["id"]).exists())
 
     def test_schema_rename_remove_and_retype_keep_saved_values_and_bindings(self):
         created = self.client.post("/api/records/", self.create_payload(), format="json")

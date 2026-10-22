@@ -3,6 +3,7 @@ export {
   get,
   getText,
   post,
+  upload,
   put,
   patch,
   del,

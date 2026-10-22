@@ -12,6 +12,8 @@ import uuid
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from django.utils import timezone
 from helix_core.abstracts import AbstractEntity
 
@@ -428,6 +430,54 @@ class ScientificRevision(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValueError("ScientificRevision is immutable")
+
+
+class PlatformAttachment(models.Model):
+    """Immutable Platform-managed upload, staged before a scientific save."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey("core.Project", on_delete=models.PROTECT, related_name="platform_attachments")
+    created_by = models.ForeignKey("core.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    storage_key = models.CharField(max_length=500, unique=True)
+    filename = models.CharField(max_length=255)
+    media_type = models.CharField(max_length=255, blank=True, default="application/octet-stream")
+    size = models.PositiveBigIntegerField()
+    sha256 = models.CharField(max_length=64)
+    status = models.CharField(max_length=16, choices=(("staged", "Staged"), ("complete", "Complete")), default="staged")
+    created_at = models.DateTimeField(default=timezone.now)
+    unreferenced_at = models.DateTimeField(default=timezone.now, null=True, blank=True)
+
+    class Meta:
+        db_table = "helix_platform_attachment"
+        indexes = [models.Index(fields=("status", "created_at"), name="helix_attach_stage_idx")]
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            old = type(self).objects.get(pk=self.pk)
+            immutable = ("project_id", "storage_key", "filename", "media_type", "size", "sha256", "created_by_id", "created_at")
+            if any(getattr(old, field) != getattr(self, field) for field in immutable):
+                raise ValueError("PlatformAttachment metadata is immutable")
+            if old.status == "complete" and self.status != "complete":
+                raise ValueError("A completed PlatformAttachment cannot be unstaged")
+        return super().save(*args, **kwargs)
+
+
+class AttachmentRevisionLink(models.Model):
+    """An immutable attachment reference retained by one exact Revision."""
+
+    revision = models.ForeignKey(ScientificRevision, on_delete=models.CASCADE, related_name="attachment_links")
+    attachment = models.ForeignKey(PlatformAttachment, on_delete=models.PROTECT, related_name="revision_links")
+
+    class Meta:
+        db_table = "helix_attachment_revision_link"
+        constraints = [models.UniqueConstraint(fields=("revision", "attachment"), name="helix_attachment_revision_uniq")]
+
+
+@receiver(post_delete, sender=AttachmentRevisionLink)
+def mark_attachment_unreferenced(sender, instance, **kwargs):
+    attachment = instance.attachment
+    if not attachment.revision_links.exists():
+        PlatformAttachment.objects.filter(pk=attachment.pk).update(unreferenced_at=timezone.now())
 
 
 class ActionParticipant(models.Model):

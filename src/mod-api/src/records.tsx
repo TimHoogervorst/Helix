@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { get } from "./api";
+import { get, upload } from "./api";
 
 export interface RecordPage<T> {
   count: number;
@@ -18,6 +18,7 @@ export interface PlatformRecord {
   project_id: number;
   schema_id: number;
   field_values: Record<string, unknown>;
+  attachments?: AttachmentMetadata[];
   state_token: string;
   revision: { id: string; group_id: string; sequence: number; content_hash: string } | null;
 }
@@ -29,6 +30,7 @@ export interface RecordRevision {
   sequence: number;
   content_hash: string;
   snapshot: Record<string, unknown>;
+  attachments?: AttachmentMetadata[];
   created_at: string;
 }
 
@@ -49,8 +51,17 @@ export interface RecordExport {
   record: Pick<PlatformRecord, "id" | "display_id" | "name" | "metadata" | "schema_id" | "field_values">;
   state: { group_id: string | null; revision_id: string | null; snapshot: Record<string, unknown> | null };
   definitions: Array<{ kind: string; id: string; version: string; fingerprint: string; envelope: unknown }>;
-  attachments: unknown[];
+  attachments: AttachmentMetadata[];
   capabilities: Record<string, { available: boolean; reason?: string }>;
+}
+
+export interface AttachmentMetadata {
+  id: string;
+  filename: string;
+  mediaType: string;
+  size: number;
+  sha256: string;
+  downloadUrl: string;
 }
 
 export interface RecordQuery {
@@ -77,6 +88,13 @@ export function listPlatformRecords(query: RecordQuery = {}, signal?: AbortSigna
 
 export function getPlatformRecord(recordId: string, signal?: AbortSignal) {
   return get<PlatformRecord>(`/records/${encodeURIComponent(recordId)}/`, signal);
+}
+
+/** Stage immutable file bytes in a Project before saving an attachment reference. */
+export function uploadPlatformAttachment(projectId: number, file: File, signal?: AbortSignal) {
+  return upload<AttachmentMetadata & { status: "staged" }>(
+    `/projects/${projectId}/attachments/`, file, signal,
+  );
 }
 
 export function listRecordGroupRevisions(recordId: string, groupId: string, query: Pick<RecordQuery, "page" | "page_size"> = {}, signal?: AbortSignal) {

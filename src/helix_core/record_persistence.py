@@ -121,6 +121,9 @@ def _validate_values(schema, values: Mapping[str, Any]) -> dict[str, dict[str, A
 def _record_response(record, revision=None, action=None) -> dict[str, Any]:
     group = record.revision_groups.first()
     current = revision or (group.current_revision if group else None)
+    from helix_core.attachments import attachment_metadata
+    snapshot = current.snapshot if current else {"field_values": record.field_values or {}}
+    attachments = attachment_metadata(snapshot, record_id=record.pk, revision_id=current.pk if current else None)
     return {
         "id": str(record.pk),
         "display_id": record.display_id,
@@ -132,6 +135,7 @@ def _record_response(record, revision=None, action=None) -> dict[str, Any]:
         "schema_id": record.schema_id,
         "schema_state": _schema_state(record),
         "field_values": record.field_values or {},
+        "attachments": attachments,
         "state_token": str(record.state_token),
         "revision": None if current is None else {
             "id": str(current.pk),
@@ -308,6 +312,8 @@ def create_record(*, actor, project, schema, name, field_values, metadata=None, 
     record.set_source(project)
     record.save()
     revision = create_initial_snapshot(record, actor)
+    from helix_core.attachments import link_revision_attachments
+    link_revision_attachments(project_id=project.pk, values=record.field_values, revision=revision)
     action = _write_action(record, actor, "created", request_id, {"revision_id": str(revision.pk)})
     return _record_response(record, revision=revision, action=action)
 
@@ -387,6 +393,8 @@ def edit_record(
         )
         group.current_revision = revision
         group.save(update_fields=["current_revision"])
+        from helix_core.attachments import link_revision_attachments
+        link_revision_attachments(project_id=record.project_id, values=snapshot, revision=revision)
 
     action_metadata = {
         "revision_id": str(revision.pk) if revision else None,

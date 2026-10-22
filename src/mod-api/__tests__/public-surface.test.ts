@@ -40,6 +40,7 @@ describe("@helix/mod-api public subpaths", () => {
 
     expect(api.get).toBeTypeOf("function");
     expect(api.post).toBeTypeOf("function");
+    expect(api.upload).toBeTypeOf("function");
     expect(theme.themeTokens.primary).toBe("--color-primary");
   }, 15_000);
 
@@ -50,6 +51,7 @@ describe("@helix/mod-api public subpaths", () => {
     expect(records.getExactRecordRevision).toBeTypeOf("function");
     expect(records.listRecordActivity).toBeTypeOf("function");
     expect(records.exportPlatformRecord).toBeTypeOf("function");
+    expect(records.uploadPlatformAttachment).toBeTypeOf("function");
     expect(records.RecordValueInspector).toBeTypeOf("function");
   }, 15_000);
 });

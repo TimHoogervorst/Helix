@@ -40,6 +40,10 @@ describe("Platform-owned record browser", () => {
       descriptions: ["Updated measurement"], subject: { id: "record-a", roles: ["subject"] }, before: [],
       after: [{ group_id: "group-a", revision_id: "revision-current" }],
     }] });
+    readers.exportPlatformRecord.mockResolvedValue({
+      formatVersion: 1, record, state: { group_id: "group-a", revision_id: "revision-current", snapshot: null },
+      definitions: [], attachments: [], capabilities: { viewer: { available: false, reason: "No viewer" }, attachmentMetadata: { available: true } },
+    });
     readers.getExactRecordRevision.mockResolvedValue({
       id: "revision-current", group_id: "group-a", group_key: "record", sequence: 2, content_hash: "hash",
       snapshot: { field_values: { measurement: { type: "number", value: 4.2 } } }, created_at: "2026-10-22",
@@ -76,5 +80,23 @@ describe("Platform-owned record browser", () => {
     </Routes></MemoryRouter>);
     expect(await screen.findByRole("alert")).toHaveTextContent("exact Revision is unavailable");
     expect(screen.queryByText("Current values")).toBeNull();
+  });
+
+  it("shows retained file metadata and a download link in the generic record view", async () => {
+    readers.exportPlatformRecord.mockResolvedValueOnce({
+      formatVersion: 1, record, state: { group_id: "group-a", revision_id: "revision-current", snapshot: null },
+      definitions: [], attachments: [{
+        id: "attachment-a", filename: "assay.pdf", mediaType: "application/pdf", size: 512,
+        sha256: "abc123", downloadUrl: "/api/records/record-a/attachments/attachment-a/content/?revision_id=revision-current",
+      }], capabilities: { viewer: { available: false, reason: "No viewer" }, attachmentMetadata: { available: true } },
+    });
+    render(<MemoryRouter initialEntries={["/records/record-a"]}><Routes>
+      <Route path="/records/:recordId" element={<PlatformRecordsPage />} />
+    </Routes></MemoryRouter>);
+
+    expect(await screen.findByText("assay.pdf")).toBeTruthy();
+    expect(screen.getByText(/512 bytes/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Download retained file" }).getAttribute("href"))
+      .toBe("/api/records/record-a/attachments/attachment-a/content/?revision_id=revision-current");
   });
 });

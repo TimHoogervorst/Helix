@@ -42,8 +42,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const { body, headers: customHeaders, responseType = "json", ...rest } = options;
   const method = (rest.method || "GET").toUpperCase();
 
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(customHeaders as Record<string, string>),
   };
 
@@ -60,7 +61,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     response = await fetch(`${BASE_URL}${path}`, {
       ...rest,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? (isFormData ? body as FormData : JSON.stringify(body)) : undefined,
     });
   } catch (err) {
     throw new NetworkError(
@@ -112,6 +113,13 @@ export function post<T>(
     signal,
     headers: extraHeaders,
   });
+}
+
+/** Upload multipart content through the authenticated same-origin API client. */
+export function upload<T>(path: string, file: File, signal?: AbortSignal): Promise<T> {
+  const body = new FormData();
+  body.append("file", file, file.name);
+  return request<T>(path, { method: "POST", body, signal });
 }
 
 export function put<T>(

@@ -1,5 +1,6 @@
 import json
 import importlib
+from decimal import Decimal, localcontext
 
 import pytest
 from django.apps import apps
@@ -8,6 +9,7 @@ from django.test import override_settings
 
 from helix_core.mod_system.contracts import (
     ContractError,
+    authorize_publisher,
     canonical_json,
     contract_fingerprint,
     parse_contract_json,
@@ -37,6 +39,37 @@ def test_canonical_encoding_preserves_exact_decimals_and_order_semantics():
     assert canonical_json({"é": 1}) == '{"é":1e0}'.encode("utf-8")
 
 
+def test_canonical_encoding_never_rounds_large_decimal_tokens():
+    token = Decimal("12345678901234567890123456789012345678901234567890.123456789")
+    expected = b'{"value":12345678901234567890123456789012345678901234567890123456789e-9}'
+
+    with localcontext() as context:
+        context.prec = 6
+        assert canonical_json({"value": token}) == expected
+
+
+@pytest.mark.parametrize(
+    "node",
+    [
+        {"type": "number", "minimum": "low", "maximum": 5},
+        {"type": "number", "minimum": 5, "enum": [4]},
+        {"type": "number", "minimum": float("nan")},
+        {"type": "number", "minLength": 1},
+        {"type": "string", "minLength": "short", "maxLength": 5},
+        {"type": "string", "minLength": -1},
+        {"type": "string", "minLength": Decimal("NaN")},
+        {"type": "array", "items": {"type": "string"}, "minItems": 3, "maxItems": 1},
+        {"type": "string", "enum": ["ok", 7]},
+        {"type": "string", "minLength": 4, "enum": ["abc"]},
+        {"type": "variant", "tag": 3, "cases": {"text": {"type": "string"}}},
+        {"type": "datetime", "minimum": "2025-01-01T00:00:00", "maximum": "2025-01-02T00:00:00Z"},
+    ],
+)
+def test_malformed_machine_constraints_fail_as_contract_errors(node):
+    with pytest.raises(ContractError):
+        contract_fingerprint(data_contract(definition={"type": node}))
+
+
 def test_contract_fingerprint_covers_descriptions_versions_and_definitions():
     original = data_contract()
     assert contract_fingerprint(original) == contract_fingerprint(dict(reversed(list(original.items()))))
@@ -62,6 +95,17 @@ def test_recursive_contract_dependencies_accept_batch_cycles_and_require_exact_v
     validate_dependency_closure([one, two])
     with pytest.raises(ContractError, match="Missing exact contract dependency"):
         validate_dependency_closure([one])
+
+
+def test_contract_publisher_requires_deployment_authority_and_reserves_helix():
+    authorize_publisher("acme.publisher", {"acme": "acme.publisher"})
+    with pytest.raises(ContractError, match="not authorized"):
+        authorize_publisher("acme.impostor", {"acme": "acme.publisher"})
+    with pytest.raises(ContractError, match="reserved"):
+        authorize_publisher("helix.impostor", {"helix": "helix.timhoogervorst"})
+    with pytest.raises(ContractError, match="reserved"):
+        authorize_publisher("helix.timhoogervorst", {})
+    authorize_publisher("helix.timhoogervorst", {"helix": "helix.timhoogervorst"})
 
 
 def test_contract_artifacts_cannot_escape_package_root(tmp_path):
@@ -216,3 +260,36 @@ def test_bad_tenth_artifact_retains_none_of_the_new_batch_and_keeps_prior_rows(t
             retain_contract_batch(manifests, paths)
 
     assert list(RetainedContract.objects.values_list("contract_id", flat=True)) == ["acme.publisher.baseline"]
+
+
+@pytest.mark.django_db(transaction=True)
+def test_consumer_keeps_exact_dependency_after_supplier_package_is_removed(tmp_path, monkeypatch):
+    from helix_core.models import RetainedContract
+    from helix_core.mod_system.manifest import ModManifest
+    from helix_core.mod_system.retention import retain_contract_batch
+
+    monkeypatch.syspath_prepend(str(tmp_path))
+    supplier_contract = data_contract(id="acme.publisher.unit")
+    supplier_manifests, supplier_paths = _package_batch(tmp_path, {"unit": supplier_contract})
+    consumer_dir = tmp_path / "beta_consumer_689"
+    consumer_dir.mkdir()
+    (consumer_dir / "__init__.py").write_text("", encoding="utf-8")
+    importlib.invalidate_caches()
+    consumer = ModManifest(
+        id="beta.consumer",
+        display_name="Consumer",
+        version="1.0.0",
+        requires_helix=">=1.0.0",
+        artifacts=("backend",),
+        depends_on=(),
+        requires_contracts=({"kind": "data", "id": supplier_contract["id"], "version": "1.0.0"},),
+    )
+
+    with override_settings(HELIX_CONTRACT_PUBLISHERS={"acme": "acme.publisher"}):
+        assert retain_contract_batch(supplier_manifests, supplier_paths) == 1
+        # The next package set contains only the consumer: retained meaning
+        # satisfies the exact dependency after its supplier is absent.
+        assert retain_contract_batch({consumer.id: consumer}, {consumer.id: consumer_dir.name}) == 0
+
+    row = RetainedContract.objects.get()
+    assert (row.contract_id, row.version) == (supplier_contract["id"], "1.0.0")

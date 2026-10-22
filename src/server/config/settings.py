@@ -36,9 +36,17 @@ HELIX_MODS = None
 # Namespace ownership is deployment configuration, never inferred from a
 # package's self-declared manifest. Keys are contract namespaces and values
 # are the exact Mod publisher IDs authorized to create new definitions.
-HELIX_CONTRACT_PUBLISHERS = json.loads(
+_configured_contract_publishers = json.loads(
     os.environ.get("HELIX_CONTRACT_PUBLISHERS", "{}")
 )
+if not isinstance(_configured_contract_publishers, dict):
+    raise ValueError("HELIX_CONTRACT_PUBLISHERS must be a JSON object")
+if _configured_contract_publishers.get("helix", "helix.timhoogervorst") != "helix.timhoogervorst":
+    raise ValueError("the helix contract namespace is reserved")
+HELIX_CONTRACT_PUBLISHERS = {
+    **_configured_contract_publishers,
+    "helix": "helix.timhoogervorst",
+}
 
 # A deployment may provide the build-time catalog.  Validate it against a
 # fresh discovery pass before Django starts so package changes cannot boot

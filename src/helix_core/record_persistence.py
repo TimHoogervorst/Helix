@@ -702,6 +702,146 @@ def _validate_retained_sequence(snapshot, declaration, fingerprint):
         raise ActionValidationError({"sequenceDeclaration": "A composed Action Sequence must declare at least two ordered steps."})
 
 
+def _find_saved_block(snapshot, block_id):
+    matches = []
+    seen = set()
+    pending = [snapshot]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, Mapping):
+            attrs = value.get("attrs")
+            portable = attrs.get("portableBlock") if isinstance(attrs, Mapping) else None
+            candidates = [candidate for candidate in (value, attrs, portable) if isinstance(candidate, Mapping)]
+            for candidate in candidates:
+                if candidate.get("id") == block_id and id(candidate) not in seen:
+                    seen.add(id(candidate))
+                    matches.append(candidate)
+            pending.extend(value.values())
+        elif isinstance(value, (list, tuple)):
+            pending.extend(value)
+    if len(matches) != 1:
+        raise ActionValidationError({"inputs": "A saved Block input is missing or ambiguous."})
+    block = _thaw(matches[0])
+    content = block.get("content")
+    if isinstance(content, Mapping) and set(content) == {"type", "value"}:
+        return content["value"]
+    if isinstance(block.get("rows"), list):
+        return block
+    raise ActionValidationError({"inputs": "The saved Block has no retained typed content."})
+
+
+def _resolve_block_source(snapshot, source, type_node, where):
+    if set(source) != {"kind", "blockId", "path"}:
+        raise ActionValidationError({"inputs": f"Input '{where}' has an invalid saved Block binding."})
+    block_id, path = source.get("blockId"), source.get("path")
+    if not isinstance(block_id, str) or not block_id or not isinstance(path, list) or any(not isinstance(part, str) for part in path):
+        raise ActionValidationError({"inputs": f"Input '{where}' has an invalid saved Block path."})
+    value = _find_saved_block(snapshot, block_id)
+    for part in path:
+        if isinstance(value, Mapping) and part in value:
+            value = value[part]
+        elif isinstance(value, (list, tuple)) and part.isdecimal() and int(part) < len(value):
+            value = value[int(part)]
+        else:
+            raise ActionValidationError({"inputs": f"Input '{where}' does not exist at its saved Block path."})
+    if isinstance(value, Mapping) and set(value) == {"type", "value"}:
+        if value["type"] != type_node:
+            raise ActionValidationError({"inputs": f"Input '{where}' has a saved Block type mismatch."})
+        value = value["value"]
+    try:
+        _validate_contract_value(type_node, value, where)
+    except ValidationError as exc:
+        raise ActionValidationError({"inputs": exc.detail})
+    return _thaw(value)
+
+
+def _resolve_record_source(actor, source, type_node, where):
+    from bundled.access.access.policies import effective_role
+    from helix_core.models import PlatformRecord, RecordRevisionGroup
+
+    reference = source.get("reference")
+    if set(source) != {"kind", "reference"} or not isinstance(reference, Mapping):
+        raise ActionValidationError({"inputs": f"Input '{where}' has an invalid Record Reference binding."})
+    if set(reference) - {"mode", "entityId", "groupId", "revisionId", "fieldId"}:
+        raise ActionValidationError({"inputs": f"Input '{where}' has unsupported Record Reference properties."})
+    mode = reference.get("mode")
+    entity_id = reference.get("entityId")
+    field_id = reference.get("fieldId")
+    if not isinstance(mode, str) or mode not in {"current", "exact"} or not isinstance(entity_id, str) or not entity_id:
+        raise ActionValidationError({"inputs": f"Input '{where}' has an invalid Record Reference."})
+    if reference.get("groupId") is not None and not isinstance(reference.get("groupId"), str):
+        raise ActionValidationError({"inputs": f"Input '{where}' has an invalid Revision Group ID."})
+    if reference.get("revisionId") is not None and not isinstance(reference.get("revisionId"), str):
+        raise ActionValidationError({"inputs": f"Input '{where}' has an invalid Revision ID."})
+    try:
+        target = PlatformRecord.objects.filter(pk=UUID(entity_id)).first()
+    except (TypeError, ValueError):
+        target = None
+    if target is None:
+        target = PlatformRecord.objects.filter(display_id=entity_id).first()
+    # Missing and inaccessible references have the same response so record
+    # existence and field values cannot be discovered through this boundary.
+    if target is None:
+        raise PermissionDenied("You do not have permission to use this Action input.")
+    target = PlatformRecord.objects.select_for_update().select_related("schema__schema_type").get(pk=target.pk)
+    _lock_record_access_rows(actor, target)
+    if effective_role(actor, target) not in {"read", "edit"}:
+        raise PermissionDenied("You do not have permission to use this Action input.")
+
+    groups = target.revision_groups.select_for_update().filter(group_key="record")
+    if mode == "exact":
+        try:
+            group_id = UUID(str(reference["groupId"]))
+            revision_id = UUID(str(reference["revisionId"]))
+        except (KeyError, TypeError, ValueError):
+            raise ActionValidationError({"inputs": f"Input '{where}' requires an exact Record Revision."})
+        group = groups.filter(pk=group_id).first()
+        if group is None:
+            raise ActionValidationError({"inputs": f"Input '{where}' references an unavailable exact Revision."})
+        revision = group.revisions.select_for_update().filter(pk=revision_id).first()
+        if revision is None:
+            raise ActionValidationError({"inputs": f"Input '{where}' references an unavailable exact Revision."})
+    else:
+        if reference.get("revisionId") is not None:
+            raise ActionValidationError({"inputs": f"Input '{where}' cannot pin a Revision in current mode."})
+        group = groups.filter(pk=reference.get("groupId")).first() if reference.get("groupId") else groups.first()
+        if group is None or (reference.get("groupId") and str(group.pk) != str(reference["groupId"])):
+            raise ActionValidationError({"inputs": f"Input '{where}' references an unavailable current Record."})
+        revision = group.current_revision
+    if revision is None:
+        raise ActionValidationError({"inputs": f"Input '{where}' references a Record without a saved Revision."})
+
+    if field_id is None:
+        if (type_node.get("type") if isinstance(type_node, Mapping) else None) != "recordReference":
+            raise ActionValidationError({"inputs": f"Input '{where}' must select a stable field ID."})
+        return {"id": str(target.pk)}, {
+            "record": target, "group": group, "revision": revision,
+        }
+    if not isinstance(field_id, str) or not field_id:
+        raise ActionValidationError({"inputs": f"Input '{where}' has an invalid stable field ID."})
+    stored = revision.snapshot.get("field_values", {}).get(field_id)
+    column = _schema_fields(target).get(field_id)
+    if not isinstance(stored, Mapping) or column is None:
+        raise ActionValidationError({"inputs": f"Input '{where}' references an unavailable stable field."})
+    source_type = column.get("type")
+    if isinstance(source_type, str):
+        source_type = {"type": {"text": "string", "textarea": "string", "dropdown": "string",
+                                  "integer": "number", "float": "number", "decimal": "number"}.get(source_type, source_type)}
+    elif isinstance(source_type, Mapping) and source_type.get("type") == "contract":
+        source_type = {key: value for key, value in source_type.items() if key != "type"}
+        source_type = {"type": "contract", **source_type}
+    if column.get("contract"):
+        source_type = {"type": "contract", **column["contract"]}
+    if source_type != type_node or stored.get("type") != ("contract" if type_node.get("type") == "contract" else type_node.get("type")):
+        raise ActionValidationError({"inputs": f"Input '{where}' has an incompatible saved Record field type."})
+    value = _thaw(stored.get("value"))
+    try:
+        _validate_contract_value(type_node, value, where)
+    except ValidationError as exc:
+        raise ActionValidationError({"inputs": exc.detail})
+    return value, {"record": target, "group": group, "revision": revision}
+
+
 @transaction.atomic
 def execute_action_invocation(
     *, actor, invocation_id, sequence_fingerprint, inputs, parameters,
@@ -1142,6 +1282,7 @@ def _execute_composed_action_invocation(
     creates = []
     document_snapshot = None
     document_references = []
+    used_record_references = {}
     final_registration = None
     final_definition = None
     final_outputs = {}
@@ -1203,20 +1344,41 @@ def _execute_composed_action_invocation(
             resolved_inputs = {}
             for name, value in raw_inputs.items():
                 type_node = definition["inputs"][name]
-                if isinstance(value, dict) and value.get("kind") == "step":
-                    if set(value) != {"kind", "stepId", "port"} or value["stepId"] not in outputs_by_step:
-                        raise ValidationError({"inputs": f"Input '{name}' must reference an earlier step output."})
-                    connection = declared_inputs.get(name)
-                    if not isinstance(connection, Mapping) or connection.get("kind") != "step" or connection.get("stepId") != value["stepId"] or connection.get("port") != value["port"]:
+                connection = declared_inputs.get(name)
+                if not isinstance(connection, Mapping) or not isinstance(connection.get("kind"), str):
+                    raise ValidationError({"inputs": f"Input '{name}' has no supported saved connection."})
+                kind = connection["kind"]
+                if kind == "step":
+                    if set(connection) != {"kind", "stepId", "port"} or connection["stepId"] not in outputs_by_step:
+                        raise ValidationError({"inputs": f"Input '{name}' must reference an earlier saved step output."})
+                    if value != {"kind": "step", "stepId": connection["stepId"], "port": connection["port"]}:
                         raise ValidationError({"inputs": f"Input '{name}' does not match its saved Sequence connection."})
-                    typed_output = outputs_by_step[value["stepId"]].get(value["port"])
+                    typed_output = outputs_by_step[connection["stepId"]].get(connection["port"])
                     if not isinstance(typed_output, Mapping) or set(typed_output) != {"type", "value"}:
                         raise ValidationError({"inputs": f"Step output for '{name}' is unavailable."})
                     if typed_output["type"] != type_node.get("type"):
                         raise ValidationError({"inputs": f"Step output for '{name}' has an incompatible type."})
                     resolved_inputs[name] = _thaw(typed_output["value"])
+                elif kind == "literal":
+                    if set(connection) != {"kind", "value"} or not isinstance(connection["value"], Mapping) or set(connection["value"]) != {"type", "value"}:
+                        raise ValidationError({"inputs": f"Input '{name}' has an invalid saved literal."})
+                    literal = connection["value"]
+                    if literal["type"] != type_node or value != literal["value"]:
+                        raise ValidationError({"inputs": f"Input '{name}' differs from its exact saved literal."})
+                    resolved_inputs[name] = _thaw(literal["value"])
+                elif kind == "block":
+                    resolved = _resolve_block_source(original_document, connection, type_node, name)
+                    if value != resolved:
+                        raise ValidationError({"inputs": f"Input '{name}' differs from the exact saved Block value."})
+                    resolved_inputs[name] = resolved
+                elif kind == "record":
+                    resolved, participant = _resolve_record_source(actor, connection, type_node, name)
+                    if value != resolved:
+                        raise ValidationError({"inputs": f"Input '{name}' differs from its authorized saved Record Reference value."})
+                    resolved_inputs[name] = resolved
+                    used_record_references[(participant["record"].pk, participant["group"].pk, participant["revision"].pk)] = participant
                 else:
-                    resolved_inputs[name] = value
+                    raise ValidationError({"inputs": f"Input '{name}' uses an unsupported saved source kind."})
                 _validate_contract_value(type_node, resolved_inputs[name], name)
         except ValidationError as exc:
             raise ActionValidationError({"steps": {step_id: exc.detail}})
@@ -1352,6 +1514,7 @@ def _execute_composed_action_invocation(
         target_schema=target_schema,
         declared_outputs=final_definition.get("outputs", {}),
         document_references=document_references,
+        used_record_references=list(used_record_references.values()),
     )
     last_step_id = steps[-1]["id"]
     if "created" in outcome.get("outputs", {}):
@@ -1371,7 +1534,7 @@ def _commit_created_record_effects(
     contract_id, contract_version, invocation_id, sequence_fingerprint,
     request_fingerprint, server_fingerprint, output_values, creates,
     document_snapshot, actor_id, before_record_revision, before_state_token,
-    target_schema, declared_outputs, document_references,
+    target_schema, declared_outputs, document_references, used_record_references=None,
 ):
     """Commit a provider's Platform record creates and document edit together."""
     from helix_core.models import (
@@ -1389,6 +1552,8 @@ def _commit_created_record_effects(
         raise ActionValidationError({"effects": "The provider proposed no supported registration effects."})
     if document_references and document_snapshot is None:
         raise ActionValidationError({"document": "Document references require a saved document edit."})
+    for reference in used_record_references or []:
+        _require_current_read_access(actor, reference["record"])
 
     created = []
     keys = set()
@@ -1487,6 +1652,12 @@ def _commit_created_record_effects(
             "document_after_revision_id": str(next_document_revision.pk) if next_document_revision else None,
             "created_record_ids": {key: str(item.pk) for key, item, _revision in created},
             "created_count": len(created),
+            "used_revisions": [{
+                "record_id": str(reference["record"].pk),
+                "group_id": str(reference["group"].pk),
+                "revision_id": str(reference["revision"].pk),
+                "sequence": reference["revision"].sequence,
+            } for reference in (used_record_references or [])],
         },
     )
     if document_group is not None:
@@ -1498,6 +1669,20 @@ def _commit_created_record_effects(
             role="edited" if document_changed else "used",
         )
     participants = []
+    for reference in used_record_references or []:
+        source_record = reference["record"]
+        source_revision = reference["revision"]
+        ActionParticipant.objects.create(
+            action=action, record=source_record,
+            target_model_reference="helix.record",
+            target_object_id=str(source_record.pk), role="used",
+        )
+        participants.append({
+            "targetRole": "recordInput", "targetType": "helix.record",
+            "targetId": str(source_record.pk), "role": "used",
+            "revisionId": str(source_revision.pk),
+            "sequence": source_revision.sequence,
+        })
     for key, item, revision in created:
         ActionParticipant.objects.create(
             action=action,
@@ -1567,6 +1752,7 @@ def _commit_created_record_effects(
         target_ids={
             "record": str(record.pk), "project": record.project_id,
             "created_records": [str(item.pk) for _key, item, _revision in created],
+            "used_records": [str(reference["record"].pk) for reference in (used_record_references or [])],
         },
         outcome=outcome,
     )
@@ -1690,6 +1876,12 @@ def _authorize_invocation_replay(actor, receipt):
             raise PermissionDenied("You no longer have permission to access this Action outcome.")
         return False
     _require_current_read_access(actor, record)
+    for used_record_id in receipt.target_ids.get("used_records", []):
+        try:
+            used_record = PlatformRecord.objects.get(pk=used_record_id)
+        except (PlatformRecord.DoesNotExist, ValueError, TypeError):
+            raise PermissionDenied("You no longer have permission to access this Action outcome.")
+        _require_current_read_access(actor, used_record)
     return True
 
 

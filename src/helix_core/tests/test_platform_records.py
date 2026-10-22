@@ -999,7 +999,20 @@ class PlatformRecordApiTests(TestCase):
             "fingerprint": "fixture.saved-produce-register.v1",
             "steps": [
                 {"id": "produce", "action": {"kind": "action", "id": "fixture.science.saved-row-producer", "version": "1.0.0"},
-                 "inputs": {}, "parameters": {}, "targets": {"record": "record"}},
+                 "inputs": {
+                     "rows": {"kind": "block", "blockId": "registry-composed", "path": ["rows"]},
+                     "check": {"kind": "literal", "value": {"type": {"type": "number"}, "value": 7}},
+                     "measurement": {"kind": "record", "reference": {
+                         "mode": "exact", "entityId": source.data["id"],
+                         "groupId": source.data["revision"]["group_id"],
+                         "revisionId": source.data["revision"]["id"],
+                         "fieldId": "field-concentration",
+                     }},
+                     "currentMeasurement": {"kind": "record", "reference": {
+                         "mode": "current", "entityId": source.data["id"],
+                         "fieldId": "field-concentration",
+                     }},
+                 }, "parameters": {}, "targets": {"record": "record"}},
                 {"id": "register", "action": {"kind": "action", "id": "helix.lims.registry-register", "version": "1.0.0"},
                  "inputs": {"rows": {"kind": "step", "stepId": "produce", "port": "rows"}},
                  "parameters": {
@@ -1023,7 +1036,11 @@ class PlatformRecordApiTests(TestCase):
             "formatVersion": 1, "kind": "action", "id": "fixture.science.saved-row-producer",
             "version": "1.0.0", "description": "Read saved fixture rows once",
             "definition": {
-                "inputs": {}, "parameters": {}, "outputs": {"rows": {"type": "json"}},
+                "inputs": {
+                    "rows": {"type": "json"}, "check": {"type": "number"},
+                    "measurement": {"type": "number"}, "currentMeasurement": {"type": "number"},
+                },
+                "parameters": {}, "outputs": {"rows": {"type": "json"}},
                 "targets": {"record": "helix.record"}, "effects": {"record": "edited"},
             },
         }
@@ -1037,6 +1054,7 @@ class PlatformRecordApiTests(TestCase):
             requires_helix=">=1.0.0", artifacts=("backend",), depends_on=(),
         ), self.backend_registry)
         producer_calls = []
+        producer_measurements = []
 
         def to_json(value):
             if hasattr(value, "items"):
@@ -1047,8 +1065,8 @@ class PlatformRecordApiTests(TestCase):
 
         def produce_saved_rows(context, _inputs):
             producer_calls.append(context["step_id"])
-            saved_rows = context["document_snapshot"]["document"]["content"][0]["attrs"]["rows"]
-            return ProposedEffects(outputs={"rows": {"type": "json", "value": to_json(saved_rows)}})
+            producer_measurements.append(_inputs["measurement"])
+            return ProposedEffects(outputs={"rows": {"type": "json", "value": to_json(_inputs["rows"])}})
 
         producer = registrar.register_record_action(
             "saved-row-producer", label="Fixture row producer",
@@ -1075,7 +1093,9 @@ class PlatformRecordApiTests(TestCase):
             }},
             "providers": {"steps": {"produce": producer.id, "register": registration.id}},
             "steps": [
-                {"id": "produce", "inputs": {}, "parameters": {}},
+                {"id": "produce", "inputs": {
+                    "rows": rows, "check": 7, "measurement": 1.25, "currentMeasurement": 1.25,
+                }, "parameters": {}},
                 {"id": "register", "inputs": {"rows": {"kind": "step", "stepId": "produce", "port": "rows"}},
                  "parameters": {
                      "schemaId": self.schema.pk,
@@ -1088,6 +1108,15 @@ class PlatformRecordApiTests(TestCase):
         mismatched["invocationId"] = "composed-sequence-mismatch"
         mismatched["sequenceDeclaration"]["steps"][0]["id"] = "altered"
         self.assertEqual(self.client.post("/api/action-invocations/", mismatched, format="json").status_code, 422)
+        substituted_block = deepcopy(invocation)
+        substituted_block["invocationId"] = "composed-block-substitution"
+        substituted_block["steps"][0]["inputs"]["rows"][0]["values"]["Concentration"] = 999
+        self.assertEqual(self.client.post("/api/action-invocations/", substituted_block, format="json").status_code, 422)
+        substituted_literal = deepcopy(invocation)
+        substituted_literal["invocationId"] = "composed-literal-substitution"
+        substituted_literal["steps"][0]["inputs"]["check"] = 999
+        self.assertEqual(self.client.post("/api/action-invocations/", substituted_literal, format="json").status_code, 422)
+        self.assertEqual(producer_calls, [])
         unknown_step = deepcopy(invocation)
         unknown_step["invocationId"] = "composed-unknown-step"
         unknown_step["steps"][0]["id"] = "unknown"
@@ -1104,17 +1133,91 @@ class PlatformRecordApiTests(TestCase):
         replaced["invocationId"] = "composed-provider-replaced"
         self.assertEqual(self.client.post("/api/action-invocations/", replaced, format="json").status_code, 422)
         self.backend_registry._record_actions[producer.id] = provider
+        private_user = User.objects.create_user(username="private_record_owner", password="pass")
+        private_project = Project.objects.create(name="Private Record Project")
+        Grant.objects.create(project=private_project, user=private_user, role=ProjectRole.EDIT)
+        private_record = create_record(
+            actor=private_user, project=private_project, schema=self.schema,
+            name="Private sample", field_values={"field-concentration": {"type": "number", "value": 987654.0}},
+            request_id=uuid4(),
+        )
+        unauthorized_target = self.client.post("/api/records/", self.create_payload(name="Unauthorized source"), format="json")
+        unauthorized_sequence = deepcopy(sequence_declaration)
+        unauthorized_sequence["steps"][0]["inputs"]["measurement"]["reference"] = {
+            "mode": "current", "entityId": private_record["id"], "fieldId": "field-concentration",
+        }
+        unauthorized_document = save_revision_group(
+            actor=self.user, record_id=unauthorized_target.data["id"], group_key="document",
+            state_token=unauthorized_target.data["state_token"], request_id=uuid4(),
+            snapshot={"document": {"type": "doc", "content": [{"type": "registry-table", "attrs": {
+                "id": "registry-composed", "schemaId": self.schema.pk,
+                "columns": [{"id": "field-concentration", "name": "Concentration", "type": "number"}],
+                "rows": rows, "actionSequence": unauthorized_sequence,
+            }}]}},
+            target_model_reference="eln.entry", target_object_id="entry-unauthorized",
+        )
+        unauthorized_invocation = deepcopy(invocation)
+        unauthorized_invocation.update({
+            "invocationId": "composed-unauthorized-record-input",
+            "sequenceDeclaration": unauthorized_sequence,
+            "targets": {"record": unauthorized_target.data["id"]},
+            "expectedState": {"record": {
+                "stateToken": unauthorized_document["state_token"],
+                "revisionId": unauthorized_target.data["revision"]["id"],
+                "schemaState": unauthorized_target.data["schema_state"],
+                "documentGroupId": unauthorized_document["group_id"],
+                "documentRevisionId": unauthorized_document["revision_id"],
+            }},
+        })
+        before_record_count = PlatformRecord.objects.count()
+        denied = self.client.post("/api/action-invocations/", unauthorized_invocation, format="json")
+        self.assertEqual(denied.status_code, 403, getattr(denied, "data", None))
+        self.assertNotIn("987654", str(denied.data))
+        self.assertEqual(PlatformRecord.objects.count(), before_record_count)
+        self.assertEqual(producer_calls, [])
+        unsupported_sequence = deepcopy(sequence_declaration)
+        unsupported_sequence["steps"][0]["inputs"]["check"] = {"kind": "remote", "url": "https://invalid.test/value"}
+        unsupported_document = save_revision_group(
+            actor=self.user, record_id=unauthorized_target.data["id"], group_key="document",
+            state_token=unauthorized_document["state_token"], request_id=uuid4(),
+            snapshot={"document": {"type": "doc", "content": [{"type": "registry-table", "attrs": {
+                "id": "registry-composed", "schemaId": self.schema.pk,
+                "columns": [{"id": "field-concentration", "name": "Concentration", "type": "number"}],
+                "rows": rows, "actionSequence": unsupported_sequence,
+            }}]}},
+            target_model_reference="eln.entry", target_object_id="entry-unauthorized",
+        )
+        unsupported_invocation = deepcopy(unauthorized_invocation)
+        unsupported_invocation.update({
+            "invocationId": "composed-unsupported-input-source",
+            "sequenceDeclaration": unsupported_sequence,
+            "expectedState": {"record": {
+                "stateToken": unsupported_document["state_token"],
+                "revisionId": unauthorized_target.data["revision"]["id"],
+                "schemaState": unauthorized_target.data["schema_state"],
+                "documentGroupId": unsupported_document["group_id"],
+                "documentRevisionId": unsupported_document["revision_id"],
+            }},
+        })
+        unsupported = self.client.post("/api/action-invocations/", unsupported_invocation, format="json")
+        self.assertEqual(unsupported.status_code, 422, getattr(unsupported, "data", None))
+        self.assertEqual(producer_calls, [])
         before_actions = ActionLogEntry.objects.count()
         result = self.client.post("/api/action-invocations/", invocation, format="json")
         self.assertEqual(result.status_code, 200, getattr(result, "data", None))
         self.assertEqual(producer_calls, ["produce"])
+        self.assertEqual(producer_measurements, [1.25])
         self.assertEqual(ActionLogEntry.objects.count(), before_actions + 1)
-        created = PlatformRecord.objects.exclude(pk=source.data["id"]).get()
+        created = PlatformRecord.objects.get(pk=result.data["created"]["#new-composed"])
         saved_row = PlatformRecord.objects.get(pk=source.data["id"]).revision_groups.get(group_key="document").current_revision.snapshot["document"]["content"][0]["attrs"]["rows"][0]
         self.assertEqual(saved_row["recordId"], str(created.pk))
         self.assertEqual(result.data["stepOutputs"]["register"]["created"]["value"]["#new-composed"], str(created.pk))
         self.assertEqual(len(result.data["providers"]), 2)
-        self.assertEqual(ActionParticipant.objects.filter(action_id=result.data["actionId"]).count(), 2)
+        self.assertEqual(ActionParticipant.objects.filter(action_id=result.data["actionId"]).count(), 3)
+        used = ActionParticipant.objects.get(action_id=result.data["actionId"], role="used", target_model_reference="helix.record")
+        self.assertEqual(used.target_object_id, source.data["id"])
+        self.assertEqual(result.data["participants"][1]["revisionId"], source.data["revision"]["id"])
+        self.assertEqual(result.data["participants"][2]["after"]["sequence"], 1)
         replay = self.client.post("/api/action-invocations/", invocation, format="json")
         self.assertEqual(replay.status_code, 200, getattr(replay, "data", None))
         self.assertTrue(replay.data["replayed"])

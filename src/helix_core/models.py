@@ -16,6 +16,18 @@ from django.utils import timezone
 from helix_core.abstracts import AbstractEntity
 
 
+def user_attribution_snapshot(user):
+    """Capture the stable display identity used after an account is removed."""
+    if user is None:
+        return {}
+    display_name = user.get_full_name().strip() or user.username
+    return {
+        "id": str(user.pk),
+        "username": user.username,
+        "displayName": display_name,
+    }
+
+
 # ── Shared column-ID + content-hash pipeline ──────────────────────────────
 
 
@@ -269,6 +281,7 @@ class ActionLogEntry(models.Model):
         "core.User", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="action_log_entries",
     )
+    performed_by_snapshot = models.JSONField(default=dict, blank=True)
     action = models.CharField(max_length=255)
     action_type = models.CharField(max_length=16)
     target_model_reference = models.CharField(max_length=255)
@@ -305,6 +318,8 @@ class ActionLogEntry(models.Model):
         """Keep the audit ledger append-only after its initial insert."""
         if self.pk is not None:
             raise ValueError("ActionLogEntry is append-only")
+        if self.performed_by_id and not self.performed_by_snapshot:
+            self.performed_by_snapshot = user_attribution_snapshot(self.performed_by)
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
@@ -328,6 +343,11 @@ class PlatformRecord(AbstractEntity):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     field_values = models.JSONField(default=dict, blank=True)
     state_token = models.UUIDField(default=uuid.uuid4, editable=False)
+    author = models.ForeignKey(
+        "core.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    author_snapshot = models.JSONField(default=dict, blank=True)
+    last_editor_snapshot = models.JSONField(default=dict, blank=True)
 
     class Meta:
         db_table = "helix_platform_record"
@@ -335,6 +355,18 @@ class PlatformRecord(AbstractEntity):
 
     def _get_display_id_prefix(self):
         return self.schema.prefix
+
+    def save(self, *args, **kwargs):
+        if self.author_id and not self.author_snapshot:
+            self.author_snapshot = user_attribution_snapshot(self.author)
+        if self.last_editor_id:
+            self.last_editor_snapshot = user_attribution_snapshot(self.last_editor)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from helix_core.record_persistence import delete_platform_record
+
+        return delete_platform_record(self, actor=None)
 
 
 class RecordRevisionGroup(models.Model):
@@ -377,6 +409,7 @@ class ScientificRevision(models.Model):
         "core.User", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="scientific_revisions",
     )
+    created_by_snapshot = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -389,6 +422,8 @@ class ScientificRevision(models.Model):
     def save(self, *args, **kwargs):
         if self.pk is not None and type(self).objects.filter(pk=self.pk).exists():
             raise ValueError("ScientificRevision is immutable")
+        if self.created_by_id and not self.created_by_snapshot:
+            self.created_by_snapshot = user_attribution_snapshot(self.created_by)
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):

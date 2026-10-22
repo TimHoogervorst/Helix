@@ -125,6 +125,7 @@ def _record_response(record, revision=None, action=None) -> dict[str, Any]:
         "id": str(record.pk),
         "display_id": record.display_id,
         "name": record.name,
+        "author": record.author_snapshot or None,
         "metadata": record.properties or {},
         "project_id": record.project_id,
         "source": {"kind": "project", "id": record.project_id},
@@ -140,6 +141,85 @@ def _record_response(record, revision=None, action=None) -> dict[str, Any]:
         },
         "action": None if action is None else {"id": action.pk, "identity": action.action},
     }
+
+
+@transaction.atomic
+def delete_platform_record(record, *, actor=None, source=None):
+    """Remove a record and its owned history while retaining authoritative audit."""
+    from helix_core.models import ActionLogEntry, ActionParticipant, RecordRevisionGroup
+
+    locked = type(record).objects.select_for_update().get(pk=record.pk)
+    revision_ids = [
+        str(value)
+        for value in locked.revision_groups.values_list("revisions__pk", flat=True).distinct()
+        if value
+    ]
+    action = ActionLogEntry.objects.create(
+        performed_by=actor,
+        action="helix.record.deleted",
+        action_type="deleted",
+        target_model_reference="helix.record",
+        target_object_id=str(locked.pk),
+        request_id=uuid4(),
+        metadata={
+            "revision_ids": revision_ids,
+            "source": source or {},
+        },
+    )
+    ActionParticipant.objects.create(
+        action=action,
+        record=locked,
+        target_model_reference="helix.record",
+        target_object_id=str(locked.pk),
+        role="subject",
+    )
+    for group in RecordRevisionGroup.objects.select_for_update().filter(record=locked):
+        group.current_revision = None
+        group.save(update_fields=["current_revision"])
+        group.delete()
+    from django.db import models as django_models
+    django_models.Model.delete(locked)
+    return action
+
+
+@transaction.atomic
+def delete_source_entity(model, object_id, *, target_model_reference, actor=None, source=None):
+    """Retain an audit outcome and remove Platform history for a source entity."""
+    from helix_core.models import ActionLogEntry, ActionParticipant, RecordRevisionGroup
+
+    groups = list(RecordRevisionGroup.objects.select_for_update().filter(
+        target_model_reference=target_model_reference,
+        target_object_id=str(object_id),
+    ))
+    revisions = [
+        str(value)
+        for value in RecordRevisionGroup.objects.filter(
+            pk__in=[group.pk for group in groups]
+        ).values_list("revisions__pk", flat=True).distinct()
+        if value
+    ]
+    action = ActionLogEntry.objects.create(
+        performed_by=actor,
+        action="helix.source.deleted",
+        action_type="deleted",
+        target_model_reference=target_model_reference,
+        target_object_id=str(object_id),
+        request_id=uuid4(),
+        metadata={"revision_ids": revisions, "source": source or {}},
+    )
+    ActionParticipant.objects.create(
+        action=action,
+        record=None,
+        target_model_reference=target_model_reference,
+        target_object_id=str(object_id),
+        role="subject",
+    )
+    for group in groups:
+        group.current_revision = None
+        group.save(update_fields=["current_revision"])
+        group.delete()
+    model.objects.filter(pk=object_id).delete()
+    return action
 
 
 def _schema_state(record) -> dict[str, Any]:
@@ -407,8 +487,9 @@ def execute_action_invocation(
     if receipt is not None:
         if receipt.request_fingerprint != request_fingerprint:
             raise StateConflict("This invocation ID was already used for a different request.")
-        _authorize_invocation_replay(actor, receipt)
+        target_available = _authorize_invocation_replay(actor, receipt)
         outcome = dict(receipt.outcome)
+        mark_unavailable_action_targets(outcome, target_available)
         outcome["replayed"] = True
         return outcome
 
@@ -621,7 +702,7 @@ def execute_action_invocation(
         invocation_id=invocation_id,
         fingerprint=server_fingerprint,
         request_fingerprint=request_fingerprint,
-        target_ids={"record": str(record.pk)},
+        target_ids={"record": str(record.pk), "project": record.project_id},
         outcome=outcome,
     )
     return outcome
@@ -642,13 +723,33 @@ def _lock_record_access_rows(actor, record):
 
 def _authorize_invocation_replay(actor, receipt):
     from helix_core.models import PlatformRecord
+    from helix_core.core.models import Project
+    from bundled.access.access.policies import role
 
     record_id = receipt.target_ids.get("record")
     try:
         record = PlatformRecord.objects.select_related("project").get(pk=record_id)
     except (PlatformRecord.DoesNotExist, ValueError, TypeError):
-        raise NotFound("The Action target is no longer available.")
+        project_id = receipt.target_ids.get("project")
+        try:
+            project = Project.objects.get(pk=project_id)
+        except (Project.DoesNotExist, ValueError, TypeError):
+            raise NotFound("The Action target is no longer available.")
+        if role(actor, project) not in {"read", "edit"}:
+            raise PermissionDenied("You no longer have permission to access this Action outcome.")
+        return False
     _require_current_read_access(actor, record)
+    return True
+
+
+def mark_unavailable_action_targets(outcome, target_available):
+    """Return a retained Action outcome without presenting deleted records as live."""
+    if target_available:
+        return outcome
+    outcome.pop("record", None)
+    for participant in outcome.get("participants", []):
+        participant["targetUnavailable"] = True
+    return outcome
 
 
 @transaction.atomic

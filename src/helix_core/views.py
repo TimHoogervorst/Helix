@@ -764,11 +764,26 @@ class PlatformRecordCollectionView(APIView):
         from bundled.access.access.policies import role
         from helix_core.models import PlatformRecord
 
-        rows = PlatformRecord.objects.select_related("schema", "project").order_by("created_at")
+        rows = PlatformRecord.objects.select_related("schema", "project").order_by("-created_at", "-pk")
+        if request.query_params.get("q"):
+            rows = rows.filter(name__icontains=request.query_params["q"])
+        if request.query_params.get("schema_id"):
+            rows = rows.filter(schema_id=request.query_params["schema_id"])
+        if request.query_params.get("project_id"):
+            rows = rows.filter(project_id=request.query_params["project_id"])
         rows = [row for row in rows if role(request.user, row.project) in {"read", "edit"}]
         from helix_core.record_persistence import _record_response
-
-        return Response({"count": len(rows), "results": [_record_response(row) for row in rows]})
+        page, page_size = _record_page_params(request)
+        count = len(rows)
+        start = (page - 1) * page_size
+        return Response({
+            "count": count,
+            "next": page + 1 if start + page_size < count else None,
+            "previous": page - 1 if page > 1 else None,
+            "page": page,
+            "page_size": page_size,
+            "results": [_record_response(row) for row in rows[start:start + page_size]],
+        })
 
     def post(self, request):
         from bundled.access.access.policies import role
@@ -885,6 +900,215 @@ class PlatformRecordRevisionsView(PlatformRecordDetailView):
 
     def get(self, request, record_id):
         return self.get_revisions(request, record_id)
+
+
+def _record_page_params(request):
+    from rest_framework.exceptions import ValidationError
+
+    try:
+        page = int(request.query_params.get("page", "1"))
+        page_size = int(request.query_params.get("page_size", "50"))
+    except (TypeError, ValueError):
+        raise ValidationError({"pagination": "page and page_size must be integers."})
+    if page < 1 or page_size < 1 or page_size > 100:
+        raise ValidationError({"pagination": "page must be positive and page_size must be between 1 and 100."})
+    return page, page_size
+
+
+class PlatformRecordGroupHistoryView(PlatformRecordDetailView):
+    """Paginated metadata and exact snapshots for one authorized group."""
+
+    def get(self, request, record_id, group_id, revision_id=None):
+        from rest_framework.exceptions import NotFound
+        from helix_core.models import RecordRevisionGroup
+
+        record = self.get_record(request, record_id)
+        try:
+            group = RecordRevisionGroup.objects.get(pk=group_id, record=record)
+        except (RecordRevisionGroup.DoesNotExist, ValueError):
+            raise NotFound("Revision group not found.")
+        if revision_id is not None:
+            try:
+                revision = group.revisions.get(pk=revision_id)
+            except (group.revisions.model.DoesNotExist, ValueError):
+                raise NotFound("Revision not found in this group.")
+            return Response({
+                "id": str(revision.pk), "group_id": str(group.pk), "group_key": group.group_key,
+                "sequence": revision.sequence, "content_hash": revision.content_hash,
+                "snapshot": revision.snapshot, "created_at": revision.created_at,
+            })
+        page, page_size = _record_page_params(request)
+        revisions = group.revisions.order_by("-sequence")
+        count = revisions.count()
+        start = (page - 1) * page_size
+        return Response({
+            "record_id": str(record.pk), "group_id": str(group.pk), "group_key": group.group_key,
+            "current_revision_id": str(group.current_revision_id) if group.current_revision_id else None,
+            "count": count, "next": page + 1 if start + page_size < count else None,
+            "previous": page - 1 if page > 1 else None, "page": page, "page_size": page_size,
+            "results": [{
+                "id": str(item.pk), "sequence": item.sequence, "content_hash": item.content_hash,
+                "created_at": item.created_at,
+            } for item in revisions[start:start + page_size]],
+        })
+
+
+class PlatformRecordActivityView(PlatformRecordDetailView):
+    """Persisted Platform Actions in which the record actually participated."""
+
+    def get(self, request, record_id):
+        from helix_core.models import ActionLogEntry, ActionParticipant
+
+        record = self.get_record(request, record_id)
+        page, page_size = _record_page_params(request)
+        participants = ActionParticipant.objects.filter(record=record)
+        actions = ActionLogEntry.objects.filter(participants__in=participants).distinct().order_by("-created_at", "-pk")
+        count = actions.count()
+        start = (page - 1) * page_size
+        results = []
+        default_group = record.revision_groups.values_list("pk", flat=True).first()
+        for action in actions[start:start + page_size].prefetch_related("participants"):
+            subject_roles = list(action.participants.filter(record=record).values_list("role", flat=True))
+            metadata = action.metadata if isinstance(action.metadata, dict) else {}
+            descriptions = metadata.get("descriptions", [])
+            if isinstance(descriptions, str):
+                descriptions = [descriptions]
+            if not descriptions and isinstance(metadata.get("description"), str):
+                descriptions = [metadata["description"]]
+            def revision_links(values):
+                if isinstance(values, (str, dict)):
+                    values = [values]
+                if not isinstance(values, list):
+                    return []
+                links = []
+                for value in values:
+                    if isinstance(value, str):
+                        if default_group:
+                            links.append({"group_id": str(default_group), "revision_id": value})
+                    elif isinstance(value, dict) and value.get("group_id") and value.get("revision_id"):
+                        links.append({"group_id": str(value["group_id"]), "revision_id": str(value["revision_id"])})
+                return links
+            results.append({
+                "id": action.pk, "action": action.action, "action_type": action.action_type,
+                "performed_by": action.performed_by_id, "created_at": action.created_at,
+                "descriptions": descriptions,
+                "subject": {"id": str(record.pk), "roles": subject_roles},
+                "before": revision_links(metadata.get("before_revisions", [])),
+                "after": revision_links(metadata.get("after_revisions", metadata.get("revision_id", []))),
+            })
+        return Response({
+            "record_id": str(record.pk), "count": count,
+            "next": page + 1 if start + page_size < count else None,
+            "previous": page - 1 if page > 1 else None, "page": page, "page_size": page_size,
+            "results": results,
+        })
+
+
+class PlatformRecordExportView(PlatformRecordDetailView):
+    """Versioned JSON export of current or exact retained group state."""
+
+    def get(self, request, record_id):
+        from rest_framework.exceptions import NotFound
+        from helix_core.models import RecordRevisionGroup, RetainedContract
+        from helix_core.mod_system.contracts import parse_contract_json, _contract_references
+
+        record = self.get_record(request, record_id)
+        group_id = request.query_params.get("group_id")
+        revision_id = request.query_params.get("revision_id")
+        if revision_id and not group_id:
+            raise serializers.ValidationError({"group_id": "An exact revision export requires group_id."})
+        if group_id:
+            try:
+                group = record.revision_groups.get(pk=group_id)
+            except (RecordRevisionGroup.DoesNotExist, ValueError):
+                raise NotFound("Revision group not found.")
+            if revision_id:
+                try:
+                    revision = group.revisions.get(pk=revision_id)
+                except (group.revisions.model.DoesNotExist, ValueError):
+                    raise NotFound("Revision not found in this group.")
+            else:
+                revision = group.current_revision
+            if revision is None:
+                raise NotFound("Revision group has no current revision.")
+            values = revision.snapshot.get("field_values", {})
+            state = {"group_id": str(group.pk), "revision_id": str(revision.pk), "snapshot": revision.snapshot}
+        else:
+            values = record.field_values or {}
+            state = {"group_id": None, "revision_id": None, "snapshot": None}
+
+        references = set()
+        def collect(value):
+            if isinstance(value, dict):
+                contract = value.get("contract")
+                if isinstance(contract, dict) and {"kind", "id", "version"} <= contract.keys():
+                    references.add((contract["kind"], contract["id"], contract["version"]))
+                if value.get("type") == "contract" and {"kind", "id", "version"} <= value.keys():
+                    references.add((value["kind"], value["id"], value["version"]))
+                if value.get("kind") in {"data", "action"} and {"id", "version"} <= value.keys():
+                    references.add((value["kind"], value["id"], value["version"]))
+                for child in value.values():
+                    collect(child)
+            elif isinstance(value, list):
+                for child in value:
+                    collect(child)
+        collect(values)
+        definitions = {}
+        pending = list(references)
+        while pending:
+            kind, contract_id, version = pending.pop()
+            identity = (kind, contract_id, version)
+            if identity in definitions:
+                continue
+            retained = RetainedContract.objects.filter(kind=kind, contract_id=contract_id, version=version).first()
+            if retained is None:
+                continue
+            envelope = parse_contract_json(retained.canonical_envelope)
+            definitions[identity] = {"fingerprint": retained.fingerprint, "envelope": envelope}
+            pending.extend(_contract_references(envelope["definition"]))
+
+        fields = {column.get("id"): column for column in [*(record.schema.schema_type.columns or []), *(record.schema.columns or [])] if isinstance(column, dict)}
+        for column in fields.values():
+            ref = column.get("contract")
+            type_ref = column.get("type")
+            if ref is None and isinstance(type_ref, dict) and type_ref.get("type") == "contract":
+                ref = type_ref
+            if isinstance(ref, dict) and all(key in ref for key in ("kind", "id", "version")):
+                pending.append((ref["kind"], ref["id"], ref["version"]))
+        while pending:
+            kind, contract_id, version = pending.pop()
+            identity = (kind, contract_id, version)
+            if identity in definitions:
+                continue
+            retained = RetainedContract.objects.filter(kind=kind, contract_id=contract_id, version=version).first()
+            if retained is None:
+                continue
+            envelope = parse_contract_json(retained.canonical_envelope)
+            definitions[identity] = {"fingerprint": retained.fingerprint, "envelope": envelope}
+            pending.extend(_contract_references(envelope["definition"]))
+        try:
+            from helix_core.record_exports import attachment_metadata_for_export
+            attachments = attachment_metadata_for_export(record, state["snapshot"])
+            attachment_capability = {"available": True}
+        except Exception:
+            attachments = []
+            attachment_capability = {"available": False, "reason": "The optional Platform attachment metadata extension is unavailable."}
+        return Response({
+            "formatVersion": 1, "record": {
+                "id": str(record.pk), "display_id": record.display_id, "name": record.name,
+                "metadata": state["snapshot"].get("metadata", {}) if state["snapshot"] else (record.properties or {}),
+                "schema_id": state["snapshot"].get("schema_id", record.schema_id) if state["snapshot"] else record.schema_id,
+                "field_values": values,
+            },
+            "state": state,
+            "definitions": [{"kind": kind, "id": contract_id, "version": version, **entry}
+                            for (kind, contract_id, version), entry in sorted(definitions.items())],
+            "attachments": attachments,
+            "capabilities": {
+                "viewer": {"available": False, "reason": "No optional specialized viewer is installed; generic inspection is available."},
+                "attachmentMetadata": attachment_capability,
+            },
+        })
 
 
 class ActionCreateView(APIView):

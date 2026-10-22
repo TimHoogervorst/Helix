@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useSearchParams, useNavigate } from "react-router-dom";
 import { useEffect, useMemo } from "react";
-import { ArrowLeft, ChevronLeft, Dna } from "lucide-react";
+import { ArrowLeft, ChevronLeft, Dna, Database } from "lucide-react";
 import { get } from "../api/client";
 import { MentionProvider } from "../mentions/MentionProvider";
 import { ModRegistry } from "../mod-system/ModRegistry";
@@ -122,11 +122,14 @@ function Layout() {
     } else if (sortedHubs.length > 0) {
       // Group 2: Hub icons from the registry
       groups.push({
-        icons: sortedHubs.map((h) => ({
-          icon: <h.icon className="h-4 w-4" aria-hidden="true" />,
-          label: h.label,
-          onClick: () => navigate(h.route),
-        })),
+        icons: [
+          { icon: <Database className="h-4 w-4" aria-hidden="true" />, label: "Platform Records", onClick: () => navigate("/records") },
+          ...sortedHubs.map((h) => ({
+            icon: <h.icon className="h-4 w-4" aria-hidden="true" />,
+            label: h.label,
+            onClick: () => navigate(h.route),
+          })),
+        ],
       });
     }
 
@@ -200,6 +203,13 @@ function Layout() {
                   <>
                     <SidebarSection id="navigation" label="Navigation">
                       <nav className="nav-sidebar flex flex-col gap-0.5 px-2 pb-2">
+                        <Link
+                          to="/records"
+                          className={`inline-flex w-full items-center gap-2 rounded-md border border-transparent bg-transparent py-1.5 pl-3 pr-2 text-base text-[var(--color-ink)] font-[var(--font-body)] transition-colors hover:bg-[var(--color-surface-hover)] active:bg-[var(--color-surface-active)]${currentPath.startsWith("/records") ? " bg-muted font-medium text-foreground" : ""}`}
+                          aria-label="Platform Records"
+                        >
+                          <Database className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> Platform Records
+                        </Link>
                         {sortedHubs.map((h) => {
                           const Icon = h.icon;
                           return (

@@ -3,7 +3,7 @@
 from unittest.mock import patch
 from uuid import UUID, uuid4
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from bundled.access.access.models import Grant, ProjectRole
@@ -132,6 +132,136 @@ class PlatformRecordApiTests(TestCase):
             405,
         )
 
+    def test_public_record_readers_paginate_history_and_require_exact_revision_ownership(self):
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        record_id = created.data["id"]
+        revision_one = created.data["revision"]["id"]
+        changed = self.client.post(f"/api/records/{record_id}/form/", {
+            "state_token": created.data["state_token"],
+            "request_id": str(uuid4()),
+            "field_values": {"field-concentration": {"type": "number", "value": 2.5}},
+        }, format="json")
+        group_id = changed.data["revision"]["group_id"]
+
+        page = self.client.get(
+            f"/api/records/{record_id}/groups/{group_id}/revisions/?page=1&page_size=1"
+        )
+        self.assertEqual(page.status_code, 200, page.data)
+        self.assertEqual(page.data["count"], 2)
+        self.assertEqual(len(page.data["results"]), 1)
+        self.assertIsNotNone(page.data["next"])
+
+        exact = self.client.get(
+            f"/api/records/{record_id}/groups/{group_id}/revisions/{revision_one}/"
+        )
+        self.assertEqual(exact.status_code, 200, exact.data)
+        self.assertEqual(exact.data["snapshot"]["field_values"]["field-concentration"]["value"], 1.25)
+        self.assertEqual(self.client.get(
+            f"/api/records/{record_id}/groups/{uuid4()}/revisions/{revision_one}/"
+        ).status_code, 404)
+
+    def test_current_record_query_count_and_activity_are_subject_scoped(self):
+        first = self.client.post("/api/records/", self.create_payload(), format="json")
+        second = self.client.post("/api/records/", self.create_payload(name="Sample B"), format="json")
+        page = self.client.get("/api/records/?page=1&page_size=1")
+        self.assertEqual(page.status_code, 200, page.data)
+        self.assertEqual(page.data["count"], 2)
+        self.assertEqual(len(page.data["results"]), 1)
+
+        activity = self.client.get(f"/api/records/{first.data['id']}/actions/")
+        self.assertEqual(activity.status_code, 200, activity.data)
+        self.assertEqual(activity.data["count"], 1)
+        self.assertEqual(activity.data["results"][0]["subject"]["roles"], ["subject"])
+        self.assertNotEqual(activity.data["results"][0]["subject"]["id"], second.data["id"])
+
+    def test_current_history_and_export_apply_target_record_access(self):
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        record_id = created.data["id"]
+        group_id = created.data["revision"]["group_id"]
+        outsider = User.objects.create_user(username="record_outsider", password="pass")
+        self.client.force_authenticate(user=outsider)
+
+        self.assertEqual(self.client.get(f"/api/records/{record_id}/").status_code, 403)
+        self.assertEqual(self.client.get(f"/api/records/{record_id}/groups/{group_id}/revisions/").status_code, 403)
+        self.assertEqual(self.client.get(f"/api/records/{record_id}/export/").status_code, 403)
+        self.assertEqual(self.client.get("/api/records/").data["count"], 0)
+
+    def test_export_includes_exact_definition_closure_without_resolving_references(self):
+        nested = {
+            "formatVersion": 1, "kind": "data", "id": "fixture.science.unit-value",
+            "version": "1.0.0", "description": "Unit value",
+            "definition": {"type": {"type": "quantity", "valueType": "number", "unit": "mg/L", "description": "Mass concentration"}},
+        }
+        root = {
+            "formatVersion": 1, "kind": "data", "id": "fixture.science.measurement",
+            "version": "1.0.0", "description": "Measurement",
+            "definition": {"type": {"type": "object", "fields": {
+                "amount": {"type": "contract", "kind": "data", "id": nested["id"], "version": "1.0.0"},
+                "sample": {"type": "recordReference"},
+            }}},
+        }
+        for envelope in (nested, root):
+            RetainedContract.objects.create(
+                kind="data", contract_id=envelope["id"], version=envelope["version"],
+                fingerprint=contract_fingerprint(envelope),
+                canonical_envelope=canonical_json(envelope).decode("utf-8"),
+            )
+        schema_type = self.schema.schema_type
+        schema_type.columns = [{"id": "field-measurement", "name": "Measurement", "type": "contract", "contract": {
+            "kind": "data", "id": root["id"], "version": "1.0.0",
+        }}]
+        schema_type.save()
+        record = self.client.post("/api/records/", self.create_payload(field_values={
+            "field-measurement": {"type": "contract", "contract": {"kind": "data", "id": root["id"], "version": "1.0.0"}, "value": {
+                "amount": {"value": 2.5}, "sample": {"id": "inaccessible-target", "revision": "exact-revision"},
+            }},
+        }), format="json")
+        self.assertEqual(record.status_code, 201, record.data)
+
+        exported = self.client.get(f"/api/records/{record.data['id']}/export/")
+        self.assertEqual(exported.status_code, 200, exported.data)
+        self.assertEqual(exported.data["formatVersion"], 1)
+        self.assertEqual({item["id"] for item in exported.data["definitions"]}, {root["id"], nested["id"]})
+        self.assertEqual(exported.data["record"]["field_values"]["field-measurement"]["value"]["sample"]["id"], "inaccessible-target")
+        self.assertEqual(exported.data["attachments"], [])
+        self.assertFalse(exported.data["capabilities"]["attachmentMetadata"]["available"])
+        self.assertFalse(exported.data["capabilities"]["viewer"]["available"])
+
+        def failing_metadata_exporter(**_kwargs):
+            raise RuntimeError("optional metadata extension failed")
+
+        with override_settings(HELIX_ATTACHMENT_METADATA_EXPORTER=failing_metadata_exporter):
+            fallback = self.client.get(f"/api/records/{record.data['id']}/export/")
+        self.assertEqual(fallback.status_code, 200, fallback.data)
+        self.assertEqual(fallback.data["attachments"], [])
+        self.assertFalse(fallback.data["capabilities"]["attachmentMetadata"]["available"])
+
+    def test_schema_rename_remove_and_retype_keep_saved_values_and_bindings(self):
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        old_value = created.data["field_values"]["field-concentration"]
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        renamed = self.client.patch(f"/api/schemas/{self.schema.pk}/", {
+            "columns": [{"id": "field-concentration", "name": "Amount", "type": "number"}],
+        }, format="json")
+        self.assertEqual(renamed.status_code, 200, renamed.data)
+        retyped = self.client.patch(f"/api/schemas/{self.schema.pk}/", {
+            "columns": [{"id": "field-concentration", "name": "Amount", "type": "text"}],
+        }, format="json")
+        self.assertEqual(retyped.status_code, 200, retyped.data)
+        removed = self.client.patch(f"/api/schemas/{self.schema.pk}/", {"columns": []}, format="json")
+        self.assertEqual(removed.status_code, 200, removed.data)
+
+        current = self.client.get(f"/api/records/{created.data['id']}/")
+        self.assertEqual(current.status_code, 200, current.data)
+        self.assertEqual(current.data["field_values"]["field-concentration"], old_value)
+        history = self.client.get(
+            f"/api/records/{created.data['id']}/groups/{created.data['revision']['group_id']}/revisions/{created.data['revision']['id']}/"
+        )
+        self.assertEqual(history.status_code, 200, history.data)
+        self.assertEqual(history.data["snapshot"]["field_values"]["field-concentration"], old_value)
+
     def test_form_edit_creates_one_revision_and_same_request_returns_saved_outcome(self):
         created = self.client.post("/api/records/", self.create_payload(), format="json")
         self.assertEqual(created.status_code, 201, created.data)
@@ -202,6 +332,14 @@ class PlatformRecordApiTests(TestCase):
         self.assertEqual(
             response.data["field_values"]["field-concentration"]["contract"]["version"],
             "1.0.0",
+        )
+        exact = self.client.get(
+            f"/api/records/{response.data['id']}/groups/{response.data['revision']['group_id']}/revisions/{response.data['revision']['id']}/"
+        )
+        self.assertEqual(exact.status_code, 200, exact.data)
+        self.assertEqual(
+            exact.data["snapshot"]["field_values"]["field-concentration"]["contract"],
+            {"kind": "data", "id": envelope["id"], "version": "1.0.0"},
         )
 
         invalid = self.client.post("/api/records/", self.create_payload(field_values={

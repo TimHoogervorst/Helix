@@ -3,6 +3,8 @@ from rest_framework.routers import DefaultRouter
 
 from helix_core.views import (
     ActionCreateView,
+    ActionInvocationCollectionView,
+    ActionInvocationDetailView,
     ColorTokenViewSet,
     IconLibraryViewSet,
     ModRegistryView,
@@ -33,6 +35,8 @@ registry_router = DefaultRouter()
 registry_router.register(r"entities", EntityHubListView, basename="registry-entity")
 
 urlpatterns = [
+    path("action-invocations/", ActionInvocationCollectionView.as_view(), name="action-invocation-list"),
+    path("action-invocations/<str:invocation_id>/", ActionInvocationDetailView.as_view(), name="action-invocation-detail"),
     path("actions/execute/", RecordActionExecuteView.as_view(), name="record-action-execute"),
     path("records/", PlatformRecordCollectionView.as_view(), name="platform-record-list-create"),
     path("records/<uuid:record_id>/", PlatformRecordDetailView.as_view(), name="platform-record-detail"),

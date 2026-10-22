@@ -342,7 +342,7 @@ class RecordRevisionGroup(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     record = models.ForeignKey(
-        PlatformRecord, on_delete=models.CASCADE, related_name="revision_groups",
+        PlatformRecord, on_delete=models.SET_NULL, related_name="revision_groups",
         null=True, blank=True,
     )
     target_model_reference = models.CharField(max_length=255, blank=True, default="")
@@ -402,7 +402,7 @@ class ActionParticipant(models.Model):
         ActionLogEntry, on_delete=models.PROTECT, related_name="participants"
     )
     record = models.ForeignKey(
-        PlatformRecord, on_delete=models.PROTECT, related_name="action_participations",
+        PlatformRecord, on_delete=models.SET_NULL, related_name="action_participations",
         null=True, blank=True,
     )
     target_model_reference = models.CharField(max_length=255, blank=True, default="")
@@ -434,6 +434,34 @@ class ActionExecutionReceipt(models.Model):
         db_table = "helix_action_execution_receipt"
         constraints = [
             models.UniqueConstraint(fields=("actor", "request_id"), name="helix_action_receipt_actor_request_uniq")
+        ]
+
+
+class ActionInvocationReceipt(models.Model):
+    """Durable actor-scoped outcome for replaying a completed Action invocation."""
+
+    actor = models.ForeignKey(
+        "core.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="action_invocation_receipts",
+    )
+    # User primary keys are database-assigned and never reused. Keep this
+    # immutable scope after account deletion so an invocation ID cannot be
+    # claimed again and its audit receipt remains available.
+    actor_stable_id = models.CharField(max_length=255)
+    invocation_id = models.CharField(max_length=255)
+    fingerprint = models.CharField(max_length=64)
+    request_fingerprint = models.CharField(max_length=64)
+    target_ids = models.JSONField(default=dict)
+    outcome = models.JSONField()
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "helix_action_invocation_receipt"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("actor_stable_id", "invocation_id"),
+                name="helix_action_invocation_actor_id_uniq",
+            )
         ]
 
 

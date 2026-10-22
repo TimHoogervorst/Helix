@@ -9,6 +9,7 @@ schema types, and action catalogs) at ``GET /api/mod-registry/``.
 """
 
 import logging
+import json
 import uuid
 from django.http import HttpResponse
 
@@ -16,6 +17,7 @@ from django.db.models import F, FloatField, Q
 from django.db.models.functions import Cast
 from rest_framework import serializers, viewsets, mixins, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import APIException
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -511,10 +513,45 @@ class SchemaViewSet(viewsets.ModelViewSet):
             return SchemaListSerializer
         return SchemaWriteSerializer
 
+    def perform_create(self, serializer):
+        from django.db import transaction
+        from helix_core.models import SchemaType
+
+        schema_type_id = serializer.validated_data["schema_type"].pk
+        with transaction.atomic():
+            SchemaType.objects.select_for_update().get(pk=schema_type_id)
+            serializer.save()
+
+    def perform_update(self, serializer):
+        from django.db import transaction
+        from helix_core.models import Schema, SchemaType
+
+        current = serializer.instance
+        schema_type_ids = {current.schema_type_id}
+        proposed_type = serializer.validated_data.get("schema_type")
+        if proposed_type is not None:
+            schema_type_ids.add(proposed_type.pk)
+        with transaction.atomic():
+            list(SchemaType.objects.select_for_update().filter(
+                pk__in=schema_type_ids
+            ).order_by("pk"))
+            locked = Schema.objects.select_for_update().get(pk=current.pk)
+            if locked.schema_type_id not in schema_type_ids:
+                from helix_core.record_persistence import StateConflict
+                raise StateConflict("The Schema Type changed while this Schema edit was being prepared.")
+            serializer.instance = locked
+            serializer.save()
+
     def perform_destroy(self, instance):
         """Soft-delete: set is_active=False instead of removing the row."""
-        instance.is_active = False
-        instance.save(update_fields=["is_active"])
+        from django.db import transaction
+        from helix_core.models import Schema, SchemaType
+
+        with transaction.atomic():
+            SchemaType.objects.select_for_update().get(pk=instance.schema_type_id)
+            locked = Schema.objects.select_for_update().get(pk=instance.pk)
+            locked.is_active = False
+            locked.save(update_fields=["is_active"])
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -530,22 +567,26 @@ class SchemaViewSet(viewsets.ModelViewSet):
         from django.db.utils import OperationalError
 
         from helix_core.mod_system.registry import registry
-        for _provider, model in registry.content_source_models():
-            model.objects.all().delete()
-
-        try:
-            count, _ = Schema.objects.all().delete()
-        except OperationalError:
-            # If a test-only model (e.g. ConcreteTestEntity) has registered
-            # an FK to Schema but its table hasn't been created yet, the
-            # cascade collector will fail.  Fall back to a raw delete since
-            # all real referencing rows were already removed above.
-            from django.db import connection
-            count = Schema.objects.count()
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "DELETE FROM {}".format(Schema._meta.db_table)
-                )
+        from django.db import transaction
+        from helix_core.models import SchemaType
+        with transaction.atomic():
+            list(SchemaType.objects.select_for_update().order_by("pk"))
+            list(Schema.objects.select_for_update().order_by("pk"))
+            for _provider, model in registry.content_source_models():
+                model.objects.all().delete()
+            try:
+                count, _ = Schema.objects.all().delete()
+            except OperationalError:
+                # If a test-only model (e.g. ConcreteTestEntity) has registered
+                # an FK to Schema but its table hasn't been created yet, the
+                # cascade collector will fail. Fall back to a raw delete since
+                # all real referencing rows were already removed above.
+                from django.db import connection
+                count = Schema.objects.count()
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "DELETE FROM {}".format(Schema._meta.db_table)
+                    )
         return Response({"deleted": count})
 
 
@@ -610,18 +651,108 @@ class RecordActionExecuteView(APIView):
     def post(self, request):
         payload = RecordActionExecuteSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
-        from helix_core.record_persistence import execute_record_action
+        from helix_core.record_persistence import execute_action_invocation
 
-        result = execute_record_action(actor=request.user, **{
-            "record_id": payload.validated_data["record_id"],
-            "action_id": payload.validated_data["action"],
-            "contract_id": payload.validated_data["contract_id"],
-            "contract_version": payload.validated_data["contract_version"],
-            "state_token": payload.validated_data["state_token"],
-            "request_id": payload.validated_data["request_id"],
-            "inputs": payload.validated_data["inputs"],
-        })
-        return Response(result)
+        values = payload.validated_data
+        result = execute_action_invocation(
+            actor=request.user,
+            invocation_id=str(values["request_id"]),
+            sequence_fingerprint="legacy-single-action",
+            inputs=values["inputs"],
+            parameters={},
+            targets={"record": str(values["record_id"])},
+            expected_state={"record": {
+                "stateToken": str(values["state_token"]),
+            }},
+            providers={"action": values["action"]},
+        )
+        return Response(result["record"])
+
+
+class ActionInvocationSerializer(serializers.Serializer):
+    invocationId = serializers.CharField(max_length=255, allow_blank=False)
+    sequenceFingerprint = serializers.CharField(max_length=255, allow_blank=False)
+    inputs = serializers.JSONField()
+    parameters = serializers.JSONField()
+    targets = serializers.JSONField()
+    expectedState = serializers.JSONField()
+    providers = serializers.JSONField()
+
+
+class PayloadTooLarge(APIException):
+    status_code = 413
+    default_detail = "The Action invocation exceeds the supported payload limits."
+    default_code = "payload_too_large"
+
+
+def _check_invocation_limits(request, values):
+    content_length = request.META.get("CONTENT_LENGTH")
+    if content_length and int(content_length) > 10 * 1024 * 1024:
+        raise PayloadTooLarge()
+    if values is None:
+        return
+    try:
+        encoded = json.dumps(values, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    except (TypeError, ValueError):
+        return
+    if len(encoded) > 10 * 1024 * 1024:
+        raise PayloadTooLarge()
+    stack = [(values, 1)]
+    while stack:
+        value, depth = stack.pop()
+        if depth > 64:
+            raise PayloadTooLarge("Action invocation nesting exceeds 64 levels.")
+        if isinstance(value, dict):
+            stack.extend((child, depth + 1) for child in value.values())
+        elif isinstance(value, list):
+            if len(value) > 1000:
+                raise PayloadTooLarge("Action invocation arrays may contain at most 1000 rows.")
+            stack.extend((child, depth + 1) for child in value)
+
+
+class ActionInvocationCollectionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        _check_invocation_limits(request, None)
+        request_data = request.data
+        _check_invocation_limits(request, request_data)
+        payload = ActionInvocationSerializer(data=request_data)
+        payload.is_valid(raise_exception=True)
+        values = payload.validated_data
+        from helix_core.record_persistence import execute_action_invocation
+
+        outcome = execute_action_invocation(
+            actor=request.user,
+            invocation_id=values["invocationId"],
+            sequence_fingerprint=values["sequenceFingerprint"],
+            inputs=values["inputs"],
+            parameters=values["parameters"],
+            targets=values["targets"],
+            expected_state=values["expectedState"],
+            providers=values["providers"],
+        )
+        return Response({key: value for key, value in outcome.items() if key != "record"})
+
+
+class ActionInvocationDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, invocation_id):
+        from helix_core.models import ActionInvocationReceipt
+        from helix_core.record_persistence import _authorize_invocation_replay
+
+        receipt = ActionInvocationReceipt.objects.filter(
+            actor_stable_id=str(request.user.pk), invocation_id=invocation_id
+        ).first()
+        if receipt is None:
+            from rest_framework.exceptions import NotFound
+            raise NotFound("Action invocation not found.")
+        _authorize_invocation_replay(request.user, receipt)
+        outcome = dict(receipt.outcome)
+        outcome.pop("record", None)
+        outcome["replayed"] = True
+        return Response(outcome)
 
 
 class PlatformRecordCollectionView(APIView):

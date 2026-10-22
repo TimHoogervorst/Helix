@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Mapping
@@ -19,12 +20,25 @@ class StateConflict(APIException):
     default_code = "state_conflict"
 
 
+class ProviderUnavailable(APIException):
+    status_code = 503
+    default_detail = "The Action provider is currently unavailable."
+    default_code = "provider_unavailable"
+
+
+class ActionValidationError(APIException):
+    status_code = 422
+    default_detail = "The Action Contract or Schema does not support this invocation."
+    default_code = "action_validation_error"
+
+
 @dataclass(frozen=True)
 class ProposedEffects:
     """Read-only proposal returned by an Action provider for Platform validation."""
 
     field_values: Mapping[str, Mapping[str, Any]] | None = None
     metadata: Mapping[str, Any] | None = None
+    outputs: Mapping[str, Mapping[str, Any]] | None = None
 
 
 def _digest(value: Any) -> str:
@@ -115,6 +129,7 @@ def _record_response(record, revision=None, action=None) -> dict[str, Any]:
         "project_id": record.project_id,
         "source": {"kind": "project", "id": record.project_id},
         "schema_id": record.schema_id,
+        "schema_state": _schema_state(record),
         "field_values": record.field_values or {},
         "state_token": str(record.state_token),
         "revision": None if current is None else {
@@ -124,6 +139,20 @@ def _record_response(record, revision=None, action=None) -> dict[str, Any]:
             "content_hash": current.content_hash,
         },
         "action": None if action is None else {"id": action.pk, "identity": action.action},
+    }
+
+
+def _schema_state(record) -> dict[str, Any]:
+    """Return the exact editable Schema mapping observed for a record."""
+    schema = record.schema
+    schema_type = schema.schema_type
+    columns = [*(schema_type.columns or []), *(schema.columns or [])]
+    return {
+        "schemaId": schema.pk,
+        "schemaHash": schema.content_hash,
+        "schemaTypeId": schema_type.pk,
+        "schemaTypeHash": schema_type.content_hash,
+        "mappingHash": _digest(columns),
     }
 
 
@@ -338,6 +367,288 @@ def _validate_contract_value(type_node, value, where):
     if kind == "contract":
         if not isinstance(value, dict):
             raise ValidationError({"inputs": f"Input '{where}' must be a contract value."})
+
+
+def _require_current_read_access(actor, record):
+    from bundled.access.access.policies import effective_role
+
+    if effective_role(actor, record) not in {"read", "edit"}:
+        raise PermissionDenied("You no longer have permission to access this Action outcome.")
+
+
+@transaction.atomic
+def execute_action_invocation(
+    *, actor, invocation_id, sequence_fingerprint, inputs, parameters,
+    targets, expected_state, providers,
+):
+    """Execute one registered synchronous Action and persist its replay receipt."""
+    from helix_core.mod_system.contracts import parse_contract_json
+    from helix_core.mod_system.registry import registry
+    from helix_core.models import (
+        ActionInvocationReceipt, PlatformRecord, RetainedContract,
+    )
+
+    # The actor row is the portable transaction lock for the actor-scoped ID
+    # namespace. It serializes competing first uses even before a receipt row
+    # exists, and keeps the receipt check ahead of all mutable-state checks.
+    actor = type(actor).objects.select_for_update().get(pk=actor.pk)
+    requested = {
+        "sequenceFingerprint": sequence_fingerprint,
+        "inputs": inputs,
+        "parameters": parameters,
+        "targets": targets,
+        "expectedState": expected_state,
+        "providers": providers,
+    }
+    request_fingerprint = _digest({"actor": str(actor.pk), **requested})
+    receipt = ActionInvocationReceipt.objects.filter(
+        actor_stable_id=str(actor.pk), invocation_id=invocation_id
+    ).first()
+    if receipt is not None:
+        if receipt.request_fingerprint != request_fingerprint:
+            raise StateConflict("This invocation ID was already used for a different request.")
+        _authorize_invocation_replay(actor, receipt)
+        outcome = dict(receipt.outcome)
+        outcome["replayed"] = True
+        return outcome
+
+    if not isinstance(targets, dict) or set(targets) != {"record"}:
+        raise ValidationError({"targets": "A single Action must name exactly one record target."})
+    if not isinstance(expected_state, dict) or set(expected_state) != {"record"}:
+        raise ValidationError({"expectedState": "Expected state must name the record target."})
+    if not isinstance(providers, dict) or set(providers) != {"action"}:
+        raise ValidationError({"providers": "A single Action must select one action provider."})
+    if parameters not in ({}, None):
+        raise ActionValidationError({"parameters": "This Action declares no parameters."})
+    action_id = providers["action"]
+    if not isinstance(action_id, str) or not action_id:
+        raise ValidationError({"providers": "The action provider identity is required."})
+
+    try:
+        record_id = UUID(str(targets["record"]))
+        state = expected_state["record"]
+        expected_token = UUID(str(state["stateToken"]))
+        expected_revision_id = (
+            UUID(str(state["revisionId"])) if state.get("revisionId") is not None else None
+        )
+        expected_schema_state = state.get("schemaState")
+    except (KeyError, TypeError, ValueError, AttributeError):
+        raise ValidationError({"expectedState": "Record target and exact saved state are required."})
+    if sequence_fingerprint != "legacy-single-action" and (
+        expected_revision_id is None or expected_schema_state is None
+    ):
+        raise ValidationError({"expectedState": "Revision and Schema mapping state are required."})
+
+    try:
+        hint = PlatformRecord.objects.get(pk=record_id)
+    except (PlatformRecord.DoesNotExist, ValueError):
+        raise NotFound("Record not found.")
+
+    # Lock mutable rows in a stable parent-to-child order. Schema and access
+    # writes contend on the same rows; the record and Revision pointer are
+    # checked again after all locks are held.
+    from helix_core.core.models import Project
+    from helix_core.models import Schema, SchemaType
+    Project.objects.select_for_update().get(pk=hint.project_id)
+    schema_hint = Schema.objects.only("schema_type_id").get(pk=hint.schema_id)
+    SchemaType.objects.select_for_update().get(pk=schema_hint.schema_type_id)
+    Schema.objects.select_for_update().get(pk=hint.schema_id)
+    record = PlatformRecord.objects.select_for_update().select_related(
+        "schema__schema_type", "project"
+    ).get(pk=record_id)
+    _lock_record_access_rows(actor, record)
+    from bundled.access.access.policies import effective_role
+
+    if effective_role(actor, record) != "edit":
+        raise PermissionDenied("You do not have permission to execute an Action on this record.")
+    revision_group = record.revision_groups.select_for_update().select_related(
+        "current_revision"
+    ).get(group_key="record")
+    observed_schema_state = _schema_state(record)
+    if (
+        record.state_token != expected_token
+        or (expected_revision_id is not None and revision_group.current_revision_id != expected_revision_id)
+        or (expected_schema_state is not None and observed_schema_state != expected_schema_state)
+    ):
+        raise StateConflict("The record, Revision, or Schema mapping changed since it was loaded.")
+
+    registration = registry.get_record_action(action_id)
+    if registration is None:
+        raise ProviderUnavailable()
+    contract_id = registration["action_contract_id"]
+    contract_version = registration["action_contract_version"]
+    retained = RetainedContract.objects.filter(
+        kind="action", contract_id=contract_id, version=contract_version
+    ).first()
+    if retained is None:
+        raise ProviderUnavailable("The provider's exact Action Contract is unavailable.")
+    envelope = parse_contract_json(retained.canonical_envelope)
+    definition = envelope["definition"]
+    if definition.get("targets", {}).get("record") != "helix.record":
+        raise ActionValidationError({"contract": "The Action Contract does not target Platform records."})
+    if definition.get("effects", {}).get("record") != "edited":
+        raise ActionValidationError({"contract": "The Action Contract does not declare the record edit effect."})
+    if not isinstance(inputs, dict) or set(inputs) != set(definition.get("inputs", {})):
+        raise ActionValidationError({"inputs": "Inputs must match the Action Contract's declared ports."})
+    try:
+        for name, value in inputs.items():
+            _validate_contract_value(definition["inputs"][name], value, name)
+    except ValidationError as exc:
+        raise ActionValidationError(exc.detail)
+
+    server_fingerprint = _digest({
+        "actor": str(actor.pk), **requested,
+        "resolved": {
+            "recordId": str(record.pk),
+            "schemaState": observed_schema_state,
+            "provider": {
+                "actionId": action_id,
+                "modId": registration["provider_mod_id"],
+                "modVersion": registration["provider_mod_version"],
+                "contractId": contract_id,
+                "contractVersion": contract_version,
+            },
+        },
+    })
+    execution_started = time.monotonic()
+    deadline = execution_started + 30.0
+    context = _freeze({
+        "actor_id": actor.pk,
+        "record_id": str(record.pk),
+        "state_token": str(record.state_token),
+        "action_id": action_id,
+        "contract_id": contract_id,
+        "contract_version": contract_version,
+        "deadline_monotonic": deadline,
+    })
+    try:
+        proposed = registration["handler"](context, _freeze(inputs))
+    except ValidationError as exc:
+        raise ActionValidationError(exc.detail)
+    except Exception as exc:
+        raise ProviderUnavailable("The Action provider failed before proposing its effects.") from exc
+    if time.monotonic() > deadline:
+        raise ProviderUnavailable("The Action provider exceeded the 30 second execution budget.")
+    if not isinstance(proposed, ProposedEffects):
+        raise ActionValidationError({"effects": "Action providers must return ProposedEffects."})
+    if proposed.field_values is None and proposed.metadata is None:
+        raise ActionValidationError({"effects": "The provider proposed no declared record change."})
+    declared_outputs = definition.get("outputs", {})
+    output_values = proposed.outputs or {}
+    if set(output_values) != set(declared_outputs):
+        raise ActionValidationError({"outputs": "Provider outputs must match the Action Contract's declared ports."})
+    try:
+        for name, type_node in declared_outputs.items():
+            typed_value = output_values[name]
+            if not isinstance(typed_value, Mapping) or set(typed_value) != {"type", "value"}:
+                raise ValidationError({"outputs": f"Output '{name}' must contain type and value."})
+            expected_type = type_node.get("type") if isinstance(type_node, Mapping) else None
+            if typed_value["type"] != expected_type:
+                raise ValidationError({"outputs": f"Output '{name}' must use type '{expected_type}'."})
+            _validate_contract_value(type_node, typed_value["value"], name)
+    except ValidationError as exc:
+        raise ActionValidationError(exc.detail)
+
+    # Recheck the entire tracked read set after provider execution. The row
+    # locks prevent concurrent committed edits on PostgreSQL; these checks also
+    # catch writes performed by a provider on its current transaction.
+    record.refresh_from_db()
+    record.schema.refresh_from_db()
+    record.schema.schema_type.refresh_from_db()
+    revision_group.refresh_from_db()
+    if (
+        record.state_token != expected_token
+        or (expected_revision_id is not None and revision_group.current_revision_id != expected_revision_id)
+    ):
+        raise StateConflict("The record changed while the Action was being prepared.")
+    if _schema_state(record) != observed_schema_state or effective_role(actor, record) != "edit":
+        raise StateConflict("The Schema mapping or authorization changed while the Action was prepared.")
+
+    before_revision = revision_group.current_revision
+    before_state_token = record.state_token
+    try:
+        record_response = edit_record(
+            actor=actor,
+            record_id=record.pk,
+            state_token=record.state_token,
+            request_id=uuid4(),
+            field_values=dict(proposed.field_values) if proposed.field_values is not None else None,
+            metadata=dict(proposed.metadata) if proposed.metadata is not None else None,
+            action_identity=action_id,
+            provider_mod_id=registration["provider_mod_id"],
+            provider_mod_version=registration["provider_mod_version"],
+            action_contract={"id": contract_id, "version": contract_version},
+            request_hash=server_fingerprint,
+        )
+    except ValidationError as exc:
+        raise ActionValidationError(exc.detail)
+    from helix_core.models import ActionLogEntry
+    action = ActionLogEntry.objects.get(pk=record_response["action"]["id"])
+    outcome = {
+        "invocationId": invocation_id,
+        "actionId": action.pk,
+        "outputs": dict(output_values),
+        "providers": [{
+            "stepId": "action",
+            "actionId": action_id,
+            "modId": registration["provider_mod_id"],
+            "modVersion": registration["provider_mod_version"],
+            "contractId": contract_id,
+            "contractVersion": contract_version,
+        }],
+        "participants": [{
+            "targetRole": "record",
+            "targetType": "helix.record",
+            "targetId": str(record.pk),
+            "role": "subject",
+            "before": {
+                "revisionId": str(before_revision.pk),
+                "sequence": before_revision.sequence,
+                "stateToken": str(before_state_token),
+            },
+            "after": {
+                "revisionId": record_response["revision"]["id"],
+                "sequence": record_response["revision"]["sequence"],
+                "stateToken": record_response["state_token"],
+            },
+        }],
+        "replayed": False,
+        "record": record_response,
+    }
+    ActionInvocationReceipt.objects.create(
+        actor=actor,
+        actor_stable_id=str(actor.pk),
+        invocation_id=invocation_id,
+        fingerprint=server_fingerprint,
+        request_fingerprint=request_fingerprint,
+        target_ids={"record": str(record.pk)},
+        outcome=outcome,
+    )
+    return outcome
+
+
+def _lock_record_access_rows(actor, record):
+    from django.db.models import Q
+    from bundled.access.access.models import Grant, OrganizationMembership
+
+    team_ids = actor.groups.order_by("pk").values_list("pk", flat=True)
+    list(Grant.objects.select_for_update().filter(
+        Q(project_id=record.project_id), Q(user_id=actor.pk) | Q(team__group_id__in=team_ids)
+    ).order_by("pk"))
+    OrganizationMembership.objects.select_for_update().filter(user_id=actor.pk).first()
+    through = actor.groups.through
+    list(through.objects.select_for_update().filter(user_id=actor.pk).order_by("pk"))
+
+
+def _authorize_invocation_replay(actor, receipt):
+    from helix_core.models import PlatformRecord
+
+    record_id = receipt.target_ids.get("record")
+    try:
+        record = PlatformRecord.objects.select_related("project").get(pk=record_id)
+    except (PlatformRecord.DoesNotExist, ValueError, TypeError):
+        raise NotFound("The Action target is no longer available.")
+    _require_current_read_access(actor, record)
 
 
 @transaction.atomic

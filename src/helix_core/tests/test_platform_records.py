@@ -391,7 +391,7 @@ class PlatformRecordApiTests(TestCase):
             }),
         )
 
-        response = self.client.post("/api/actions/execute/", {
+        legacy_request = {
             "record_id": created.data["id"],
             "action": "fixture.science:edit-record",
             "contract_id": action_contract["id"],
@@ -399,7 +399,8 @@ class PlatformRecordApiTests(TestCase):
             "state_token": created.data["state_token"],
             "request_id": str(uuid4()),
             "inputs": {"concentration": 5.5},
-        }, format="json")
+        }
+        response = self.client.post("/api/actions/execute/", legacy_request, format="json")
 
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["field_values"]["field-concentration"]["value"], 5.5)
@@ -407,6 +408,136 @@ class PlatformRecordApiTests(TestCase):
         action = ActionLogEntry.objects.order_by("-pk").first()
         self.assertEqual(action.action, "fixture.science:edit-record")
         self.assertEqual(action.initiating_mod_id, "fixture.science")
+        self.backend_registry._record_actions.pop("fixture.science:edit-record")
+        retry = self.client.post("/api/actions/execute/", legacy_request, format="json")
+        self.assertEqual(retry.status_code, 200, retry.data)
+        self.assertEqual(retry.data, response.data)
+        self.assertEqual(ActionLogEntry.objects.count(), 2)
+
+    def test_action_invocation_returns_actor_scoped_recoverable_outcome(self):
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        action_contract = {
+            "formatVersion": 1, "kind": "action", "id": "fixture.science.edit-record",
+            "version": "1.0.0", "description": "Edit a scientific record",
+            "definition": {
+                "inputs": {"concentration": {"type": "number"}}, "parameters": {},
+                "outputs": {"concentration": {"type": "number"}},
+                "targets": {"record": "helix.record"}, "effects": {"record": "edited"},
+            },
+        }
+        RetainedContract.objects.create(
+            kind="action", contract_id=action_contract["id"], version="1.0.0",
+            fingerprint=contract_fingerprint(action_contract),
+            canonical_envelope=canonical_json(action_contract).decode("utf-8"),
+        )
+        registrar = ModRegistrar(ModManifest(
+            id="fixture.science", display_name="Fixture Science", version="1.0.0",
+            requires_helix=">=1.0.0", artifacts=("backend",), depends_on=(),
+        ), self.backend_registry)
+        registrar.register_record_action(
+            "edit-record", label="Edit record", action_contract_id=action_contract["id"],
+            action_contract_version="1.0.0",
+            handler=lambda context, inputs: ProposedEffects(field_values={
+                "field-concentration": {"type": "number", "value": inputs["concentration"]},
+            }, outputs={"concentration": {"type": "number", "value": inputs["concentration"]}}),
+        )
+        invocation = {
+            "invocationId": "lab-run-2026-17",
+            "inputs": {"concentration": 5.5},
+            "parameters": {},
+            "targets": {"record": created.data["id"]},
+            "expectedState": {"record": {
+                "stateToken": created.data["state_token"],
+                "revisionId": created.data["revision"]["id"],
+                "schemaState": created.data["schema_state"],
+            }},
+            "providers": {"action": "fixture.science:edit-record"},
+        }
+        invocation["sequenceFingerprint"] = "client-sequence-fingerprint"
+
+        invalid_inputs = {**invocation, "invocationId": "invalid-inputs", "inputs": {"concentration": "high"}}
+        invalid = self.client.post("/api/action-invocations/", invalid_inputs, format="json")
+        self.assertEqual(invalid.status_code, 422, invalid.data)
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
+
+        first = self.client.post("/api/action-invocations/", invocation, format="json")
+        self.assertEqual(first.status_code, 200, first.data)
+        self.assertEqual(first.data["invocationId"], invocation["invocationId"])
+        self.assertFalse(first.data["replayed"])
+        self.assertEqual(first.data["participants"][0]["after"]["sequence"], 2)
+        self.assertEqual(first.data["outputs"]["concentration"]["value"], 5.5)
+
+        # A retained receipt works without loading an executable provider.
+        self.backend_registry._record_actions.pop("fixture.science:edit-record")
+
+        # Replay is a receipt lookup: it remains available after later edits and
+        # does not invoke the provider or manufacture a new Action.
+        later = self.client.post(f"/api/records/{created.data['id']}/form/", {
+            "state_token": first.data["participants"][0]["after"]["stateToken"],
+            "request_id": str(uuid4()),
+            "field_values": {"field-concentration": {"type": "number", "value": 9.0}},
+        }, format="json")
+        self.assertEqual(later.status_code, 200, later.data)
+        replay = self.client.post("/api/action-invocations/", invocation, format="json")
+        self.assertEqual(replay.status_code, 200, replay.data)
+        self.assertTrue(replay.data["replayed"])
+        self.assertEqual(replay.data["actionId"], first.data["actionId"])
+        self.assertEqual(ActionLogEntry.objects.count(), 3)
+        recovered = self.client.get("/api/action-invocations/lab-run-2026-17/")
+        self.assertEqual(recovered.status_code, 200, recovered.data)
+        self.assertTrue(recovered.data["replayed"])
+        self.assertEqual(recovered.data["actionId"], first.data["actionId"])
+        Grant.objects.filter(project=self.project, user=self.user).delete()
+        denied_recovery = self.client.get("/api/action-invocations/lab-run-2026-17/")
+        self.assertEqual(denied_recovery.status_code, 403)
+        PlatformRecord.objects.get(pk=created.data["id"]).delete()
+        missing_recovery = self.client.get("/api/action-invocations/lab-run-2026-17/")
+        self.assertEqual(missing_recovery.status_code, 404)
+        missing_retry = self.client.post("/api/action-invocations/", invocation, format="json")
+        self.assertEqual(missing_retry.status_code, 404)
+        self.assertEqual(PlatformRecord.objects.count(), 0)
+        self.assertEqual(ActionLogEntry.objects.count(), 3)
+
+        changed = {**invocation, "inputs": {"concentration": 8.5}}
+        conflict = self.client.post("/api/action-invocations/", changed, format="json")
+        self.assertEqual(conflict.status_code, 409, conflict.data)
+
+    def test_action_invocation_requires_current_record_and_expected_schema_state(self):
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        self.schema.columns = [{"id": "field-concentration", "name": "Changed", "type": "number"}]
+        self.schema.save()
+        response = self.client.post("/api/action-invocations/", {
+            "invocationId": "stale-run",
+            "sequenceFingerprint": "stale-sequence",
+            "inputs": {}, "parameters": {},
+            "targets": {"record": created.data["id"]},
+            "expectedState": {"record": {
+                "stateToken": created.data["state_token"],
+                "revisionId": created.data["revision"]["id"],
+                "schemaState": created.data["schema_state"],
+            }},
+            "providers": {"action": "missing:provider"},
+        }, format="json")
+        self.assertEqual(response.status_code, 409, response.data)
+
+    def test_action_invocation_enforces_nested_payload_limit(self):
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        too_deep = []
+        for _ in range(65):
+            too_deep = [too_deep]
+        response = self.client.post("/api/action-invocations/", {
+            "invocationId": "too-deep",
+            "sequenceFingerprint": "deep-sequence",
+            "inputs": {"nested": too_deep}, "parameters": {},
+            "targets": {"record": created.data["id"]},
+            "expectedState": {"record": {
+                "stateToken": created.data["state_token"],
+                "revisionId": created.data["revision"]["id"],
+                "schemaState": created.data["schema_state"],
+            }},
+            "providers": {"action": "missing:provider"},
+        }, format="json")
+        self.assertEqual(response.status_code, 413, response.data)
 
     def test_legacy_action_log_cannot_create_a_separate_record_success_path(self):
         response = self.client.post("/api/actions/", {

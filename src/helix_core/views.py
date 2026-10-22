@@ -576,6 +576,186 @@ class FormulaEvaluateView(APIView):
         return Response({"results": results})
 
 
+class PlatformRecordCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=500)
+    project_id = serializers.IntegerField()
+    schema_id = serializers.IntegerField()
+    field_values = serializers.JSONField()
+    metadata = serializers.JSONField(required=False, default=dict)
+    request_id = serializers.UUIDField(required=False)
+
+
+class PlatformRecordEditSerializer(serializers.Serializer):
+    state_token = serializers.UUIDField()
+    request_id = serializers.UUIDField()
+    field_values = serializers.JSONField(required=False)
+    metadata = serializers.JSONField(required=False)
+
+
+class RecordActionExecuteSerializer(serializers.Serializer):
+    record_id = serializers.UUIDField()
+    action = serializers.CharField(max_length=255)
+    contract_id = serializers.CharField(max_length=255)
+    contract_version = serializers.CharField(max_length=64)
+    state_token = serializers.UUIDField()
+    request_id = serializers.UUIDField()
+    inputs = serializers.JSONField()
+
+
+class RecordActionExecuteView(APIView):
+    """Invoke a declared provider and route its proposed effects to persistence."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        payload = RecordActionExecuteSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        from helix_core.record_persistence import execute_record_action
+
+        result = execute_record_action(actor=request.user, **{
+            "record_id": payload.validated_data["record_id"],
+            "action_id": payload.validated_data["action"],
+            "contract_id": payload.validated_data["contract_id"],
+            "contract_version": payload.validated_data["contract_version"],
+            "state_token": payload.validated_data["state_token"],
+            "request_id": payload.validated_data["request_id"],
+            "inputs": payload.validated_data["inputs"],
+        })
+        return Response(result)
+
+
+class PlatformRecordCollectionView(APIView):
+    """Generic list and create boundary for Mod-independent records."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from bundled.access.access.policies import role
+        from helix_core.models import PlatformRecord
+
+        rows = PlatformRecord.objects.select_related("schema", "project").order_by("created_at")
+        rows = [row for row in rows if role(request.user, row.project) in {"read", "edit"}]
+        from helix_core.record_persistence import _record_response
+
+        return Response({"count": len(rows), "results": [_record_response(row) for row in rows]})
+
+    def post(self, request):
+        from bundled.access.access.policies import role
+        from helix_core.core.models import Project
+        from helix_core.models import Schema
+        from helix_core.record_persistence import create_record
+
+        payload = PlatformRecordCreateSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        values = payload.validated_data
+        try:
+            project = Project.objects.get(pk=values["project_id"])
+            schema = Schema.objects.select_related("schema_type").get(pk=values["schema_id"])
+        except (Project.DoesNotExist, Schema.DoesNotExist):
+            raise serializers.ValidationError("Project or Schema does not exist.")
+        if role(request.user, project) != "edit":
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You do not have permission to create records in this Project.")
+        response = create_record(
+            actor=request.user,
+            project=project,
+            schema=schema,
+            name=values["name"],
+            field_values=values["field_values"],
+            metadata=values.get("metadata"),
+            request_id=values.get("request_id", uuid.uuid4()),
+        )
+        return Response(response, status=status.HTTP_201_CREATED)
+
+
+class PlatformRecordDetailView(APIView):
+    """Generic read and form execution endpoints for a Platform record."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get_record(self, request, record_id):
+        from bundled.access.access.policies import role
+        from helix_core.models import PlatformRecord
+        from rest_framework.exceptions import NotFound, PermissionDenied
+
+        try:
+            record = PlatformRecord.objects.select_related("schema__schema_type", "project").get(pk=record_id)
+        except (PlatformRecord.DoesNotExist, ValueError):
+            raise NotFound("Record not found.")
+        if role(request.user, record.project) not in {"read", "edit"}:
+            raise PermissionDenied("You do not have permission to read this record.")
+        return record
+
+    def get(self, request, record_id):
+        from helix_core.record_persistence import _record_response
+        return Response(_record_response(self.get_record(request, record_id)))
+
+    def get_form(self, request, record_id):
+        record = self.get_record(request, record_id)
+        from helix_core.record_persistence import _record_response, _schema_fields
+        response = _record_response(record)
+        response["fields"] = [
+            {"id": field_id, **column}
+            for field_id, column in _schema_fields(record).items()
+        ]
+        return Response(response)
+
+    def get_revisions(self, request, record_id):
+        record = self.get_record(request, record_id)
+        revisions = []
+        for group in record.revision_groups.prefetch_related("revisions").all():
+            revisions.append({
+                "group_id": str(group.pk),
+                "group_key": group.group_key,
+                "current_revision_id": str(group.current_revision_id),
+                "revisions": [
+                    {
+                        "id": str(revision.pk),
+                        "sequence": revision.sequence,
+                        "content_hash": revision.content_hash,
+                        "snapshot": revision.snapshot,
+                        "created_at": revision.created_at,
+                    }
+                    for revision in group.revisions.all()
+                ],
+            })
+        return Response({"record_id": str(record.pk), "groups": revisions})
+
+    def post_form(self, request, record_id):
+        record = self.get_record(request, record_id)
+        from helix_core.record_persistence import edit_record
+
+        payload = PlatformRecordEditSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        values = payload.validated_data
+        response = edit_record(
+            actor=request.user,
+            record_id=record.pk,
+            state_token=values["state_token"],
+            request_id=values["request_id"],
+            field_values=values.get("field_values"),
+            metadata=values.get("metadata"),
+        )
+        return Response(response)
+
+
+class PlatformRecordFormView(PlatformRecordDetailView):
+    """Read and submit the generic field form for a record."""
+
+    def get(self, request, record_id):
+        return self.get_form(request, record_id)
+
+    def post(self, request, record_id):
+        return self.post_form(request, record_id)
+
+
+class PlatformRecordRevisionsView(PlatformRecordDetailView):
+    """Read-only history inspection for the record's immutable snapshots."""
+
+    def get(self, request, record_id):
+        return self.get_revisions(request, record_id)
+
+
 class ActionCreateView(APIView):
     """Unified endpoint for all action logging.
 
@@ -634,6 +814,11 @@ class ActionCreateView(APIView):
                 "'read' actions are not persisted.  Read participates "
                 "in authorization and policy discovery but never creates "
                 "an Action Log Entry and never appears in Activity."
+            )
+
+        if target_type == "helix.record":
+            raise serializers.ValidationError(
+                "Platform record mutations must execute through /api/actions/execute/."
             )
 
         # ── validate action against the workspace's catalog ─────────────

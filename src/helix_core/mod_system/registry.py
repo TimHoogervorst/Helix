@@ -76,6 +76,7 @@ class BackendModRegistry:
         # ── storage ──────────────────────────────────────────────────────
         self._action_models: dict[str, type] = {}
         self._action_providers: dict[str, tuple[str, str]] = {}
+        self._record_actions: dict[str, dict[str, Any]] = {}
         self._url_patterns: dict[str, list] = defaultdict(list)
         self._settings: dict[str, dict[str, Any]] = defaultdict(dict)
         self._signal_registrations: list[dict[str, Any]] = []
@@ -642,6 +643,45 @@ class BackendModRegistry:
         self._persist_action_definition(mod_id, "created", "Created", "created", None, mod_id, version)
         self._persist_action_definition(mod_id, "edited", "Edited", "edited", None, mod_id, version)
         self._persist_action_definition(mod_id, "deleted", "Deleted", "deleted", None, mod_id, version)
+
+    def register_record_action(
+        self,
+        mod_id: str,
+        action_id: str,
+        label: str,
+        action_contract_id: str,
+        action_contract_version: str,
+        handler,
+        *,
+        provider_mod_id: str,
+        provider_mod_version: str,
+    ) -> None:
+        """Register an executor that can propose effects for Platform validation."""
+        if not callable(handler):
+            raise TypeError("Record Action handlers must be callable")
+        self._record_actions[action_id] = {
+            "mod_id": mod_id,
+            "action_id": action_id,
+            "label": label,
+            "action_contract_id": action_contract_id,
+            "action_contract_version": action_contract_version,
+            "handler": handler,
+            "provider_mod_id": provider_mod_id,
+            "provider_mod_version": provider_mod_version,
+        }
+        self._custom_actions[mod_id][action_id] = {
+            "id": action_id,
+            "label": label,
+            "action_type": "edited",
+            "target_model": "helix.record",
+            "provider_mod_id": provider_mod_id,
+            "provider_mod_version": provider_mod_version,
+        }
+
+    def get_record_action(self, action_id: str) -> dict[str, Any] | None:
+        """Return a registered Record Action including its executable handler."""
+        action = self._record_actions.get(action_id)
+        return dict(action) if action is not None else None
 
     @staticmethod
     def _persist_action_definition(

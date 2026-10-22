@@ -13,6 +13,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils import timezone
+from helix_core.abstracts import AbstractEntity
 
 
 # ── Shared column-ID + content-hash pipeline ──────────────────────────────
@@ -319,6 +320,121 @@ class ActionLogEntry(models.Model):
             return int(self.target_object_id)
         except (TypeError, ValueError):
             return self.target_object_id
+
+
+class PlatformRecord(AbstractEntity):
+    """Platform-owned scientific record independent of any Mod model."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    field_values = models.JSONField(default=dict, blank=True)
+    state_token = models.UUIDField(default=uuid.uuid4, editable=False)
+
+    class Meta:
+        db_table = "helix_platform_record"
+        ordering = ["-created_at"]
+
+    def _get_display_id_prefix(self):
+        return self.schema.prefix
+
+
+class RecordRevisionGroup(models.Model):
+    """Stable identity and current pointer for a record's immutable field snapshot."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    record = models.ForeignKey(
+        PlatformRecord, on_delete=models.CASCADE, related_name="revision_groups",
+        null=True, blank=True,
+    )
+    target_model_reference = models.CharField(max_length=255, blank=True, default="")
+    target_object_id = models.CharField(max_length=255, blank=True, default="")
+    group_key = models.CharField(max_length=100, default="record")
+    current_revision = models.ForeignKey(
+        "ScientificRevision", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="current_for_groups",
+    )
+
+    class Meta:
+        db_table = "helix_record_revision_group"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("target_model_reference", "target_object_id", "group_key"),
+                name="helix_record_revision_target_group_uniq",
+            )
+        ]
+
+
+class ScientificRevision(models.Model):
+    """Immutable full snapshot of a record Revision Group."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    group = models.ForeignKey(
+        RecordRevisionGroup, on_delete=models.CASCADE, related_name="revisions"
+    )
+    sequence = models.PositiveIntegerField()
+    snapshot = models.JSONField()
+    content_hash = models.CharField(max_length=64)
+    created_by = models.ForeignKey(
+        "core.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="scientific_revisions",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "helix_scientific_revision"
+        ordering = ["sequence"]
+        constraints = [
+            models.UniqueConstraint(fields=("group", "sequence"), name="helix_revision_group_sequence_uniq")
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and type(self).objects.filter(pk=self.pk).exists():
+            raise ValueError("ScientificRevision is immutable")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("ScientificRevision is immutable")
+
+
+class ActionParticipant(models.Model):
+    """A record's explicit role in one authoritative Platform Action."""
+
+    action = models.ForeignKey(
+        ActionLogEntry, on_delete=models.PROTECT, related_name="participants"
+    )
+    record = models.ForeignKey(
+        PlatformRecord, on_delete=models.PROTECT, related_name="action_participations",
+        null=True, blank=True,
+    )
+    target_model_reference = models.CharField(max_length=255, blank=True, default="")
+    target_object_id = models.CharField(max_length=255, blank=True, default="")
+    role = models.CharField(max_length=100)
+
+    class Meta:
+        db_table = "helix_action_participant"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("action", "target_model_reference", "target_object_id", "role"),
+                name="helix_action_participant_role_uniq",
+            )
+        ]
+
+
+class ActionExecutionReceipt(models.Model):
+    """Actor-scoped saved result for retrying a completed record mutation."""
+
+    actor = models.ForeignKey(
+        "core.User", on_delete=models.CASCADE, related_name="record_action_receipts"
+    )
+    request_id = models.UUIDField()
+    request_hash = models.CharField(max_length=64)
+    response = models.JSONField()
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "helix_action_execution_receipt"
+        constraints = [
+            models.UniqueConstraint(fields=("actor", "request_id"), name="helix_action_receipt_actor_request_uniq")
+        ]
 
 
 # ── Entity Hub View (unmanaged — backed by PostgreSQL VIEW) ──────────────

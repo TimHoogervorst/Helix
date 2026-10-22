@@ -821,18 +821,27 @@ def _resolve_record_source(actor, source, type_node, where):
         raise ActionValidationError({"inputs": f"Input '{where}' has an invalid stable field ID."})
     stored = revision.snapshot.get("field_values", {}).get(field_id)
     column = _schema_fields(target).get(field_id)
-    if not isinstance(stored, Mapping) or column is None:
+    if not isinstance(stored, Mapping) or (mode == "current" and column is None):
         raise ActionValidationError({"inputs": f"Input '{where}' references an unavailable stable field."})
-    source_type = column.get("type")
-    if isinstance(source_type, str):
-        source_type = {"type": {"text": "string", "textarea": "string", "dropdown": "string",
-                                  "integer": "number", "float": "number", "decimal": "number"}.get(source_type, source_type)}
-    elif isinstance(source_type, Mapping) and source_type.get("type") == "contract":
-        source_type = {key: value for key, value in source_type.items() if key != "type"}
-        source_type = {"type": "contract", **source_type}
-    if column.get("contract"):
-        source_type = {"type": "contract", **column["contract"]}
-    if source_type != type_node or stored.get("type") != ("contract" if type_node.get("type") == "contract" else type_node.get("type")):
+    if mode == "exact":
+        # An exact Revision carries its own stable field type and, for a
+        # Data Contract, its exact retained binding. The live Schema may have
+        # removed or retyped this field since that Revision was captured.
+        source_type = {"type": stored.get("type")}
+        if stored.get("type") == "contract" and isinstance(stored.get("contract"), Mapping):
+            source_type.update(stored["contract"])
+    else:
+        source_type = column.get("type")
+        if isinstance(source_type, str):
+            source_type = {"type": {"text": "string", "textarea": "string", "dropdown": "string",
+                                      "integer": "number", "float": "number", "decimal": "number"}.get(source_type, source_type)}
+        elif isinstance(source_type, Mapping) and source_type.get("type") == "contract":
+            source_type = {key: value for key, value in source_type.items() if key != "type"}
+            source_type = {"type": "contract", **source_type}
+        if column.get("contract"):
+            source_type = {"type": "contract", **column["contract"]}
+    stored_type = "contract" if type_node.get("type") == "contract" else type_node.get("type")
+    if source_type != type_node or stored.get("type") != stored_type:
         raise ActionValidationError({"inputs": f"Input '{where}' has an incompatible saved Record field type."})
     value = _thaw(stored.get("value"))
     try:
@@ -851,7 +860,7 @@ def execute_action_invocation(
     from helix_core.mod_system.contracts import parse_contract_json
     from helix_core.mod_system.registry import registry
     from helix_core.models import (
-        ActionInvocationReceipt, PlatformRecord, RetainedContract,
+        ActionInvocationReceipt, PlatformRecord, RetainedContract, Schema,
     )
 
     # The actor row is the portable transaction lock for the actor-scoped ID
@@ -942,12 +951,9 @@ def execute_action_invocation(
     except (PlatformRecord.DoesNotExist, ValueError):
         raise NotFound("Record not found.")
 
-    # Lock mutable rows in a stable parent-to-child order. Schema and access
-    # writes contend on the same rows; the record and Revision pointer are
-    # checked again after all locks are held.
-    from helix_core.core.models import Project
-    from helix_core.models import Schema, SchemaType
-    Project.objects.select_for_update().get(pk=hint.project_id)
+    # Lock the primary record and every saved Record Reference source as one
+    # set. Acquiring the primary row first and sources later lets two
+    # invocations deadlock when each record is the other's source.
     schema_ids = {hint.schema_id}
     schema_parameters = [parameters] if steps is None else [item.get("parameters", {}) for item in steps]
     requested_schema = next((item.get("schemaId") for item in reversed(schema_parameters) if isinstance(item, dict) and item.get("schemaId") is not None), None)
@@ -956,17 +962,13 @@ def execute_action_invocation(
             schema_ids.add(int(requested_schema))
         except (TypeError, ValueError):
             raise ActionValidationError({"parameters": "schemaId must identify an available Schema."})
-    schema_hints = list(Schema.objects.filter(pk__in=schema_ids).values_list("pk", "schema_type_id"))
-    if len(schema_hints) != len(schema_ids):
-        raise NotFound("A target Schema is no longer available.")
-    for schema_type_id in sorted({schema_type_id for _, schema_type_id in schema_hints}):
-        SchemaType.objects.select_for_update().get(pk=schema_type_id)
-    for schema_id in sorted(schema_ids):
-        Schema.objects.select_for_update().get(pk=schema_id)
-    record = PlatformRecord.objects.select_for_update().select_related(
-        "schema__schema_type", "project"
-    ).get(pk=record_id)
-    _lock_record_access_rows(actor, record)
+    locked_records = _lock_invocation_record_set(
+        actor=actor,
+        primary_record_id=record_id,
+        schema_ids=schema_ids,
+        sequence_declaration=sequence_declaration,
+    )
+    record = locked_records[record_id]
     from bundled.access.access.policies import effective_role
 
     if effective_role(actor, record) != "edit":
@@ -1816,6 +1818,69 @@ def _lock_record_access_rows(actor, record):
     OrganizationMembership.objects.select_for_update().filter(user_id=actor.pk).first()
     through = actor.groups.through
     list(through.objects.select_for_update().filter(user_id=actor.pk).order_by("pk"))
+
+
+def _lock_invocation_record_set(*, actor, primary_record_id, schema_ids, sequence_declaration):
+    """Lock every record an invocation can touch using one global row order.
+
+    The order follows the shared write protocol: Project, SchemaType, Schema,
+    PlatformRecord, then access rows. Sorting each level means two invocations
+    that use one another's primary records as sources cannot acquire record
+    locks in opposite orders.
+    """
+    from django.db.models import Q
+    from helix_core.core.models import Project
+    from helix_core.models import PlatformRecord, Schema, SchemaType
+
+    primary_id = UUID(str(primary_record_id))
+    source_uuids, source_display_ids = set(), set()
+    if isinstance(sequence_declaration, Mapping):
+        for step in sequence_declaration.get("steps", []):
+            if not isinstance(step, Mapping) or not isinstance(step.get("inputs"), Mapping):
+                continue
+            for connection in step["inputs"].values():
+                if not isinstance(connection, Mapping) or connection.get("kind") != "record":
+                    continue
+                reference = connection.get("reference")
+                entity_id = reference.get("entityId") if isinstance(reference, Mapping) else None
+                if not isinstance(entity_id, str) or not entity_id:
+                    continue
+                try:
+                    source_uuids.add(UUID(entity_id))
+                except (TypeError, ValueError):
+                    source_display_ids.add(entity_id)
+
+    lookup = Q(pk=primary_id)
+    if source_uuids:
+        lookup |= Q(pk__in=source_uuids)
+    if source_display_ids:
+        lookup |= Q(display_id__in=source_display_ids)
+    hints = list(PlatformRecord.objects.filter(lookup).values("pk", "project_id", "schema_id"))
+    if not any(item["pk"] == primary_id for item in hints):
+        raise NotFound("Record not found.")
+
+    project_ids = sorted({item["project_id"] for item in hints})
+    list(Project.objects.select_for_update().filter(pk__in=project_ids).order_by("pk"))
+
+    all_schema_ids = {item["schema_id"] for item in hints} | set(schema_ids)
+    schema_hints = list(
+        Schema.objects.filter(pk__in=all_schema_ids).values_list("pk", "schema_type_id")
+    )
+    if len(schema_hints) != len(all_schema_ids):
+        raise NotFound("A target Schema is no longer available.")
+    schema_type_ids = sorted({schema_type_id for _, schema_type_id in schema_hints})
+    list(SchemaType.objects.select_for_update().filter(pk__in=schema_type_ids).order_by("pk"))
+    list(Schema.objects.select_for_update().filter(pk__in=all_schema_ids).order_by("pk"))
+
+    record_ids = sorted({item["pk"] for item in hints})
+    records = list(
+        PlatformRecord.objects.select_for_update().select_related(
+            "schema__schema_type", "project"
+        ).filter(pk__in=record_ids).order_by("pk")
+    )
+    for record in records:
+        _lock_record_access_rows(actor, record)
+    return {record.pk: record for record in records}
 
 
 def lock_record_revision_for_update(

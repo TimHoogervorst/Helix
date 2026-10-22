@@ -150,6 +150,72 @@ class ActionInvocationPostgresRaceTests(TransactionTestCase):
         self.assertEqual(self.calls, 1)
         self.assertEqual(ActionLogEntry.objects.count(), 2)
 
+    def test_cross_project_primary_and_source_locks_use_one_global_order(self):
+        from helix_core.models import PlatformRecord
+        from helix_core.record_persistence import _lock_invocation_record_set
+
+        other_user = User.objects.create_user(username="action_racer_other", password="pass")
+        other_project = Project.objects.create(name="Other Action Race")
+        for project in (self.project, other_project):
+            Grant.objects.get_or_create(
+                project=project, user=self.user, defaults={"role": ProjectRole.EDIT}
+            )
+            Grant.objects.get_or_create(
+                project=project, user=other_user, defaults={"role": ProjectRole.EDIT}
+            )
+        client = APIClient()
+        client.force_authenticate(other_user)
+        response = client.post("/api/records/", {
+            "name": "Other project record", "project_id": other_project.pk,
+            "schema_id": self.schema.pk,
+            "field_values": {"field-value": {"type": "number", "value": 1}},
+        }, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        primary_one = PlatformRecord.objects.get(pk=self.record["id"])
+        primary_two = PlatformRecord.objects.get(pk=response.data["id"])
+        barrier = threading.Barrier(3)
+        outcomes = [None, None]
+        connection_ids = [None, None]
+
+        def lock_pair(index, actor_id, primary, source):
+            close_old_connections()
+            try:
+                with transaction.atomic():
+                    actor = User.objects.select_for_update().get(pk=actor_id)
+                    barrier.wait(timeout=10)
+                    declaration = {"steps": [{"inputs": {"measurement": {
+                        "kind": "record", "reference": {"mode": "exact", "entityId": str(source.pk)},
+                    }}}]}
+                    locked = _lock_invocation_record_set(
+                        actor=actor,
+                        primary_record_id=primary.pk,
+                        schema_ids={primary.schema_id},
+                        sequence_declaration=declaration,
+                    )
+                    outcomes[index] = set(locked)
+                    connection_ids[index] = connections["default"].connection
+            except Exception as exc:  # surfaced in the parent assertion
+                outcomes[index] = exc
+            finally:
+                connections.close_all()
+
+        threads = [
+            threading.Thread(target=lock_pair, args=(0, self.user.pk, primary_one, primary_two)),
+            threading.Thread(target=lock_pair, args=(1, other_user.pk, primary_two, primary_one)),
+        ]
+        for thread in threads:
+            thread.start()
+        barrier.wait(timeout=10)
+        for thread in threads:
+            thread.join(timeout=15)
+
+        self.assertTrue(all(not thread.is_alive() for thread in threads))
+        self.assertEqual(len({id(item) for item in connection_ids}), 2)
+        self.assertEqual(outcomes, [
+            {primary_one.pk, primary_two.pk},
+            {primary_one.pk, primary_two.pk},
+        ])
+
     def test_schema_mapping_write_serializes_with_expected_state_check(self):
         locked = threading.Event()
         release = threading.Event()

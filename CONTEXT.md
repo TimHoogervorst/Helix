@@ -73,6 +73,8 @@ The storage, Revision, relationship and Activity Feed boundaries are settled in 
 
 The Action execution, participation, atomic audit and retry boundaries are settled in [Define Action execution and preservation of scientific provenance](https://github.com/TimHoogervorst/Helix/issues/685#issuecomment-6193230545).
 
+The portable Block, named Action binding, shared registration and presentation boundaries are settled in [Explore contract-backed Blocks with attached editing and scientific Actions](https://github.com/TimHoogervorst/Helix/issues/686#issuecomment-6194668016).
+
 ### Durable Record
 
 A scientific record with a stable identity, typed values, relationships, and provenance that remains accessible independently of the Mod that created or modified it. An Entity or Notebook Entry is a Durable Record; an embedded field value does not acquire an independent record identity merely because it has a Data Contract.
@@ -142,6 +144,14 @@ A durable, exactly versioned description of an operation's meaning, accepted inp
 ### Action Sequence
 
 An explicitly declared composition of Actions, including how their inputs, outputs and promised effects connect. It describes an offered operation for invocation and compatibility between Mods; displaying a Block does not automatically execute its sequence. Separately offered operations remain distinct choices.
+
+A Block can own an Action Sequence and present its steps together in one interface. Each step references an exact retained Action Contract and carries its own concrete Action Bindings; output-to-input connections belong to the sequence. Step boundaries do not require separate visible Blocks.
+
+Providers are selected per Action rather than requiring one Mod to implement the whole sequence. A reusable registration Action can serve both a scientific Block and a Registry Table; its invocation identifies the target Schema and the mapping from contract-bound values to that Schema. Registration creates record identities from supplied values without rerunning the operation that produced them.
+
+The target Schema and field mapping are explicit registration parameters. A hosting context may prefill them, but execution resolves and validates the concrete parameters rather than inferring the destination from ambient UI state.
+
+**Compatibility identity:** A fingerprint of an Action Sequence represents its complete canonical declaration, including exact contract versions, target roles, composition and promised effects. Matching input and output types alone does not identify the same operation. The declaration's identity remains distinct from the provider that actually executed an invocation.
 
 The initial atomic execution boundary covers computation and Helix-owned database changes. Performing irreversible external effects, such as commanding an instrument, needs a later execution design. Recording an already performed laboratory procedure is a data-changing operation, distinct from performing that procedure.
 
@@ -219,15 +229,37 @@ The presentation responsibility that turns supplied values into a view without c
 
 **Distinction from Block:** A Block is an interactive content unit that can initiate Actions, including registering Entities; its rendering responsibility does not perform those record mutations. The existing slot renderer also supplies the embedding context and event wiring described under the Slot System.
 
+Settings that affect scientific interpretation are contract-bound Recorded Values changed through Actions. Cosmetic viewer choices are presentation preferences; selecting another viewer does not silently change scientific settings or historical meaning.
+
+### Portable Block Content
+
+A Block's durable instance data: a stable identity, optional contract-bound content, and an optional Action Sequence with concrete bindings. Display-only content needs no Action Sequence. Nested specialized values retain their exact Data Contract bindings; the containing Block does not introduce a separate Block Contract or a second set of input/output definitions.
+
+Absent a specialized viewer, the Platform can inspect retained definitions, content, declared operations and recorded results. Editing requires a compatible Action provider that can enforce validation and preserve unsupported nested content; an editor unable to preserve that content rejects the edit. Saving supported surrounding document content preserves unsupported Blocks intact.
+
+A deliberate new scientific invocation may replace the Block's currently displayed results while earlier results remain in retained document Revisions. Registering the new outputs creates new Entities without modifying previously registered outputs. Retrying the same invocation recovers its existing outcome instead.
+
+Duplication retains the existing Duplication Policy and its fresh-run semantics. If available capabilities cannot safely construct the required fresh instance, Duplicate is unavailable rather than blindly copying execution results or registration state. This does not restrict inspection or lossless preservation of the existing instance.
+
 ### Action Binding
 
 The retained association of an exact Action Contract with a Block and its intended targets. In the portable-data model, a Block presents content by default; attached Action Bindings identify edits or other operations that compatible installed providers can supply without changing the identity or contract of its saved content.
 
+For an Action within a Block-owned sequence, the Action Contract declares named input and output ports and parameter definitions. Its Action Binding supplies concrete input sources, chosen parameters and recorded outputs. These bindings belong to the attached Action, rather than to a separate set of Block-level input/output definitions. Contract definitions remain Platform-retained; each Block instance need not copy them.
+
 A Block may have multiple Action Bindings. A molecular biology table can expose cutting and registration of the resulting Entities without requiring a separate Registry Table; viewer compatibility and support for each Action Contract are independent capabilities.
+
+**Initial provider selection:** A deployment selects one provider per capability. User Preferences for choosing among compatible viewers or editors are deferred. A standard Platform view preserves inspection of declared operations, contract-bound inputs and any recorded outputs when a specialized viewer is absent; expected outputs are not evidence of execution. Compatible Action providers can remain available independently of that specialized viewer.
 
 **Distinction from editing UI:** An editor gathers proposed changes for an Action; it is not an independent route for changing Recorded Values. A Registry Table's edit operation targets its document content, while registration targets the Entities represented by its rows.
 
 **Distinction from Slot Binding:** A Slot Binding places content in a workspace; an Action Binding makes an operation available on that content. Availability depends on a compatible installed provider and applicable permissions and record state; attaching a binding does not itself authorize execution.
+
+### Action Port
+
+A named, typed input or output declared by an exact Action Contract. Its stable identity distinguishes roles even when several ports accept the same Data Contract. Each port declares the permitted value type and whether it accepts one value or several; an Action Sequence connects compatible output and input ports through its concrete bindings.
+
+Port declarations use objects keyed by their stable names, without a redundant per-port ID property. Inputs, outputs and parameters reuse Data Contract type notation, including list types; an independent `multiple` flag is unnecessary. A contract reference identifies the exact value definition, while the port name identifies its role within the Action.
 
 ---
 

@@ -372,7 +372,7 @@ def edit_record(
         return receipt.response
 
     try:
-        record = PlatformRecord.objects.select_for_update().select_related("schema__schema_type", "project").get(pk=record_id)
+        record = PlatformRecord.objects.select_for_update(of=("self",)).select_related("schema__schema_type", "project").get(pk=record_id)
     except (PlatformRecord.DoesNotExist, ValueError):
         raise NotFound("Record not found.")
     receipt = ActionExecutionReceipt.objects.filter(actor=actor, request_id=request_id).first()
@@ -404,7 +404,7 @@ def edit_record(
     record.state_token = uuid4()
     record.save(update_fields=["field_values", "properties", "last_editor", "state_token", "updated_at"])
 
-    group = record.revision_groups.select_for_update().select_related("current_revision").get(group_key="record")
+    group = record.revision_groups.select_for_update(of=("self",)).select_related("current_revision").get(group_key="record")
     revision = group.current_revision
     if values_changed:
         from helix_core.models import ScientificRevision
@@ -495,7 +495,7 @@ def save_revision_group(
             raise StateConflict("This request ID was already used for a different document save.")
         return receipt.response
     try:
-        record = PlatformRecord.objects.select_for_update().select_related("project").get(pk=record_id)
+        record = PlatformRecord.objects.select_for_update(of=("self",)).select_related("project").get(pk=record_id)
     except (PlatformRecord.DoesNotExist, ValueError):
         raise NotFound("Record not found.")
     if effective_role(actor, record) != "edit":
@@ -783,7 +783,7 @@ def _resolve_record_source(actor, source, type_node, where):
     # existence and field values cannot be discovered through this boundary.
     if target is None:
         raise PermissionDenied("You do not have permission to use this Action input.")
-    target = PlatformRecord.objects.select_for_update().select_related("schema__schema_type").get(pk=target.pk)
+    target = PlatformRecord.objects.select_for_update(of=("self",)).select_related("schema__schema_type").get(pk=target.pk)
     _lock_record_access_rows(actor, target)
     if effective_role(actor, target) not in {"read", "edit"}:
         raise PermissionDenied("You do not have permission to use this Action input.")
@@ -866,7 +866,11 @@ def execute_action_invocation(
     # The actor row is the portable transaction lock for the actor-scoped ID
     # namespace. It serializes competing first uses even before a receipt row
     # exists, and keeps the receipt check ahead of all mutable-state checks.
-    actor = type(actor).objects.select_for_update().get(pk=actor.pk)
+    # Session authentication wraps request.user in SimpleLazyObject; its
+    # Python type is not the configured Django user model.
+    from django.contrib.auth import get_user_model
+
+    actor = get_user_model()._default_manager.select_for_update().get(pk=actor.pk)
     requested = {
         "sequenceFingerprint": sequence_fingerprint,
         "inputs": inputs,
@@ -973,7 +977,7 @@ def execute_action_invocation(
 
     if effective_role(actor, record) != "edit":
         raise PermissionDenied("You do not have permission to execute an Action on this record.")
-    revision_group = record.revision_groups.select_for_update().select_related(
+    revision_group = record.revision_groups.select_for_update(of=("self",)).select_related(
         "current_revision"
     ).get(group_key="record")
     observed_schema_state = _schema_state(record)
@@ -986,7 +990,7 @@ def execute_action_invocation(
     source_document_group = None
     if expected_document_group_id is not None:
         from helix_core.models import RecordRevisionGroup
-        source_document_group = record.revision_groups.select_for_update().filter(
+        source_document_group = record.revision_groups.select_for_update(of=("self",)).filter(
             pk=expected_document_group_id, group_key="document",
         ).select_related("current_revision").first()
         if (
@@ -1770,11 +1774,17 @@ def _apply_created_record_references(snapshot, references, created):
         if key not in records or not isinstance(path, (list, tuple)) or not path:
             raise ActionValidationError({"document": {index: "The document reference target is invalid."}})
         parent = snapshot
+        encoded_parents = []
         try:
             for segment in path[:-1]:
-                parent = parent[segment]
+                child = parent[segment]
+                if isinstance(child, str):
+                    decoded = json.loads(child)
+                    encoded_parents.append((parent, segment, decoded))
+                    child = decoded
+                parent = child
             row = parent[path[-1]]
-        except (KeyError, IndexError, TypeError):
+        except (KeyError, IndexError, TypeError, ValueError):
             raise ActionValidationError({"document": {index: "The document reference path does not exist."}})
         if not isinstance(row, dict):
             raise ActionValidationError({"document": {index: "A created record reference must target an object."}})
@@ -1786,6 +1796,8 @@ def _apply_created_record_references(snapshot, references, created):
             "isRegistered": True,
             "registrationError": None,
         })
+        for container, segment, decoded in reversed(encoded_parents):
+            container[segment] = json.dumps(decoded)
 
 
 def _thaw(value):
@@ -1812,7 +1824,9 @@ def _lock_record_access_rows(actor, record):
     from bundled.access.access.models import Grant, OrganizationMembership
 
     team_ids = actor.groups.order_by("pk").values_list("pk", flat=True)
-    list(Grant.objects.select_for_update().filter(
+    # The user-or-team predicate adds a nullable team join. Lock grants only;
+    # the actor's membership rows are locked separately below.
+    list(Grant.objects.select_for_update(of=("self",)).filter(
         Q(project_id=record.project_id), Q(user_id=actor.pk) | Q(team__group_id__in=team_ids)
     ).order_by("pk"))
     OrganizationMembership.objects.select_for_update().filter(user_id=actor.pk).first()
@@ -1874,7 +1888,7 @@ def _lock_invocation_record_set(*, actor, primary_record_id, schema_ids, sequenc
 
     record_ids = sorted({item["pk"] for item in hints})
     records = list(
-        PlatformRecord.objects.select_for_update().select_related(
+        PlatformRecord.objects.select_for_update(of=("self",)).select_related(
             "schema__schema_type", "project"
         ).filter(pk__in=record_ids).order_by("pk")
     )
@@ -1905,13 +1919,13 @@ def lock_record_revision_for_update(
     schema_hint = Schema.objects.only("schema_type_id").get(pk=hint.schema_id)
     SchemaType.objects.select_for_update().get(pk=schema_hint.schema_type_id)
     Schema.objects.select_for_update().get(pk=hint.schema_id)
-    record = PlatformRecord.objects.select_for_update().select_related(
+    record = PlatformRecord.objects.select_for_update(of=("self",)).select_related(
         "schema__schema_type", "project"
     ).get(pk=record_id)
     _lock_record_access_rows(actor, record)
     if effective_role(actor, record) != "edit":
         raise PermissionDenied("You do not have permission to edit this record.")
-    group = record.revision_groups.select_for_update().select_related(
+    group = record.revision_groups.select_for_update(of=("self",)).select_related(
         "current_revision"
     ).filter(group_key=group_key).first()
     if (
@@ -1985,7 +1999,7 @@ def execute_record_action(
             raise StateConflict("This request ID was already used for a different invocation.")
         return receipt.response
     try:
-        record = PlatformRecord.objects.select_for_update().select_related("schema__schema_type", "project").get(pk=record_id)
+        record = PlatformRecord.objects.select_for_update(of=("self",)).select_related("schema__schema_type", "project").get(pk=record_id)
     except (PlatformRecord.DoesNotExist, ValueError):
         raise NotFound("Record not found.")
     receipt = ActionExecutionReceipt.objects.filter(actor=actor, request_id=request_id).first()

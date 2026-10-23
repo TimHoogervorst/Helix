@@ -96,6 +96,14 @@ function renderMetricCards() {
 }
 
 describe("HomePage", () => {
+  it("keeps the home metrics banner visible without registered providers", async () => {
+    renderHomePage();
+    await waitFor(() => {
+      expect(cardApi.getCards).toHaveBeenCalledWith("home");
+      expect(screen.getByText("Pin a metric to see it here.")).toBeInTheDocument();
+    });
+  });
+
   // ── Decorative header ─────────────────────────────────────────────────
 
   it("does not render the decorative header bar (removed during profile redesign)", () => {

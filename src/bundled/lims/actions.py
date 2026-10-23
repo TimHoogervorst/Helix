@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, Mapping
+import json
 
 from rest_framework.exceptions import ValidationError
 
@@ -123,7 +124,7 @@ def propose_registry_registration(context, inputs):
         })
         references.append({
             "key": key,
-            "path": ["document", *node_path, "attrs", "rows", index],
+            "path": ["document", *node_path, "rows", index],
         })
 
     return ProposedEffects(
@@ -141,12 +142,21 @@ def _find_registry_tables(value: Any, block_id: str, path=()):
     elif isinstance(value, Mapping):
         attrs = value.get("attrs")
         if isinstance(attrs, Mapping):
+            attrs_path = (*path, "attrs")
+            if isinstance(attrs.get("content"), str):
+                try:
+                    decoded = json.loads(attrs["content"])
+                except (ValueError, TypeError):
+                    decoded = None
+                if isinstance(decoded, Mapping):
+                    attrs = decoded
+                    attrs_path = (*attrs_path, "content")
             portable = attrs.get("portableBlock")
             stable_id = attrs.get("id")
             if isinstance(portable, Mapping):
                 stable_id = portable.get("id", stable_id)
             if stable_id == block_id and isinstance(attrs.get("rows"), list):
-                yield attrs, path
+                yield attrs, attrs_path
         for key, child in value.items():
             yield from _find_registry_tables(child, block_id, (*path, key))
 

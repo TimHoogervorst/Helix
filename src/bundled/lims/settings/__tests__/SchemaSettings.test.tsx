@@ -116,7 +116,7 @@ function makeSchema(overrides: Record<string, unknown> = {}) {
     content_hash: "abc123",
     icon: "",
     color: "",
-    tags: ["RegistrationTable"],
+    capabilities: ["RegistrationTable"],
     ...overrides,
   };
 }
@@ -219,7 +219,7 @@ describe("SchemaSettings", () => {
         makeSchema({ id: 2, name: "Patient", prefix: "PAT" }),
       ])
       .mockResolvedValueOnce([
-        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity", tags: ["RegistrationTable"] },
+        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity", capabilities: ["RegistrationTable"] },
       ]);
     render(<SchemaSettings />);
     await waitFor(() => {
@@ -233,9 +233,9 @@ describe("SchemaSettings", () => {
   it("filters entity and result schemas by tab", async () => {
     mockGet
       .mockResolvedValueOnce([
-        makeSchema({ id: 1, name: "Entity Schema", tags: ["RegistrationTable"] }),
-        makeSchema({ id: 2, name: "Result Schema", tags: ["ResultTable"] }),
-        makeSchema({ id: 3, name: "ELN Entry", tags: [] }),
+        makeSchema({ id: 1, name: "Entity Schema", capabilities: ["RegistrationTable"] }),
+        makeSchema({ id: 2, name: "Result Schema", capabilities: ["ResultTable"] }),
+        makeSchema({ id: 3, name: "ELN Entry", capabilities: [] }),
       ])
       .mockResolvedValueOnce([]);
     render(<SchemaSettings />);
@@ -267,7 +267,7 @@ describe("SchemaSettings", () => {
         makeSchema({ id: 2, name: "Patient", prefix: "PAT" }),
       ])
       .mockResolvedValueOnce([
-        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity", tags: ["RegistrationTable"] },
+        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity", capabilities: ["RegistrationTable"] },
       ]);
     render(<SchemaSettings />);
     await waitFor(() => {
@@ -599,11 +599,37 @@ describe("SchemaSettings", () => {
     expect(screen.queryByText("DELETE ALL")).not.toBeInTheDocument();
   });
 
+  it("populates schema types and switches defaults using API capabilities", async () => {
+    mockGet
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: 1, display_name: "Entity", capabilities: ["RegistrationTable"] },
+        { id: 2, display_name: "Results", capabilities: ["ResultTable"] },
+        { id: 3, display_name: "ELN Entry", capabilities: [] },
+      ]);
+    mockPost.mockResolvedValue({});
+    render(<SchemaSettings />);
+    fireEvent.click(await screen.findByText("+ New schema"));
+    expect(screen.getByRole("combobox", { name: "Schema Type" })).toHaveValue("1");
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["Entity"]);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Result Schemas" }));
+    expect(screen.getByRole("combobox", { name: "Schema Type" })).toHaveValue("2");
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["Results"]);
+    fireEvent.change(screen.getByPlaceholderText("e.g., Blood Sample"), { target: { value: "Yield" } });
+    fireEvent.change(screen.getByPlaceholderText("e.g., BLOOD"), { target: { value: "YIELD" } });
+    fireEvent.click(screen.getByText("Create"));
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith("/schemas/", expect.objectContaining({
+      schema_type: 2,
+      columns: [{ name: "Entity", type: "reference" }],
+    })));
+  });
+
   it("creates a schema via the new schema form", async () => {
     mockGet
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
-        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity", tags: ["RegistrationTable"] },
+        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity", capabilities: ["RegistrationTable"] },
       ]);
     mockPost.mockResolvedValue({});
     render(<SchemaSettings />);
@@ -642,7 +668,7 @@ describe("SchemaSettings", () => {
     mockGet
       .mockResolvedValueOnce([makeSchema({ enabled_components: [] })])
       .mockResolvedValueOnce([
-        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity", tags: ["RegistrationTable"] },
+        { id: 1, display_name: "Entity", workspace_id: "lims", is_active: true, schema_type_id: "lims.entity", capabilities: ["RegistrationTable"] },
       ]);
     mockPut.mockResolvedValue({});
     render(<SchemaSettings />);
@@ -675,9 +701,9 @@ describe("SchemaSettings", () => {
 
   it("does not show Schema Components for result schemas", async () => {
     mockGet
-      .mockResolvedValueOnce([makeSchema({ tags: ["ResultTable"] })])
+      .mockResolvedValueOnce([makeSchema({ capabilities: ["ResultTable"] })])
       .mockResolvedValueOnce([
-        { id: 1, display_name: "Results", workspace_id: "lims", is_active: true, schema_type_id: "lims.result", tags: ["ResultTable"] },
+        { id: 1, display_name: "Results", workspace_id: "lims", is_active: true, schema_type_id: "lims.result", capabilities: ["ResultTable"] },
       ]);
     render(<SchemaSettings />);
     await waitFor(() => expect(screen.getByRole("tab", { name: "Result Schemas" })).toBeInTheDocument());
@@ -695,14 +721,14 @@ describe("SchemaSettings", () => {
           id: 4,
           name: "Yield Result",
           prefix: "YIELD",
-          tags: ["ResultTable"],
+          capabilities: ["ResultTable"],
           icon: "circle",
           columns: [{ name: "Entity", type: "reference", referenceSchemaTypeId: 3 }],
         }),
       ])
       .mockResolvedValueOnce([
-        { id: 3, display_name: "Source Type", workspace_id: "lims", is_active: true, schema_type_id: "lims.source", tags: ["RegistrationTable"] },
-        { id: 4, display_name: "Results", workspace_id: "results", is_active: true, schema_type_id: "lims.result", tags: ["ResultTable"] },
+        { id: 3, display_name: "Source Type", workspace_id: "lims", is_active: true, schema_type_id: "lims.source", capabilities: ["RegistrationTable"] },
+        { id: 4, display_name: "Results", workspace_id: "results", is_active: true, schema_type_id: "lims.result", capabilities: ["ResultTable"] },
       ]);
     mockPut.mockResolvedValue({});
     render(<SchemaSettings />);

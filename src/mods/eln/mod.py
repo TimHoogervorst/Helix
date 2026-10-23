@@ -111,6 +111,23 @@ def register(mod):
         ("eln.registry-table.edited", "Registry Table Edited", "edited"),
         ("eln.registry-table.deleted", "Registry Table Deleted", "deleted"),
     ]
+    # The editor emits lifecycle IDs from the owning block's canonical ID,
+    # even when a LIMS block is hosted inside an ELN entry. Keep the legacy
+    # declarations above for older clients and retained activity records.
+    for block_id, label in (
+        ("helix.eln:table", "Table"),
+        ("helix.lims:comment", "Comment"),
+        ("helix.lims:protocol", "Protocol"),
+        ("helix.lims:registry-table", "Registry Table"),
+        ("helix.lims:result-table", "Result Table"),
+    ):
+        for verb in ("created", "edited", "deleted"):
+            block_actions.append((f"{block_id}.{verb}", f"{label} {verb.title()}", verb))
+    block_actions.extend([
+        ("helix.lims:registry-table.entities-registered", "Entities Registered", "edited"),
+        ("helix.lims:registry-table.row-added", "Row Added", "edited"),
+        ("helix.lims:result-table.results-registered", "Results Registered", "edited"),
+    ])
     for action_id, label, core in block_actions:
         mod.register_custom_action(action_id, label, core, entry)
 

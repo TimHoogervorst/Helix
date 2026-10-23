@@ -30,6 +30,9 @@ export interface ModManifest {
   dependsOn: ModDependency[];
   /** Short description for settings and mod listing screens. */
   description?: string;
+  /** Package-relative paths to contributed contract definitions. */
+  contracts?: string[];
+  requiresContracts?: { kind: "data" | "action"; id: string; version: string }[];
 }
 
 // ── Typed Handles ──────────────────────────────────────────────────────────

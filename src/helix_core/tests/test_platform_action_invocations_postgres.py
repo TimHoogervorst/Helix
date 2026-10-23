@@ -21,7 +21,8 @@ from helix_core.record_persistence import ProposedEffects
 
 @skipUnless(connection.vendor == "postgresql", "requires independent PostgreSQL connections")
 class ActionInvocationPostgresRaceTests(TransactionTestCase):
-    reset_sequences = True
+    # Migration-time retained contracts already occupy IDs. Resetting sequences
+    # before the first test would collide with those rows; tests use actual IDs.
 
     def setUp(self):
         self.user = User.objects.create_user(username="action_racer", password="pass")

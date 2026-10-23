@@ -12,8 +12,8 @@ import { Link } from "react-router-dom";
 import { useCurrentUser } from "../../../shell/src/user/CurrentUserProvider";
 import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { HubConfig } from "../../../shell/src/mod-system/types";
-import { useEffect, useState } from "react";
-import type { MetricProviderConfig } from "../../../shell/src/mod-system/types";
+import { MetricCardsBar } from "../../../shell/src/shared/components/MetricCards";
+
 
 // ── Decorative Header ────────────────────────────────────────────────────────
 
@@ -204,57 +204,6 @@ function JumpBackIn() {
             No other workspaces available.
           </p>
         )}
-      </div>
-    </section>
-  );
-}
-
-/**
- * Renders the metrics contributed by active mods.  Home deliberately knows
- * neither the provider's owner nor its data source: the provider's registered
- * frontend service is the only fetch seam.
- */
-function RegisteredMetricCards() {
-  const registry = ModRegistry.getInstance();
-  const providers = [...registry.getMetricProviders().values()];
-  const [values, setValues] = useState<Record<string, unknown>>({});
-  const [failed, setFailed] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    let cancelled = false;
-    void Promise.all(
-      providers.map(async (provider) => {
-        try {
-          const result = await registry.callMetricProvider(provider);
-          if (!cancelled) {
-            setValues((current) => ({
-              ...current,
-              [provider.id]: typeof result === "object" && result !== null && "value" in result
-                ? (result as { value: unknown }).value
-                : result,
-            }));
-          }
-        } catch {
-          if (!cancelled) setFailed((current) => new Set(current).add(provider.id));
-        }
-      }),
-    );
-    return () => { cancelled = true; };
-  }, [registry]);
-
-  if (providers.length === 0) return null;
-
-  return (
-    <section className="border-y-1 border-border px-6 py-5" aria-label="Lab metrics">
-      <div className="mx-auto grid max-w-4xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {providers.map((provider: MetricProviderConfig) => (
-          <article key={provider.id} className="rounded-lg border border-border bg-card p-4">
-            <p className="text-xs text-muted-foreground">{provider.label}</p>
-            <p className="mt-2 font-[var(--font-label)] text-2xl font-semibold">
-              {failed.has(provider.id) ? "—" : values[provider.id] === undefined ? "…" : String(values[provider.id])}
-            </p>
-          </article>
-        ))}
       </div>
     </section>
   );
@@ -485,7 +434,7 @@ function HomePage() {
     <div className="flex flex-1 flex-col overflow-y-auto">
       {/* <DecorativeHeader /> */}
       <GreetingSection />
-      <RegisteredMetricCards />
+      <MetricCardsBar surface="home" />
       <JumpBackIn />
       <section className="px-6 py-6">
         <div className="mx-auto grid max-w-4xl gap-5 lg:grid-cols-3">

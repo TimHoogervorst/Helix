@@ -50,13 +50,17 @@ describe("Platform-owned record browser", () => {
     });
   });
 
-  it("browses current records, loads Activity, and opens the selected exact Revision", async () => {
-    render(<MemoryRouter initialEntries={["/records"]}><Routes>
+  it.each(["/records", "/settings?section=helix.settings.platform-records"])("browses records and exact revisions from %s", async (route) => {
+    render(<MemoryRouter initialEntries={[route]}><Routes>
+      <Route path="/settings" element={<PlatformRecordsPage />} />
       <Route path="/records" element={<PlatformRecordsPage />} />
       <Route path="/records/:recordId" element={<PlatformRecordsPage />} />
     </Routes></MemoryRouter>);
 
     expect(await screen.findByText("1 current records")).toBeTruthy();
+    if (route.startsWith("/settings")) {
+      expect(screen.getByRole("link", { name: "Sample A" }).getAttribute("href")).toContain("/settings?section=");
+    }
     fireEvent.click(screen.getByRole("link", { name: "Sample A" }));
     expect(await screen.findByText("Updated measurement")).toBeTruthy();
     fireEvent.click(screen.getAllByRole("link", { name: /Open exact Revision/ })[0]);

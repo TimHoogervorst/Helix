@@ -11,6 +11,7 @@ export { SettingsSectionCard } from "../../shell/src/shared/components/SettingsS
 export * from "../../shell/src/shared/components/SettingsMasterList";
 export { relativeTime } from "../../shell/src/shared/format";
 export { useActivity } from "../../shell/src/shared/hooks/useActivity";
+export type { ActivitySubject, UseActivityResult } from "../../shell/src/shared/hooks/useActivity";
 export { useCurrentUser } from "../../shell/src/user/CurrentUserProvider";
 export { useMentionContext } from "../../shell/src/mentions/MentionProvider";
 export { ModRegistry } from "../../shell/src/mod-system/ModRegistry";

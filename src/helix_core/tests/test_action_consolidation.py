@@ -61,18 +61,8 @@ class ActionConsolidationTests(TestCase):
     def test_platform_action_migrations_do_not_reference_eln_models(self):
         root = Path(__file__).parents[2]
         migration_paths = [
-            root / "helix_core/migrations/0019_mod_lifecycle.py",
-            root / "helix_core/migrations/0019_platform_owned_actions.py",
-            root / "helix_core/migrations/0020_action_consolidation.py",
-            root / "bundled/access/access/migrations/0005_access_action.py",
-            root / "bundled/access/users/migrations/0001_initial.py",
-            root / "bundled/access/users/migrations/0004_rename_action_type_to_action.py",
-            root / "bundled/access/users/migrations/0005_alter_coreaction_action_alter_coreaction_action_type.py",
-            root / "bundled/datatypes/dropdowns/migrations/0001_initial.py",
-            root / "bundled/labelling/tags/migrations/0001_initial.py",
-            root / "bundled/labelling/tags/migrations/0002_rename_action_type_to_action.py",
-            root / "bundled/labelling/tags/migrations/0003_alter_tagsaction_action_alter_tagsaction_action_type.py",
-            root / "bundled/lims/migrations/0001_initial.py",
+            * (root / "helix_core").rglob("migrations/[0-9]*.py"),
+            * (root / "bundled").rglob("migrations/[0-9]*.py"),
         ]
         migration_text = "\n".join(
             path.read_text(encoding="utf-8")

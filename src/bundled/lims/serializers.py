@@ -329,6 +329,33 @@ class EntitySerializer(serializers.ModelSerializer):
         return data
 
 
+class PlatformEntitySerializer(EntitySerializer):
+    """Read-only projection of a Platform record onto the default entity page."""
+
+    id = serializers.UUIDField(read_only=True)
+    record_id = serializers.UUIDField(source="pk", read_only=True)
+    properties = serializers.SerializerMethodField()
+    tags = serializers.ListField(read_only=True, default=list)
+
+    class Meta(EntitySerializer.Meta):
+        from helix_core.models import PlatformRecord
+        model = PlatformRecord
+        fields = [*EntitySerializer.Meta.fields, "record_id"]
+
+    def get_properties(self, obj):
+        return {
+            column["name"]: obj.field_values[column["id"]].get("value")
+            for column in self.get_schema_columns(obj)
+            if column.get("id") in obj.field_values
+        }
+
+    def get_content(self, obj):
+        return obj.field_values
+
+    def get_raw_content(self, obj):
+        return obj.field_values
+
+
 class EntityBatchSerializer(serializers.Serializer):
     """Serializer for the batch resolve endpoint."""
     ids = serializers.ListField(

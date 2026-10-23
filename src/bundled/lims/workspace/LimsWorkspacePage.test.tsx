@@ -141,6 +141,36 @@ describe("LimsWorkspacePage", () => {
     expect(screen.getAllByText("DNA-1").length).toBeGreaterThan(0);
   });
 
+  it("uses the Platform identity for results, activity, history, and sharing", async () => {
+    const recordId = "147280e4-93b3-4f89-a42c-ccbc3d872349";
+    mockGet.mockImplementation((url: string) => {
+      if (url.includes("/actions/")) return Promise.resolve({ results: [{
+        id: 1, action: "registered", descriptions: ["Registered sample"], created_at: "2026-01-02T00:00:00Z",
+      }], next: null });
+      if (url.includes("/results/")) return Promise.resolve([]);
+      return Promise.resolve({
+        id: recordId, record_id: recordId, display_id: "DNA1", name: "Sample A",
+        schema: 1, schema_name: "DNA", schema_columns: [{ id: "concentration", name: "Concentration", type: "number" }],
+        schema_icon: "dna", schema_color: "muted", enabled_components: ["lims.results"],
+        properties: { Concentration: 42 }, source_path: [], project_uid: "project-1",
+        author_username: "alice", status: "finished", tags: [], effective_role: "edit",
+        created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-02T00:00:00Z",
+      });
+    });
+    render(<MemoryRouter initialEntries={[`/lims/${recordId}`]}><Routes>
+      <Route path="/lims/:displayId" element={<LimsWorkspacePage />} />
+    </Routes></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Sample A" })).toBeInTheDocument();
+    expect(screen.getByText("42")).toBeInTheDocument();
+    expect(await screen.findByText("Registered sample")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Record history" })).toHaveAttribute("href", `/records/${recordId}`);
+    fireEvent.click(screen.getByLabelText("Share"));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(`${window.location.origin}/lims/${recordId}`);
+    fireEvent.click(screen.getByRole("tab", { name: "Results" }));
+    await waitFor(() => expect(mockGet).toHaveBeenCalledWith(`/lims/entities/${recordId}/results/`));
+    expect(mockGet).toHaveBeenCalledWith(`/records/${recordId}/actions/?page=1`);
+  });
+
   it("renders grouped read-only results and skips unknown components", async () => {
     mockGet
       .mockResolvedValueOnce({

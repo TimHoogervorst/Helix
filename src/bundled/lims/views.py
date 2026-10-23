@@ -73,6 +73,42 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     filterset_fields = ["schema"]
     search_fields = ["name", "display_id"]
 
+    def get_object(self):
+        # UUID links identify Platform records; legacy display IDs continue to
+        # resolve through the existing entity queryset. Only expose read paths.
+        from uuid import UUID
+        from django.shortcuts import get_object_or_404
+        from django.http import Http404
+        from helix_core.models import PlatformRecord
+
+        if self.action in ("retrieve", "results"):
+            lookup = self.kwargs[self.lookup_field]
+            try:
+                record_id = UUID(lookup)
+            except (ValueError, TypeError):
+                try:
+                    return super().get_object()
+                except Http404:
+                    record_lookup = {"display_id": lookup}
+            else:
+                record_lookup = {"pk": record_id}
+            record = get_object_or_404(
+                PlatformRecord.objects.filter(visible_rows_q(self.request.user))
+                .select_related("schema__schema_type", "author", "last_editor", "project"),
+                **record_lookup,
+            )
+            self.check_object_permissions(self.request, record)
+            return record
+        return super().get_object()
+
+    def retrieve(self, request, *args, **kwargs):
+        from helix_core.models import PlatformRecord
+        from .serializers import PlatformEntitySerializer
+
+        entity = self.get_object()
+        serializer = PlatformEntitySerializer if isinstance(entity, PlatformRecord) else self.serializer_class
+        return Response(serializer(entity, context=self.get_serializer_context()).data)
+
     def get_permissions(self):
         if self.action in ("delete_all", "recompute"):
             return [IsOrganizationAdmin()]

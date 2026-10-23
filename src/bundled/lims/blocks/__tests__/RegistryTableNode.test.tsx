@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
+import { MemoryRouter } from "react-router-dom";
 import {
   render,
   screen,
@@ -561,6 +562,14 @@ describe("RegistryTableBlockComponent — loaded table structure", () => {
       rest: opts?.rest,
     });
   }
+
+  it("opens a registered Platform entity in the default LIMS workspace", () => {
+    const recordId = "147280e4-93b3-4f89-a42c-ccbc3d872349";
+    render(<MemoryRouter><RegistryTableBlockComponent {...loadedProps({ attrs: {
+      rows: [makeRow({ recordId, displayId: "DNA1", isRegistered: true })],
+    } })} /></MemoryRouter>);
+    expect(screen.getByRole("link", { name: "DNA1" })).toHaveAttribute("href", `/lims/${recordId}`);
+  });
 
   it("renders loaded rows with schema metadata and shared table chrome", () => {
     render(<RegistryTableBlockComponent {...loadedProps()} />);

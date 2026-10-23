@@ -17,8 +17,9 @@
  *  - Both panels render side by side, no inspirational quote
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { act, render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { Profiler } from "react";
 import { BookOpen } from "lucide-react";
 import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
 import type { HubConfig } from "../../../../shell/src/mod-system/types";
@@ -306,6 +307,62 @@ describe("HomePage", () => {
         expect(screen.getByText("Card 1")).toBeInTheDocument();
         expect(screen.getByText("Card 4")).toBeInTheDocument();
       });
+    });
+
+    it("keeps navigation made as soon as loaded cards are committed", async () => {
+      vi.mocked(cardApi.getCards).mockResolvedValue(
+        Array.from({ length: 6 }, (_, i) =>
+          makeCard({ id: i + 1, order: i, label: `Card ${i + 1}` }),
+        ),
+      );
+      let navigated = false;
+
+      render(
+        <MemoryRouter>
+          <Profiler id="cards" onRender={() => {
+            // Click at the commit boundary, before passive effects can reset
+            // pagination. This makes the early-interaction race deterministic.
+            const next = screen.queryByLabelText("Show next cards");
+            if (next && !navigated) {
+              navigated = true;
+              next.click();
+            }
+          }}>
+            <MetricCardsBar />
+          </Profiler>
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Card 5")).toBeInTheDocument();
+        expect(screen.getByText("Card 6")).toBeInTheDocument();
+      });
+      expect(screen.getByLabelText("Show previous cards")).toBeEnabled();
+      expect(screen.queryByText("Card 1")).not.toBeInTheDocument();
+    });
+
+    it("keeps the selected page when pending metric values arrive", async () => {
+      vi.mocked(cardApi.getCards).mockResolvedValue(
+        Array.from({ length: 6 }, (_, i) =>
+          makeCard({ id: i + 1, order: i, label: `Card ${i + 1}` }),
+        ),
+      );
+      let resolveValue!: (value: { value: number }) => void;
+      vi.mocked(cardApi.getMetricValue).mockReturnValue(
+        new Promise((resolve) => { resolveValue = resolve; }),
+      );
+
+      renderMetricCards();
+      await screen.findByText("Card 1");
+      fireEvent.click(screen.getByLabelText("Show next cards"));
+      expect(screen.getByText("Card 5")).toBeInTheDocument();
+
+      await act(async () => { resolveValue({ value: 42 }); });
+
+      expect(screen.getByText("Card 5")).toBeInTheDocument();
+      expect(screen.getByText("Card 6")).toBeInTheDocument();
+      expect(screen.getAllByText("42")).toHaveLength(2);
+      expect(screen.getByLabelText("Show previous cards")).toBeEnabled();
     });
 
     it("falls back to metric_name when label is empty", async () => {

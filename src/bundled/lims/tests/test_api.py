@@ -65,6 +65,40 @@ class LimsApiTests(LimsApiTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["results"], [])
 
+    def test_platform_record_opens_in_default_entity_workspace(self):
+        from helix_core.models import PlatformRecord
+
+        schema = Schema.objects.get(name="DNA")
+        schema.columns = [{"id": "concentration", "name": "Concentration", "type": "number"}]
+        schema.enabled_components = ["lims.results"]
+        schema.save()
+        record = PlatformRecord.objects.create(
+            name="Registered sample", schema=schema, project=self.project,
+            author=self.user, field_values={"concentration": {"type": "number", "value": 42}},
+        )
+        response = self.client.get(f"/api/lims/entities/{record.pk}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["record_id"], str(record.pk))
+        self.assertEqual(response.data["properties"], {"Concentration": 42})
+        self.assertEqual(response.data["enabled_components"], ["lims.results"])
+        result_type = SchemaType.objects.create(display_name="Result", capabilities=["ResultTable"])
+        result_schema = Schema.objects.create(name="Assay", prefix="ASSAY", schema_type=result_type)
+        Entity.objects.create(
+            name="Measurement", schema=result_schema, project=self.project, author=self.user,
+            properties={"Entity": record.display_id, "Value": 12},
+        )
+        results = self.client.get(f"/api/lims/entities/{record.pk}/results/")
+        self.assertEqual(results.status_code, 200)
+        self.assertEqual(results.data[0]["results"][0]["properties"]["Value"], 12)
+        by_display_id = self.client.get(f"/api/lims/entities/{record.display_id}/")
+        self.assertEqual(by_display_id.status_code, 200)
+        self.assertEqual(by_display_id.data["record_id"], str(record.pk))
+
+        outsider = User.objects.create_user(username="outsider")
+        self.client.force_authenticate(user=outsider)
+        self.assertEqual(self.client.get(f"/api/lims/entities/{record.pk}/").status_code, 404)
+        self.assertEqual(self.client.get(f"/api/lims/entities/{record.display_id}/").status_code, 404)
+
     def test_create_entity_succeeds(self):
         """POST creates an entity with auto-generated display_id."""
         self.client.force_authenticate(user=self.user)

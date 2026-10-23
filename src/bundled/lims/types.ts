@@ -101,7 +101,8 @@ export interface SchemaTypeItem {
 
 /** An entity as returned by the entity API. */
 export interface EntityListItem {
-  id: number;
+  id: number | string;
+  record_id?: string;
   display_id: string;
   name: string;
   schema: number;

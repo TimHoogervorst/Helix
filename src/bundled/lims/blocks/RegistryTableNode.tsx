@@ -1030,7 +1030,7 @@ export function RegistryTableContent({
                 data-testid={`status-bar-${dotColor}`}
               />
               {row.isRegistered && row.recordId && row.displayId && (
-                <Link className="text-primary underline" to={`/records/${encodeURIComponent(row.recordId)}`}>{row.displayId}</Link>
+                <Link className="text-primary underline" to={`/lims/${encodeURIComponent(row.recordId)}`}>{row.displayId}</Link>
               )}
               {row.isRegistered && !row.recordId && typeof row.entityId === "number" && row.displayId && (
                 <MentionBadge

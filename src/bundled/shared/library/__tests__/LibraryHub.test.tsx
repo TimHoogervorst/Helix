@@ -532,6 +532,15 @@ describe("LibraryHub", () => {
       });
     });
 
+    it.each([undefined, "147280e4-93b3-4f89-a42c-ccbc3d872349"])("opens an entity in LIMS (record %s)", async (record_id) => {
+      mockGetLibraryContents.mockResolvedValue(makeLibraryContents([], [makeLibraryEntry({
+        type: "entity", workspace_id: "lims", display_id: "DNA1", record_id,
+      })]));
+      renderLibrary("/library?project=proj-001");
+      fireEvent.click(await screen.findByText("DNA1"));
+      expect(mockNavigate).toHaveBeenCalledWith(`/lims/${record_id ?? "DNA1"}?project=proj-001&projectId=1`);
+    });
+
     it("navigates to workspace page when clicking an entry", async () => {
       mockGetLibraryContents.mockResolvedValue(populatedContentsResponse);
       renderLibrary("/library?project=proj-001");

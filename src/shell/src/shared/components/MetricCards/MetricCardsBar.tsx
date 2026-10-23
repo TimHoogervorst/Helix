@@ -144,15 +144,20 @@ export function MetricCardsBar({ surface = "home" }: MetricCardsBarProps) {
   const cancelledRef = useRef(false);
   const CARDS_PER_PAGE = 4;
   const [currentPage, setCurrentPage] = useState(0);
+  const [previousCardCount, setPreviousCardCount] = useState(cardStates.length);
+
+  // Reset before committing the new cards. A passive effect can run after
+  // navigation and overwrite the user's first click on the loaded cards.
+  if (previousCardCount !== cardStates.length) {
+    setPreviousCardCount(cardStates.length);
+    setCurrentPage(0);
+  }
+
   const totalItems = cardStates.length + 1;
   const totalPages = Math.max(1, Math.ceil(totalItems / CARDS_PER_PAGE));
   const startIdx = currentPage * CARDS_PER_PAGE;
   const visibleCards = cardStates.slice(startIdx, startIdx + CARDS_PER_PAGE);
   const showAddButton = currentPage === totalPages - 1 && visibleCards.length < CARDS_PER_PAGE;
-
-  useEffect(() => {
-    setCurrentPage(0);
-  }, [cardStates.length]);
 
   const loadCards = useCallback(() => {
     cancelledRef.current = false;

@@ -684,9 +684,10 @@ function LibraryHub() {
       const params = new URLSearchParams({ project: projectUid ?? "" });
       if (currentProjectId !== null) params.set("projectId", String(currentProjectId));
       const workspace = ModRegistry.getInstance().getWorkspaces().get(item.workspace_id);
+      const targetId = item.type === "entity" ? item.record_id ?? item.display_id : item.display_id;
       const url = workspace?.reference
-        ? workspaceUrl(workspace.reference, item.display_id)
-        : legacyWorkspaceUrlForId(item.workspace_id, item.display_id);
+        ? workspaceUrl(workspace.reference, targetId)
+        : legacyWorkspaceUrlForId(item.workspace_id, targetId);
       navigate(`${url}?${params.toString()}`);
     },
     [navigateToFolder, navigate, projectUid, currentProjectId],

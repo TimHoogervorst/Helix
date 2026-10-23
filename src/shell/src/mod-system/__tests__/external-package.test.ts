@@ -130,6 +130,18 @@ describe("external package discovery", () => {
       activeMods: ["test.backend", "test.core"],
       error: "requires 'test.backend' at '^2.0.0', but backend metadata reports '1.0.0'",
     },
+    {
+      label: "an active ID without matching authoritative metadata",
+      manifests: [{ id: "test.backend", displayName: "Backend", version: "1.0.0", requiresHelix: ">=1.0.0", artifacts: ["backend"], dependsOn: [] }],
+      activeMods: ["test.core"],
+      error: "inconsistent active Mod identities",
+    },
+    {
+      label: "a discovered manifest that conflicts with backend metadata",
+      manifests: [{ id: "test.core", displayName: "Wrong Core", version: "1.0.0", requiresHelix: ">=1.0.0", artifacts: ["frontend"], dependsOn: [] }],
+      activeMods: ["test.core"],
+      error: "conflicts with backend boot metadata",
+    },
   ])("fails the real boot sequence for $label", async ({ manifests, activeMods, error }) => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => activeBootData(activeMods, manifests) }));
     render(createElement(ModLoader, null, createElement("p", null, "Should not render")));

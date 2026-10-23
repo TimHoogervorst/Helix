@@ -13,6 +13,7 @@ import { SidebarSection } from "./SidebarSection";
 import { useBlockInstance } from "../../../workspace/useBlockInstance";
 import type { WorkspaceBus } from "../../../workspace/WorkspaceBus";
 import type { IconStripGroup } from "./IconStrip";
+import { invokePlatformAction, resolveActionContext } from "../../../api/actionInvocations";
 
 // ── Props ────────────────────────────────────────────────────────────────
 
@@ -165,6 +166,8 @@ export function SlotSidebar(props: SlotSidebarProps) {
 
           // Standalone mode — static block instance, no bus subscriptions.
           const Component = binding.component;
+          const actionContext = resolveActionContext(context.actionContext);
+          const invokeAction = context.invokeAction ?? invokePlatformAction;
           const instance: BlockInstance = {
             id: `${binding.id}::static`,
             blockId: binding.id,
@@ -184,6 +187,8 @@ export function SlotSidebar(props: SlotSidebarProps) {
                 context={context}
                 instance={instance}
                 overrides={binding.overrides}
+                actionContext={actionContext}
+                invokeAction={invokeAction}
               />
             </SidebarSection>
           );
@@ -218,6 +223,8 @@ function SlotSidebarBlock({
 }: SlotSidebarBlockProps) {
   const Component = binding.component;
   const instance = useBlockInstance(binding, slotId, bus);
+  const actionContext = resolveActionContext(context.actionContext);
+  const invokeAction = context.invokeAction ?? invokePlatformAction;
 
   // Augment context with a block-specific emitAction that derives the
   // global action ID as {blockId}.{localId} and emits on the workspace bus.
@@ -246,6 +253,8 @@ function SlotSidebarBlock({
         context={augmentedContext}
         instance={instance}
         overrides={binding.overrides}
+        actionContext={actionContext}
+        invokeAction={invokeAction}
       />
     </SidebarSection>
   );

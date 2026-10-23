@@ -1,9 +1,14 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 import { Suspense } from "react";
 import Layout from "./Layout";
 import { ModRegistry } from "../mod-system/ModRegistry";
 import { ErrorBoundary } from "../shared/components/ErrorBoundary";
 import NotFound from "../shared/components/NotFound";
+import type { WorkspaceReference } from "../mod-system/references";
+import { legacyWorkspaceUrl } from "../mod-system/references";
+import Unavailable from "../shared/components/Unavailable";
+import ContractDefinitionPage from "../contracts/ContractDefinitionPage";
+import PlatformRecordsPage from "../records/PlatformRecordsPage";
 
 /** Shared loading fallback for lazy-loaded route components. */
 function RouteLoadingFallback() {
@@ -30,6 +35,13 @@ function wrapRoute(Comp: React.ComponentType<any>) {
       </Suspense>
     </ErrorBoundary>
   );
+}
+
+function LegacyWorkspaceRedirect({ workspace }: { workspace: WorkspaceReference }) {
+  const { displayId = "" } = useParams<{ displayId: string }>();
+  const location = useLocation();
+  const query = `${location.search}${location.hash}`;
+  return <Navigate to={`${workspace.urlFor(displayId)}${query}`} replace />;
 }
 
 /**
@@ -77,6 +89,14 @@ function Router() {
     );
   });
 
+  const legacyWorkspaceRoutes = [...registry.getWorkspaces().values()].map((workspace) => (
+    <Route
+      key={`legacy-${workspace.reference.id}`}
+      path={legacyWorkspaceUrl(workspace.reference, ":displayId")}
+      element={<LegacyWorkspaceRedirect workspace={workspace.reference} />}
+    />
+  ));
+
   return (
     <Routes>
       {/* Public routes — no sidebar, full-page (login, register, etc.) */}
@@ -87,12 +107,32 @@ function Router() {
         {/* App-level redirects */}
         <Route path="/" element={<Navigate to="/library" replace />} />
         <Route path="/eln" element={<Navigate to="/library" replace />} />
+        <Route
+          path="/contracts/:kind/:contractId/:version"
+          element={wrapRoute(ContractDefinitionPage)}
+        />
+        <Route path="/records" element={wrapRoute(PlatformRecordsPage)} />
+        <Route path="/records/:recordId" element={wrapRoute(PlatformRecordsPage)} />
         {hubRoutes}
         {layoutRoutes}
+        {legacyWorkspaceRoutes}
       </Route>
-      <Route path="*" element={<NotFound />} />
+      <Route path="*" element={<RouteFallback />} />
     </Routes>
   );
+}
+
+/** A route may be left behind in a bookmark after its mod is removed. */
+function RouteFallback() {
+  const location = useLocation();
+  // Keep genuinely unknown URLs as the established not-found state while
+  // making the degradation message useful for route-shaped persisted links.
+  // A mod-owned bookmark has a namespace, resource, and usually an ID. Keep
+  // short unknown URLs on the normal not-found surface.
+  if (location.pathname.split("/").filter(Boolean).length >= 3) {
+    return <Unavailable kind="Route" name={location.pathname} />;
+  }
+  return <NotFound />;
 }
 
 export default Router;

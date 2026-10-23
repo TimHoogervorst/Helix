@@ -1,1 +1,40 @@
-{ "name": "@helix/eln", "private": true, "version": "0.1.0" }
+{
+  "name": "@helix/eln",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./index.ts",
+  "module": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./manifest": "./modManifest.json",
+    "./modManifest.json": "./modManifest.json"
+  },
+  "scripts": {
+    "test:package": "node --test package-tests/independent-artifact.check.mjs"
+  },
+  "files": [
+    "**/*",
+    "!**/__tests__/**",
+    "!tests/**",
+    "!prototypes/**",
+    "!package-tests/**"
+  ],
+  "helix": {
+    "importSpecifier": "@helix/eln"
+  },
+  "peerDependencies": {
+    "@helix/mod-api": "^0.1.0",
+    "@tiptap/core": "^3.28.0",
+    "@tiptap/extension-placeholder": "^3.28.0",
+    "@tiptap/extension-table": "^3.28.0",
+    "@tiptap/pm": "^3.28.0",
+    "@tiptap/react": "^3.28.0",
+    "@tiptap/starter-kit": "^3.28.0",
+    "@tiptap/suggestion": "^3.28.0",
+    "lucide-react": "^1.22.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.0.0"
+  }
+}

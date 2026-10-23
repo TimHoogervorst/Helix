@@ -11,8 +11,7 @@ export interface EntryListItem {
   updated_at: string;
 }
 
-// Re-export for backward compatibility — canonical in bundled/labelling/tags/types.
-import type { Tag } from "../tags/types";
+import type { Tag } from "./tags/types";
 export type { Tag };
 
 /** A mention — a parsed reference from an entry body to another entity. */
@@ -54,6 +53,12 @@ export interface EntryDetail {
   updated_at: string;
   status: string;
   status_display: string;
+  platform_state_token?: string | null;
+  platform_record_id?: string | null;
+  platform_record_revision_id?: string | null;
+  platform_schema_state?: Record<string, unknown> | null;
+  document_group_id?: string | null;
+  document_revision_id?: string | null;
   tags: Tag[];
   mentions: Mention[];
 }

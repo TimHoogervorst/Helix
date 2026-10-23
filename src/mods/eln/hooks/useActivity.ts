@@ -3,8 +3,8 @@ import {
   useActivity as useSharedActivity,
   type ActivitySubject,
   type UseActivityResult,
-} from "../../../shell/src/shared/hooks/useActivity";
-import type { DisplayActionItem, ActionUser } from "../../../shell/src/shared/types/actions";
+} from "@helix/mod-api/host";
+import type { DisplayActionItem, ActionUser } from "@helix/mod-api/host";
 import { fetchActions } from "../api";
 import type { ElnAction } from "../types";
 

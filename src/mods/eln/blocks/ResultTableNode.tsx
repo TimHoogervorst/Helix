@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   ChartColumn,
   Database,
@@ -8,25 +8,25 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
-import { get, del, post } from "../../../shell/src/api/client";
-import type { GridColumn } from "../../../shell/src/shared/types/types";
-import { usePickerPortal } from "../../../shell/src/shared/hooks/usePickerPortal";
-import { PickerPortal } from "../../../shell/src/shared/components/PickerPortal";
-import { TableKit } from "../../../shell/src/shared/table/TableKit";
-import { getColumnTypeIcon } from "../../../shell/src/shared/components/CellEditors";
+import { createBlockAdapter } from "@helix/mod-api/host";
+import { get, del, post } from "@helix/mod-api/host";
+import type { GridColumn } from "@helix/mod-api/host";
+import { usePickerPortal } from "@helix/mod-api/host";
+import { PickerPortal } from "@helix/mod-api/host";
+import { TableKit } from "@helix/mod-api/host";
+import { getColumnTypeIcon } from "@helix/mod-api/host";
 import {
   deriveForeground,
   resolveColorHex,
-} from "../../../shell/src/shared/components/IconBadge";
-import { Button } from "../../../shell/src/shared/primitives/Button";
-import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
-import { TableChrome } from "../../../shell/src/shared/table/TableChrome";
+} from "@helix/mod-api/host";
+import { Button } from "@helix/mod-api/host";
+import { IconButton } from "@helix/mod-api/host";
+import { TableChrome } from "@helix/mod-api/host";
 import MoreActions from "../components/MoreActions";
 import type { EntityTypeSummary } from "../types";
 import type { ElnSidebarData } from "./sidebarData";
-import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
-import { useComputedFields } from "../../../shell/src/shared/hooks/useComputedFields";
+import { ModRegistry } from "@helix/mod-api/host";
+import { useComputedFields } from "@helix/mod-api/host";
 
 export interface ResultTableRow {
   entityId: number | null;
@@ -246,7 +246,7 @@ export function ResultTableContent({
           (item) =>
             item.is_active &&
             !item.is_default &&
-            item.tags.includes("ResultTable"),
+            item.capabilities.includes("ResultTable"),
         ),
       );
     } catch {

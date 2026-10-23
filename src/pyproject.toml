@@ -9,6 +9,7 @@ description = "Helix Core — Platform SDK for the Helix open-source ELN/LIMS"
 requires-python = ">=3.11"
 dependencies = [
     "Django>=5.1,<5.2",
+    "jsonschema>=4.23,<5",
 ]
 
 [project.optional-dependencies]
@@ -16,6 +17,13 @@ dev = [
     "djangorestframework>=3.15,<3.16",
 ]
 
+[project.scripts]
+helix-mod-catalog = "helix_core.mod_system.catalog_cli:main"
+helix-mod-validate = "helix_core.mod_system.validator_cli:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["helix_core*"]
+include = ["helix_core*", "bundled*"]
+
+[tool.setuptools.package-data]
+helix_core = ["mod_system/*.json"]

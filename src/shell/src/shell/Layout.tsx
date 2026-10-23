@@ -122,11 +122,13 @@ function Layout() {
     } else if (sortedHubs.length > 0) {
       // Group 2: Hub icons from the registry
       groups.push({
-        icons: sortedHubs.map((h) => ({
-          icon: <h.icon className="h-4 w-4" aria-hidden="true" />,
-          label: h.label,
-          onClick: () => navigate(h.route),
-        })),
+        icons: [
+          ...sortedHubs.map((h) => ({
+            icon: <h.icon className="h-4 w-4" aria-hidden="true" />,
+            label: h.label,
+            onClick: () => navigate(h.route),
+          })),
+        ],
       });
     }
 

@@ -4,7 +4,6 @@ from django.contrib.auth.models import Group
 from django.test import TestCase
 
 from helix_core.core.models import Folder, User
-from helix_core.models import Schema, SchemaType
 from bundled.access.access.models import (
     FolderShare,
     Grant,
@@ -212,32 +211,14 @@ class EffectiveRoleShareTests(TestCase):
         self._share(ShareLevel.READ_WRITE)
         self.assertEqual(effective_role(self.superuser, self.descendant), "edit")
 
-    def test_entry_inside_subtree_edit_for_target_editor(self):
-        from mods.eln.models import NotebookEntry
-        from mods.eln.tests.factories import get_or_create_default_eln_schema
+    def test_platform_fixture_entity_inside_subtree_uses_shared_access(self):
+        from helix_core.tests.fixtures.external_mod.models import ConcreteTestEntity
 
-        schema = get_or_create_default_eln_schema()
-        entry = NotebookEntry.objects.create(
-            name="Entry", content={"type": "doc"}, source=self.descendant,
-            author=self.reader, schema=schema,
-        )
-        Grant.objects.create(
-            project=self.target_project, role=ProjectRole.EDIT, user=self.editor,
-        )
-        self._share(ShareLevel.READ_WRITE)
-        self.assertEqual(effective_role(self.editor, entry), "edit")
-
-    def test_entity_inside_subtree_edit_for_target_editor(self):
-        from bundled.lims.models import Entity
-
-        schema_type, _ = SchemaType.objects.get_or_create(
-            display_name="Test", workspace_id="lims", model="bundled.lims.models.Entity",
-        )
-        schema, _ = Schema.objects.get_or_create(
-            name="DNA", prefix="DNA", schema_type=schema_type,
-        )
-        entity = Entity.objects.create(
-            name="Sample", schema=schema, source=self.descendant, author=self.reader,
+        entity = ConcreteTestEntity(
+            project=self.source_project,
+            source_path=self.descendant.source_path + [
+                {"kind": "folder", "id": self.descendant.pk},
+            ],
         )
         Grant.objects.create(
             project=self.target_project, role=ProjectRole.EDIT, user=self.editor,

@@ -12,8 +12,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from django.urls import include, path
 
-from helix_core.mod_system.manifest import ModManifest
+from helix_core.mod_system.manifest import Dependency, ModManifest
 from helix_core.mod_system.registry import BackendModRegistry
+from helix_core.public import ModelReference, ModRegistrar
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -32,14 +33,24 @@ def _dummy_view():
 def _make_manifest(
     mod_id: str,
     depends_on: list[str | dict[str, str]] | None = None,
-    version: str | None = "0.1.0",
+    version: str = "0.1.0",
 ) -> ModManifest:
     """Create a ModManifest for testing."""
     return ModManifest(
-        id=mod_id,
+        id=f"test.{mod_id}",
         display_name=mod_id.title(),
         version=version,
-        depends_on=depends_on if depends_on is not None else [],
+        requires_helix=">=1.0.0",
+        artifacts=("backend",),
+        depends_on=tuple(
+            Dependency(
+                dep if isinstance(dep, str) and "." in dep else f"test.{dep}",
+                "^0.1.0",
+            )
+            if isinstance(dep, str)
+            else Dependency(dep["id"], dep.get("version", "^0.1.0"))
+            for dep in (depends_on if depends_on is not None else [])
+        ),
     )
 
 
@@ -49,6 +60,60 @@ def _mock_sender(mod_id: str, name: str = "FakeModel") -> MagicMock:
     sender.__module__ = f"mods.{mod_id}.models"
     sender.__name__ = name
     return sender
+
+
+def test_content_source_provider_contract_can_be_registered_and_queried():
+    registry = _fresh_registry()
+    model = ModelReference("test.widgets", "widget")
+    visibility = lambda request, queryset: queryset.filter(owner=request.user)
+    serializer = object()
+    create = lambda request, data: data
+
+    registry.register_content_source(
+        "widget",
+        model,
+        visibility_query=visibility,
+        serializer=serializer,
+        display_metadata={"label": "Widget", "icon": "box"},
+        hub_visible=True,
+        mutation_handlers={"create": create},
+    )
+
+    provider = registry.get_content_source("widget")
+    assert provider.kind == "widget"
+    assert provider.model_reference == model
+    assert provider.visibility_query is visibility
+    assert provider.serializer is serializer
+    assert provider.display_metadata == {"label": "Widget", "icon": "box"}
+    assert provider.hub_visible is True
+    assert provider.mutation_handlers["create"] is create
+    assert registry.get_content_sources() == {"widget": provider}
+
+
+def test_public_registrar_registers_a_content_source_with_owned_model():
+    raw = _fresh_registry()
+    mod = ModRegistrar(_make_manifest("widgets"), raw)
+    model = mod.register_model("widget", object)
+    serializer = object()
+
+    kind = mod.register_content_source(
+        "widget",
+        model,
+        serializer=serializer,
+        display_metadata={"label": "Widget"},
+    )
+
+    assert kind == "test.widgets:widget"
+    assert raw.get_content_source(kind).serializer is serializer
+
+
+def test_content_source_model_is_resolved_from_registered_reference():
+    raw = _fresh_registry()
+    model = object
+    raw.register_model_reference("test.widgets:widget", model)
+    raw.register_content_source("widget", ModelReference("test.widgets", "widget"))
+
+    assert raw.resolve_content_source_model("widget") is model
 
 
 class TestFormulaFunctionRegistration:
@@ -242,6 +307,13 @@ class TestURLRegistration:
 
         result = reg.get_url_patterns()
         assert list(result.keys()) == ["tags", "core", "mentions"]
+
+    def test_get_url_patterns_does_not_persist_action_definitions(self):
+        reg = _fresh_registry()
+        patterns = [path("api/test/", _dummy_view)]
+        reg.register_urls("test", patterns)
+
+        assert reg.get_url_patterns() == {"test": patterns}
 
 
 
@@ -938,10 +1010,10 @@ class TestBuildURLPatterns:
     def test_include_pattern(self):
         """build_urlpatterns works with include() entries."""
         reg = _fresh_registry()
-        reg.set_mod_order(["mods.eln"])
+        reg.set_mod_order(["test.external"])
 
-        inc_pattern = include("mods.eln.urls")
-        reg.register_urls("eln", [inc_pattern])
+        inc_pattern = include("helix_core.tests.fixtures.external_mod.urls")
+        reg.register_urls("test.external", [inc_pattern])
 
         result = reg.build_urlpatterns()
         assert result == [inc_pattern]
@@ -1083,19 +1155,19 @@ class TestRegisterSchemaType:
             display_name="Entity",
             workspace_id="lims",
             model="bundled.lims.models.Entity",
-            tags=["RegistrationTable"],
+            capabilities=["RegistrationTable"],
             prefix="E",
         )
         reg.register_schema_type(
             display_name="Entity",
             workspace_id="lims",
             model="bundled.lims.models.Entity",
-            tags=["ResultTable"],
+            capabilities=["ResultTable"],
             prefix="E",
         )
 
         st = SchemaType.objects.get(model="bundled.lims.models.Entity")
-        assert st.tags == ["ResultTable"]
+        assert st.capabilities == ["ResultTable"]
 
     def test_custom_schema_name(self):
         """The schema_name parameter controls the default Schema's name."""
@@ -1484,21 +1556,21 @@ class TestValidateAction:
 
 
 class TestCustomActionRegistrationWithoutModel:
-    """Edge-case tests for register_custom_action."""
+    """Custom actions are owned by providers, independently of action models."""
 
-    def test_register_custom_action_without_action_model_raises(self):
-        """Registering a custom action for a mod without register_action_model
-        should raise ValueError."""
+    def test_register_custom_action_without_action_model_is_supported(self):
         reg = _fresh_registry()
 
-        with pytest.raises(ValueError, match="register_action_model"):
-            reg.register_custom_action(
-                mod_id="fake",
-                action_id="fake.widget.exported",
-                label="Exported",
-                core="edited",
-                target_model="fake.models.Widget",
-            )
+        reg.register_action_provider("fake", "1.0.0")
+        reg.register_custom_action(
+            mod_id="fake",
+            action_id="fake.widget.exported",
+            label="Exported",
+            core="edited",
+            target_model="fake.models.Widget",
+        )
+
+        assert reg.validate_action("fake.widget.exported")
 
     def test_register_custom_action_with_invalid_core_raises(self):
         """register_custom_action rejects an invalid core verb."""
@@ -1587,7 +1659,9 @@ class TestDeriveLabel:
         )
 
 
-# ── sync_actions ────────────────────────────────────────────────────────────
+'''
+Removed: frontend action catalogs are backend-owned and are not synchronized
+at runtime.
 
 
 class TestSyncActions:
@@ -1829,3 +1903,4 @@ class TestSyncActions:
             if a["id"] not in ("read", "created", "edited", "deleted")
         ]
         assert sorted(custom_ids) == ["eln.table.created", "eln.table.edited"]
+'''

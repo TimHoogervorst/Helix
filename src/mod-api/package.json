@@ -1,0 +1,62 @@
+{
+  "name": "@helix/mod-api",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": ["./style.css"],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/mod-api/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/mod-api/src/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./Mod": {
+      "types": "./dist/shell/src/mod-system/Mod.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./editor": {
+      "types": "./dist/mod-api/src/editor.d.ts",
+      "import": "./dist/editor.js"
+    },
+    "./blocks": {
+      "types": "./dist/mod-api/src/blocks.d.ts",
+      "import": "./dist/blocks.js"
+    },
+    "./portable-blocks": {
+      "types": "./dist/mod-api/src/portableBlocks.d.ts",
+      "import": "./dist/portable-blocks.js"
+    },
+    "./api": {
+      "types": "./dist/mod-api/src/api.d.ts",
+      "import": "./dist/api.js"
+    },
+    "./contracts": {
+      "types": "./dist/mod-api/src/contracts.d.ts",
+      "import": "./dist/contracts.js"
+    },
+    "./records": {
+      "types": "./dist/mod-api/src/records.d.ts",
+      "import": "./dist/records.js"
+    },
+    "./theme": {
+      "types": "./dist/mod-api/src/theme.d.ts",
+      "import": "./dist/theme.js"
+    },
+    "./host": {
+      "types": "./dist/mod-api/src/elnHost.d.ts",
+      "import": "./dist/host.js"
+    },
+    "./manifest": "./modManifest.json",
+    "./style.css": "./style.css",
+    "./theme.css": "./style.css"
+  },
+  "peerDependencies": {
+    "@tiptap/core": "^3.28.0",
+    "@tiptap/react": "^3.28.0",
+    "@tiptap/starter-kit": "^3.28.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "files": ["dist", "modManifest.json", "style.css"]
+}

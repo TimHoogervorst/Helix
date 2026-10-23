@@ -15,23 +15,25 @@ from helix_core.mentions.prefix_resolver import (
     _build_prefix_map,
     _build_model_type_map,
 )
-from mods.eln.models import NotebookEntry
+from helix_core.tests.fixtures.external_mod.models import ConcreteTestEntity
+from helix_core.tests.fixtures.external_mod.testing import register_external_mod_fixture
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
-# Standard TipTap doc used as the "content" property for NotebookEntry.
+# Standard TipTap document used for fixture content.
 _SIMPLE_DOC = {"type": "doc", "content": [{"type": "paragraph"}]}
 
 
-def _create_eln_schema_type():
-    """Create the ELN SchemaType + Schema (idempotent)."""
+def _create_fixture_schema_type():
+    """Create the fixture SchemaType + Schema (idempotent)."""
+    register_external_mod_fixture()
     from helix_core.models import Schema, SchemaType
     schema_type, _ = SchemaType.objects.get_or_create(
-        model="mods.eln.models.NotebookEntry",
+        model="helix_core.tests.fixtures.external_mod.models.ConcreteTestEntity",
         defaults={
-            "display_name": "ELN Entry",
-            "workspace_id": "eln",
+            "display_name": "Fixture Content",
+            "workspace_id": "fixture",
             "columns": [],
         },
     )
@@ -40,7 +42,7 @@ def _create_eln_schema_type():
         is_default=True,
         defaults={
             "name": "Default",
-            "prefix": "E",
+            "prefix": "T",
             "columns": [],
         },
     )
@@ -68,8 +70,16 @@ def _create_lims_schema(*, prefix: str = "BLOOD", name: str = "Default"):
     return schema
 
 
+def _create_lims_schema_type():
+    from helix_core.models import SchemaType
+    return SchemaType.objects.get_or_create(
+        model="bundled.lims.models.Entity",
+        defaults={"display_name": "Entity", "workspace_id": "lims", "columns": []},
+    )[0]
+
+
 def _make_entry(**kwargs):
-    """Create a NotebookEntry with required defaults."""
+    """Create a fixture entity with required defaults."""
     defaults = dict(
         name="Test Entry",
         properties=_SIMPLE_DOC,
@@ -78,8 +88,8 @@ def _make_entry(**kwargs):
     defaults.update(kwargs)
     if "schema" not in defaults:
         from helix_core.models import Schema
-        defaults["schema"] = Schema.objects.filter(prefix="E").first()
-    return NotebookEntry.objects.create(**defaults)
+        defaults["schema"] = Schema.objects.filter(prefix="T").first()
+    return ConcreteTestEntity.objects.create(**defaults)
 
 
 # ── Resolution tests ────────────────────────────────────────────────────────
@@ -89,22 +99,28 @@ class ResolveDisplayIdTests(BaseServiceTestCase):
 
     def setUp(self):
         super().setUp()
-        _create_eln_schema_type()
+        _create_fixture_schema_type()
         cache.clear()
 
     def test_resolves_entry_by_static_prefix(self):
-        """``E1`` resolves to a NotebookEntry."""
+        """``T1`` resolves through its fixture Schema."""
         entry = _make_entry(source=self.folder, author=self.user)
         result = resolve_display_id(entry.display_id)
         self.assertIsNotNone(result)
         instance, ct = result
-        self.assertIsInstance(instance, NotebookEntry)
+        self.assertIsInstance(instance, ConcreteTestEntity)
         self.assertEqual(instance.pk, entry.pk)
-        self.assertEqual(ct.model, "notebookentry")
+        self.assertEqual(ct.model, "concretetestentity")
 
     def test_resolves_entity_by_dynamic_prefix(self):
         """``BLOOD1`` resolves to an Entity after creating the Schema."""
         from bundled.lims.models import Entity
+        from helix_core.models import SchemaType
+
+        SchemaType.objects.get_or_create(
+            model="bundled.lims.models.Entity",
+            defaults={"display_name": "Entity", "workspace_id": "lims"},
+        )
 
         blood_schema = _create_lims_schema(prefix="BLOOD")
         entity = Entity.objects.create(
@@ -128,11 +144,11 @@ class ResolveDisplayIdTests(BaseServiceTestCase):
         self.assertIsNone(resolve_display_id("X1"))
 
     def test_returns_none_for_nonexistent_display_id(self):
-        """``E99999`` where no entry has that ID returns None."""
-        self.assertIsNone(resolve_display_id("E99999"))
+        """``T99999`` where no fixture has that ID returns None."""
+        self.assertIsNone(resolve_display_id("T99999"))
 
     def test_prefix_extraction_case_insensitive(self):
-        """``e1`` resolves the same as ``E1`` (prefix uppercased)."""
+        """``t1`` resolves the same as ``T1`` (prefix uppercased)."""
         entry = _make_entry(source=self.folder, author=self.user)
         self.assertIsNotNone(resolve_display_id(entry.display_id.lower()))
 
@@ -162,12 +178,12 @@ class GetIconTests(BaseServiceTestCase):
 
     def setUp(self):
         super().setUp()
-        _create_eln_schema_type()
+        _create_fixture_schema_type()
 
-    def test_entry_icon_is_page(self):
-        """ELN entries get the ``📄`` icon."""
+    def test_fixture_entity_has_default_icon(self):
+        """Generic entities use the default test-tube icon."""
         entry = _make_entry(source=self.folder, author=self.user)
-        self.assertEqual(get_icon(entry, "entry"), "📄")
+        self.assertEqual(get_icon(entry, "entity"), "🧪")
 
     def test_entity_default_icon(self):
         """Entities get the default ``🧪`` icon (Schema has no icon field)."""
@@ -188,14 +204,14 @@ class PrefixMapTests(BaseServiceTestCase):
 
     def setUp(self):
         super().setUp()
-        _create_eln_schema_type()
+        _create_fixture_schema_type()
         cache.clear()
 
-    def test_includes_static_entries(self):
-        """The static ``E`` → NotebookEntry mapping is present."""
+    def test_includes_registered_fixture_model(self):
+        """The fixture model is discovered from its registered Schema."""
         pmap = get_prefix_map()
-        self.assertIn("E", pmap)
-        self.assertEqual(pmap["E"], NotebookEntry)
+        self.assertIn("T", pmap)
+        self.assertEqual(pmap["T"], ConcreteTestEntity)
 
     def test_includes_dynamic_entity_prefixes(self):
         """Schema-created prefixes appear in the map."""
@@ -222,7 +238,7 @@ class PrefixCacheTests(BaseServiceTestCase):
 
     def setUp(self):
         super().setUp()
-        _create_eln_schema_type()
+        _create_fixture_schema_type()
         cache.clear()
 
     def test_prefix_map_is_cached(self):
@@ -267,11 +283,14 @@ class PrefixCacheTests(BaseServiceTestCase):
         mmap2 = get_model_type_map()
         self.assertEqual(mmap1, mmap2)
 
-    def test_model_type_map_includes_entry_and_entity(self):
-        """get_model_type_map() includes both entry and entity types."""
+    def test_model_type_map_includes_fixture_entity(self):
+        """get_model_type_map() includes registered fixture model types."""
+        _create_lims_schema_type()
+        _create_lims_schema(prefix="LIMS")
+        cache.clear()
         mmap = get_model_type_map()
-        self.assertIn(NotebookEntry, mmap)
-        self.assertEqual(mmap[NotebookEntry], "entry")
+        self.assertIn(ConcreteTestEntity, mmap)
+        self.assertEqual(mmap[ConcreteTestEntity], "entity")
 
         from bundled.lims.models import Entity
         self.assertIn(Entity, mmap)
@@ -285,20 +304,20 @@ class WorkspaceLookupTests(BaseServiceTestCase):
 
     def setUp(self):
         super().setUp()
-        _create_eln_schema_type()
+        _create_fixture_schema_type()
         cache.clear()
 
-    def test_returns_eln_for_e_prefix(self):
-        """The 'E' prefix maps to workspace 'eln' (from ELN Schema)."""
-        self.assertEqual(get_workspace_id("E"), "eln")
+    def test_returns_fixture_for_registered_prefix(self):
+        """The fixture prefix resolves to its registered workspace."""
+        self.assertEqual(get_workspace_id("T"), "fixture")
 
     def test_returns_none_for_unknown_prefix(self):
         """An unregistered prefix returns None."""
         self.assertIsNone(get_workspace_id("ZZZ"))
 
     def test_case_insensitive_prefix(self):
-        """`e` resolves the same as `E`."""
-        self.assertEqual(get_workspace_id("e"), "eln")
+        """`t` resolves the same as `T`."""
+        self.assertEqual(get_workspace_id("t"), "fixture")
 
     def test_schema_prefix_returns_lims(self):
         """A Schema prefix returns its SchemaType's workspace_id."""
@@ -314,18 +333,18 @@ class WorkspaceMapCacheTests(BaseServiceTestCase):
 
     def setUp(self):
         super().setUp()
-        _create_eln_schema_type()
+        _create_fixture_schema_type()
         cache.clear()
 
     def test_workspace_map_is_cached(self):
         """Second call to get_workspace_id() uses cache, not DB."""
-        get_workspace_id("E")  # prime cache
+        get_workspace_id("T")  # prime cache
 
         from django.test.utils import CaptureQueriesContext
         from django.db import connection
 
         with CaptureQueriesContext(connection) as ctx:
-            get_workspace_id("E")
+            get_workspace_id("T")
         self.assertEqual(len(ctx), 0, "get_workspace_id() hit DB on second call")
 
     def test_cache_invalidates_on_schema_save(self):

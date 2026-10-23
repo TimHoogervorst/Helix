@@ -1,15 +1,16 @@
 import hashlib
 import json
+import uuid
 
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
-from helix_core.abstracts import AbstractEntity
-from helix_core.actions.base import AbstractBaseAction
+from helix_core.public import AbstractEntity
+from helix_core.public import AbstractBaseAction
 
 # Re-export for backward compatibility — these are canonical in bundled.labelling.tags.
-from bundled.labelling.tags.models import TAG_COLOR_CHOICES, TAG_ICON_CHOICES, Tag  # noqa: F401
+from helix_core.public import TAG_COLOR_CHOICES, TAG_ICON_CHOICES, Tag  # noqa: F401
 
 
 class NotebookEntry(AbstractEntity):
@@ -21,6 +22,10 @@ class NotebookEntry(AbstractEntity):
     """
 
     content = models.JSONField(blank=True, default=dict)
+    platform_record = models.OneToOneField(
+        "helix_core.PlatformRecord", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="eln_entry",
+    )
 
     # M2M to tags.Tag — defined on the consumer side (Tag stays pure).
     tags = models.ManyToManyField(
@@ -92,6 +97,11 @@ class ContentVersion(models.Model):
         default="manual",
     )
 
+    @property
+    def version_reference(self) -> str:
+        from .config import CONTENT_VERSION_REFERENCE
+        return CONTENT_VERSION_REFERENCE
+
     class Meta:
         db_table = "eln_content_version"
         ordering = ["entry", "-version_number"]
@@ -125,6 +135,48 @@ class ContentVersion(models.Model):
         """Return the next sequential version number for *entry*."""
         latest = cls.latest_for(entry)
         return (latest.version_number + 1) if latest else 1
+
+
+class HistoricalRendition(models.Model):
+    """An immutable review capture retained against one document Revision."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    entry = models.ForeignKey(
+        NotebookEntry, on_delete=models.CASCADE, related_name="historical_renditions",
+    )
+    revision = models.ForeignKey(
+        "helix_core.ScientificRevision", on_delete=models.CASCADE,
+        related_name="eln_historical_renditions",
+    )
+    attachment = models.ForeignKey(
+        "helix_core.PlatformAttachment", on_delete=models.PROTECT,
+        related_name="eln_historical_renditions",
+    )
+    source_hash = models.CharField(max_length=64)
+    captured_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    captured_by_snapshot = models.JSONField(default=dict, blank=True)
+    captured_at = models.DateTimeField()
+    presentation_provider = models.CharField(max_length=255)
+    presentation_version = models.CharField(max_length=100)
+    presentation_context = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "eln_historical_rendition"
+        ordering = ("-captured_at", "id")
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise ValueError("HistoricalRendition metadata is immutable")
+        if self.captured_by_id and not self.captured_by_snapshot:
+            from helix_core.public import user_attribution_snapshot
+
+            self.captured_by_snapshot = user_attribution_snapshot(self.captured_by)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("HistoricalRendition is immutable")
 
 
 class Protocol(models.Model):

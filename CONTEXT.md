@@ -15,8 +15,9 @@
 | **Bundled Mod** | A mod that ships inside the Helix artifact and is always loaded. First-party. Uses the same `register*()` API as an External Mod. |
 | **External Mod** | A mod composed into a deployment at build time, not shipped inside the Helix artifact. May depend on anything inside Helix; nothing inside Helix ever names an External Mod (the **golden rule**). Uses the same `register*()` API as a Bundled Mod. |
 | **Mod Registry** | Central data structure populated at boot. Has two populations: **registrations** (synchronous `register*()` calls during mod loading — hubs, routes, blocks, slots, settings sections) and **hydrated data** (fetched from `GET /api/mod-registry/` — icon library, color token palette, column types, workspaces, action catalogs). First render is gated until both populations are loaded; no component ever reads an empty registry. The registry is a non-reactive singleton — it must not trigger re-renders. |
-| **Hydration** | The async boot phase that fetches `GET /api/mod-registry/` and populates the registry's backend-sourced stores (icon library, color palette, column types, workspaces, action catalogs). Runs after action sync (per-mod `POST /api/mod-registry/sync-actions/`) so the action catalog is fresh when fetched. Gated — children do not render until hydration resolves or fails. |
-| **Mod Manifest** | The identity document (`modManifest.json`) at the root of every mod folder. Declares `id`, `displayName`, `version`, `dependsOn` (with optional version constraints), `coreVersion` (minimum platform version), and `description`. The single source of truth for mod identity — both frontend and backend loaders read it. Does NOT describe capabilities (routes, blocks, settings) — those are discovered from `register*()` calls at boot. |
+| **Hydration** | The async boot phase that populates the Mod Registry's backend-sourced stores (icon library, color palette, column types, workspaces, action catalogs). Backend Mod definitions are authoritative before Hydration. Application content remains gated until registration, Hydration and validation succeed; a boot failure keeps it gated until a successful full reload. |
+| **Active Mod Graph** | The complete backend-authoritative set of active Mod identities, artifacts, and dependencies. Frontend boot validates this graph before importing UI artifacts; backend-only Mods satisfy dependencies and retain their place in transitive registration order without being imported. |
+| **Mod Manifest** | The strict 1.0.0 identity document (`modManifest.json`) at the root of every mod folder. Declares canonical `id`, `displayName`, `version`, `requiresHelix`, `artifacts`, object-form `dependsOn`, and optional `description`. Unknown properties and legacy fields are invalid. |
 | **Mod Identity** | The fields in a mod manifest that answer "who are you": `id`, `displayName`, `version`, `description`. Distinct from **mod capabilities** — what the mod provides via `register*()` calls. |
 | **Workspace** | A mod's dedicated work surface for a type of content. The `id` doubles as the URL namespace (`/{workspaceId}/{displayId}`) and as the identifier used by Mentions to build navigation targets. Workspaces are backend-declared and frontend-discovered at boot via the mod registry API. Any mod that declares a schema type is automatically discoverable by the mention system and the Tabs (bookmarks) system. Workspace pages are registered separately as frontend routes. |
 
@@ -47,7 +48,9 @@ The backend mirrors the frontend mod system. Mods are discovered from `modManife
 
 ### Action Logging
 
-All mutating operations are automatically logged for CFR Part 11 audit compliance. Mutating actions — whether from an HTTP endpoint or a block — flow through a single unified `POST /api/actions/` endpoint. The four Core Actions are `read`, `created`, `edited`, and `deleted`. `read` participates in access-policy evaluation but is never persisted as an Action Log Entry or shown in the Activity Feed; the three mutating Core Actions are logged. Custom domain actions must be explicitly registered and map to a Core Action. For the access foundation, policies for Core Actions are hardcoded; per-mod custom Action policies are deferred. Action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"`. See [docs/actions-system-design.md](docs/actions-system-design.md) for the full design.
+Action logging records mutating operations in the Platform Action Log. The current unified `POST /api/actions/` endpoint records declared actions; record mutations execute through separate save paths. The durable-data target integrates Action writes and Revision checks at a shared Platform persistence boundary. The four Core Actions are `read`, `created`, `edited`, and `deleted`. `read` participates in access-policy evaluation but is never persisted as an Action Log Entry or shown in the Activity Feed; the three mutating Core Actions are logged. Custom domain actions must be explicitly registered and map to a Core Action. For the access foundation, policies for Core Actions are hardcoded; per-mod custom Action policies are deferred. Action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"`. See [docs/actions-system-design.md](docs/actions-system-design.md) for the full design.
+
+Current Action Invocation requests and the legacy execution adapter use one Platform mutation lifecycle. An invocation owns the transaction and its actor-scoped recovery identity; nested record edits contribute effects without creating another recoverable request. Recovery matches the original request and checks current read access to every surviving disclosed Record participant. A deleted participant is reported unavailable only when its retained Project context still authorizes access. Recovery never reruns a provider or validates the saved result against a newer contract; a rolled-back attempt leaves no committed Action or receipt.
 
 ### Activity Feed
 
@@ -56,6 +59,230 @@ The Activity Feed renders the framework-logged Action Log Entries of one **Subje
 Live updates follow the save cycle. While a save cycle has pending actions, the feed shows a muted **Unsaved Changes** indicator; when the flush succeeds (all pending actions persisted), the indicator clears and the feed refreshes. A successful entry save likewise refreshes the feed. On a surface without an Event Bus the feed is static — it fetches once and shows no indicator.
 
 **Invariant:** Feeds of different Subjects are never merged — an entry's feed and an entity's feed remain separate.
+
+**Agreed extension for durable data:** The shared feed follows a Platform Entity and links relevant Actions to exact Revisions of its affected Revision Groups. Several block-change descriptions may link to one saved document Revision. View revision opens the selected group's immutable saved state, with generic inspection when its specialized viewer is absent; unrelated current fields do not become part of that historical snapshot. This extension is a target design, not an implemented history viewer.
+
+---
+
+## Durable Scientific Data
+
+> Agreed vocabulary for the portable-data design, explored in [Data Portability](https://github.com/TimHoogervorst/Helix/issues/608). These terms describe the target model; they do not imply that the current Mod API already implements its preservation guarantees.
+
+The contract and Schema boundaries are settled in [Define durable Data Contracts and their relationship to Schemas](https://github.com/TimHoogervorst/Helix/issues/682#issuecomment-6189981957).
+
+The installation and retention boundaries are settled in [Define standalone Mod packaging and retained contract installation](https://github.com/TimHoogervorst/Helix/issues/683#issuecomment-6190280351).
+
+The storage, Revision, relationship and Activity Feed boundaries are settled in [Define platform storage, Revisions and durable relationships](https://github.com/TimHoogervorst/Helix/issues/684#issuecomment-6192540750).
+
+The Action execution, participation, atomic audit and retry boundaries are settled in [Define Action execution and preservation of scientific provenance](https://github.com/TimHoogervorst/Helix/issues/685#issuecomment-6193230545).
+
+The portable Block, named Action binding, shared registration and presentation boundaries are settled in [Explore contract-backed Blocks with attached editing and scientific Actions](https://github.com/TimHoogervorst/Helix/issues/686#issuecomment-6194668016).
+
+### Durable Record
+
+A scientific record with a stable identity, typed values, relationships, and provenance that remains accessible independently of the Mod that created or modified it. An Entity or Notebook Entry is a Durable Record; an embedded field value does not acquire an independent record identity merely because it has a Data Contract.
+
+Its permanent Entity ID identifies the object across changes and is never reused. Display IDs remain human-facing identifiers; a Revision ID identifies one saved historical state of a group within the record.
+
+**Synonyms:** durable object. Prefer **Durable Record** when discussing preservation.
+
+### Recorded Value
+
+An authoritative value committed to a Durable Record, whether entered directly or produced by a calculation. The current Recorded Value and a value preserved in a Revision may differ; its status as authoritative does not imply that it was manually entered or never derived.
+
+_Avoid_: original value (ambiguous between initial input, first historical value, and current authoritative value).
+
+### Historical Value
+
+A Recorded Value preserved in a retained Revision. Its interpretation belongs to that Revision's definitions and context, rather than to whichever Mod or contract version is currently preferred.
+
+### Typed Value
+
+A value interpreted through its declared type and, where applicable, an exact Data Contract Version. A document or sequence can be a Typed Value within a Durable Record; giving it its own record identity and lifecycle is a separate modeling choice.
+
+Record fields associate Typed Values with stable field IDs rather than mutable field names. Current values and retained Revisions carry their exact primitive type or Data Contract Version independently of subsequent Schema edits; this does not preserve overwritten Schema-only labels or context.
+
+Removing a field or changing its declared type in a Schema leaves existing values and their bindings intact. Those values remain generically inspectable; converting or deleting them requires an explicit data-changing Action.
+
+### Data Contract
+
+A durable, standardized description of data's structure and scientific meaning, independent of the Mods that use it. Its retained definition makes values inspectable through platform-understood representations, preserves the context needed to interpret them, and identifies their relationships to other records even after the originating Mod is removed; additional presentation or export capabilities may supplement that foundation.
+
+**Distinction from Schema:** A Schema defines a record's fields; a Data Contract describes the values those fields contain, including nested structures and references.
+
+**Composition:** Nested contract-defined values identify exact Data Contract Versions, whose definitions remain retained together. Their meaning and Record References remain inspectable when the originating Mods are absent.
+
+**Preservation boundary:** Retained Data Contract Versions preserve contract-defined meaning. They do not preserve context held only in an earlier, overwritten Schema definition; Schema history and publication of Schema versions are deferred.
+
+### Publisher Namespace
+
+An authority-controlled name that distinguishes a publisher's Mods and Data Contracts from those of other publishers. Independent publishers may define their own contracts; `helix` is reserved for Tim Hoogervorst for both Mods and Data Contracts.
+
+### Data Contract Version
+
+An immutable, exact, retained edition of a Data Contract that identifies how stored data is interpreted. Installing another version or removing a consuming Mod does not change the version associated with existing data or remove its definition.
+
+**Invariant:** The same contract identity and version cannot name different definitions. Repeated registration of an identical definition is allowed; a conflicting definition is rejected immediately.
+
+**Availability:** A retained definition can satisfy another Mod's exact contract dependency without its original supplier being installed or active. Availability of a definition is distinct from availability of executable capabilities that use it.
+
+### Column Type
+
+The field-facing combination of a value definition and available editing, querying, and presentation capabilities. In the durable-data model, the value is described by a platform-understood primitive type or an exact Data Contract Version; executable capabilities may depend on installed Mods without becoming the only definition of the value's meaning.
+
+### Action Contract
+
+A durable, exactly versioned description of an operation's meaning, accepted inputs, parameters, outputs, and promised effects. Mods implement Action Contracts; matching input and output Data Contracts alone does not make two operations equivalent.
+
+**Commit guarantee:** A successful mutating Action commits its record changes, required Revisions and authoritative Action Log Entries together. Failure to persist the required audit prevents the commit. An execution request asks for work; an audit entry records committed work; a completion notification communicates the result without being its authoritative record.
+
+**Batch invocation:** A single batch registration invocation commits all of its rows and associated document changes together or none of them. Each affected Entity has its own participation and effects within the shared Action; the containing ELN document has one edit association rather than a duplicate edit for every row.
+
+**Explicit composition:** Making multiple Actions available does not automatically chain them. A combined operation must explicitly declare its composition and promised effects. Cutting DNA and registering its outputs can be invoked separately; their coexistence on a Block does not imply that cutting registers Entities.
+
+**Shared declaration:** Composed Data Contracts and Action Contracts describe a Block's accepted data, generated outputs and offered operations without a separate Block Contract. The same declarations support provider compatibility, execution validation and audit interpretation. Compatibility requires the declared operation meaning, exact contract versions, target roles and effects, not merely matching types or Core Action names. An invocation records the operation and provider that actually ran; a declaration alone is not proof of scientific correctness.
+
+**Distinction from Data Contract:** A Data Contract describes a value; an Action Contract describes an operation on values or records. Neither contains the executable implementation of that operation.
+
+### Action Sequence
+
+An explicitly declared composition of Actions, including how their inputs, outputs and promised effects connect. It describes an offered operation for invocation and compatibility between Mods; displaying a Block does not automatically execute its sequence. Separately offered operations remain distinct choices.
+
+A Block can own an Action Sequence and present its steps together in one interface. Each step references an exact retained Action Contract and carries its own concrete Action Bindings; output-to-input connections belong to the sequence. Step boundaries do not require separate visible Blocks.
+
+Providers are selected per Action rather than requiring one Mod to implement the whole sequence. A reusable registration Action can serve both a scientific Block and a Registry Table; its invocation identifies the target Schema and the mapping from contract-bound values to that Schema. Registration creates record identities from supplied values without rerunning the operation that produced them.
+
+The target Schema and field mapping are explicit registration parameters. A hosting context may prefill them, but execution resolves and validates the concrete parameters rather than inferring the destination from ambient UI state.
+
+**Compatibility identity:** A fingerprint of an Action Sequence represents its complete canonical declaration, including exact contract versions, target roles, composition and promised effects. Matching input and output types alone does not identify the same operation. The declaration's identity remains distinct from the provider that actually executed an invocation.
+
+The initial atomic execution boundary covers computation and Helix-owned database changes. Performing irreversible external effects, such as commanding an instrument, needs a later execution design. Recording an already performed laboratory procedure is a data-changing operation, distinct from performing that procedure.
+
+Generated outputs require Data Contracts even when retained inside document content rather than registered as separate Entities. Display-only content declares the data it understands without promising generated outputs. Saved calculated results are Recorded Values with scientific provenance; registration can create Entities from those results without silently recalculating them.
+
+### Action Participation
+
+A record's role or effect in one authoritative recorded Action: used as an input, created, edited or deleted. One Action can involve several records, including the Entity holding an ELN document, and appear in each participant's separate Activity Feed without duplicating the operation as independent audit accounts.
+
+Used identifies an exact scientific input Revision without implying mutation or creating another Revision. It is a participation role, not a fifth Core Action or a log of ordinary reads. Changed participants carry their relevant committed Revision associations. Scientific Provenance remains contract-defined data alongside these audit associations.
+
+A composed operation does not require a separate Block-change Action for the ELN perspective: its document edit and other record effects are associations of the same Action. Full Revision snapshots provide the saved content; a content delta is not required.
+
+### Record Edit Execution and Recovery
+
+The generic record form and its persistence boundary use one actor-scoped request identity for matching, serialization, authorization, atomic completion and recovery. Concurrent first uses serialize even when they target different records. Identical requests recover the single committed record response; reusing the identity with different inputs conflicts without a second write.
+
+Execution checks current Edit access and current record state. A committed retry checks current Read access before returning the saved response and never repeats the edit. If the target was deleted, recovery discloses only that the target is unavailable when the retained Project context still grants Read access; insufficient context or lost Read access denies recovery. Record changes, required Revisions, audit and the receipt commit together, so failure to persist audit or receipt rolls back the entire edit.
+
+### Action Invocation
+
+A particular request to perform an offered operation with specified inputs, parameters and targets. It is distinct from the reusable Action Contract and from the audit of its committed effects.
+
+Retrying the same invocation after a lost response recovers its committed outcome without repeating its writes or duplicating its audit. Different inputs or parameters cannot reuse that invocation identity; deliberately performing the operation again requires a new identity. The initial execution surface uses current values, without selecting historical inputs or requiring a rollback UI.
+
+Recovery of a committed outcome requires current read access to every surviving record disclosed by that outcome; if any is inaccessible, the whole outcome is withheld. A deleted target may be reported as unavailable, without its saved record payload, when current access to its retained Project context permits recovery. If that access cannot be established, recovery is denied. Permission to recover an outcome is distinct from permission to execute a new mutation; recovery never repeats the original writes.
+
+Recovery does not require the original provider to remain available and does not reinterpret the committed request against a newer contract. Concurrent identical requests sharing an actor and invocation identity produce one committed outcome; a different request cannot reuse that committed identity.
+
+Execution identifies the current Revisions used and verifies before committing that all scientific inputs and edit targets are still current. A concurrent change rejects the invocation without silently overwriting data or recalculating against newer inputs. Permissions and required record state must still permit the commit.
+
+A failed or rolled-back invocation produces no committed scientific changes, new Revisions, used associations or successful Action in the Activity Feed. Its identity remains available for a later attempt under current permissions and state. Failure responses and operational diagnostics are distinct from the audit of committed scientific changes.
+
+### Revision Group
+
+A declared field or group of fields whose historical states are preserved together. An ELN document can form one Revision Group independently of the entry's name and other properties; a sequence and its annotations can form another.
+
+Every Entity supports history. Its ordinary scientific properties form a default Revision Group; explicit declarations may select narrower groups, including an ELN document independently of unrelated metadata.
+
+Each group identifies its current Revision independently. A historical group state does not imply that the Entity's other fields were captured with it.
+
+Saving a Mod-owned Revision Group uses validated registrations to establish its canonical owner, permitted Action identity, and executing provider version. The persisted owner Mod ID is separate from the historical target model and object IDs. Callers cannot supply authoritative ownership or Action attribution; missing, ambiguous, or inconsistent registrations prevent the save.
+
+A Mod upgrade preserves the group's stable ownership while new Actions record the executing registration's version. Earlier Action attribution remains unchanged. An ordinary save cannot transfer a group to another owner or target.
+
+The ownership migration adds a blank canonical owner for legacy groups, then startup reconciliation binds only exact target and group-key matches with one validated active registration. It does not rewrite historical target IDs, Actions, or mutation receipts. Groups without a unique registration remain intact with unresolved ownership and reject new saves until their owner can be established.
+
+The public Revision Group save interface uses the shared actor-scoped mutation lifecycle. A retry first matches the original request identity and fingerprint, then checks current read access to the saved Record; it does not rerun the provider or current contract validation. If the Record has been deleted, recovery requires retained Project authorization context and returns only an unavailable-target marker. A new save still checks current edit access, state, snapshot validity, and target consistency. Revision, attachment links, state/name changes, Action, and receipt commit together; a failed attempt leaves the identity free to retry.
+
+Save semantics are stable: a changed snapshot creates a Revision and updates the state token; a name-only change keeps the current Revision and updates the token; a fully unchanged save keeps both the current Revision and token while still writing the required Action and receipt.
+
+### Revision
+
+An immutable historical state of a Revision Group, with the contract versions and provenance needed to interpret that state. Revisions belong to their Durable Record and do not count as additional Entities.
+
+A Revision's identity is distinct from its content hash, which fingerprints its saved values and exact type bindings. Returning from state A to B and then A creates three distinct Revisions even when the first and third content hashes match.
+
+The initial committed group state establishes a Revision. Every non-read Action checks the groups of all affected Entities; only changed saved values or exact contract bindings produce another Revision. The corresponding changes and snapshots commit together, and failed or rolled-back changes leave no new Revision.
+
+Under the current hard-deletion lifecycle, deleting a Durable Record deletes its Revisions too, including through Source subtree deletion. The durable Action Log remains. Replacing hard deletion with archiving is deferred.
+
+Historical reads follow the Durable Record's current access permissions. Recorded attribution survives deletion of the associated user account; account deletion does not itself delete scientific records or their Revisions.
+
+**Distinction from Content Version:** The existing ELN ContentVersion is a document-specific historical snapshot; Revision is the general domain concept intended to support such histories independently of a Mod.
+
+### Record Reference
+
+A link to a Durable Record or to specified values and Revisions within it. References documenting the inputs to a scientific operation identify the exact input Revisions used; ordinary browsing views may explicitly follow current values instead.
+
+If its target is hard-deleted, a surviving reference becomes unavailable; it must never silently resolve to a replacement record or a different Revision.
+
+Following a reference checks access to its target separately. Access to the referencing record does not grant access to the referenced record or its history.
+
+**Distinction from Source:** A Record Reference expresses a relationship or an input dependency; Source expresses containment. A reference that follows current values is not evidence of which values a historical operation used.
+
+### Scientific Provenance
+
+The durable context needed to interpret how a Recorded Value or output record was produced, including the relevant inputs and their Revisions, method identity, and scientifically significant parameters. Mods define an appropriate contract-bound structure for that context; preserving it does not require a universal platform operation record.
+
+**Distinction from Action Log:** Scientific Provenance explains the origin and meaning of a result; the Action Log records system operations and their actors. They can be linked, but an audit event alone does not necessarily describe the scientific method or its inputs.
+
+### Historical Rendition
+
+A retained human-readable representation associated with a reviewed or signed Revision, including the presentation context needed to identify how it was shown. It supplements the structured data and history and remains distinguishable from a view produced by a newer renderer.
+
+**Distinction from an export cache:** A Historical Rendition is a retained record artifact; a cached export is a regenerable derivative.
+
+### Durable Attachment
+
+A platform-retained file with its own identity, descriptive metadata and immutable contents, referenced from current values or Revisions independently of the originating Mod. Replacing its contents creates a new attachment identity; its bytes remain retained while any surviving record or Revision needs them. Historical Renditions use this same retention foundation.
+
+### Renderer
+
+The presentation responsibility that turns supplied values into a view without changing those values or silently replacing recorded scientific results with new calculations. Rendering may change the visual representation while preserving the meaning of the supplied data.
+
+**Distinction from Block:** A Block is an interactive content unit that can initiate Actions, including registering Entities; its rendering responsibility does not perform those record mutations. The existing slot renderer also supplies the embedding context and event wiring described under the Slot System.
+
+Settings that affect scientific interpretation are contract-bound Recorded Values changed through Actions. Cosmetic viewer choices are presentation preferences; selecting another viewer does not silently change scientific settings or historical meaning.
+
+### Portable Block Content
+
+A Block's durable instance data: a stable identity, optional contract-bound content, and an optional Action Sequence with concrete bindings. Display-only content needs no Action Sequence. Nested specialized values retain their exact Data Contract bindings; the containing Block does not introduce a separate Block Contract or a second set of input/output definitions.
+
+Absent a specialized viewer, the Platform can inspect retained definitions, content, declared operations and recorded results. Editing requires a compatible Action provider that can enforce validation and preserve unsupported nested content; an editor unable to preserve that content rejects the edit. Saving supported surrounding document content preserves unsupported Blocks intact.
+
+A deliberate new scientific invocation may replace the Block's currently displayed results while earlier results remain in retained document Revisions. Registering the new outputs creates new Entities without modifying previously registered outputs. Retrying the same invocation recovers its existing outcome instead.
+
+Duplication retains the existing Duplication Policy and its fresh-run semantics. If available capabilities cannot safely construct the required fresh instance, Duplicate is unavailable rather than blindly copying execution results or registration state. This does not restrict inspection or lossless preservation of the existing instance.
+
+### Action Binding
+
+The retained association of an exact Action Contract with a Block and its intended targets. In the portable-data model, a Block presents content by default; attached Action Bindings identify edits or other operations that compatible installed providers can supply without changing the identity or contract of its saved content.
+
+For an Action within a Block-owned sequence, the Action Contract declares named input and output ports and parameter definitions. Its Action Binding supplies concrete input sources, chosen parameters and recorded outputs. These bindings belong to the attached Action, rather than to a separate set of Block-level input/output definitions. Contract definitions remain Platform-retained; each Block instance need not copy them.
+
+A Block may have multiple Action Bindings. A molecular biology table can expose cutting and registration of the resulting Entities without requiring a separate Registry Table; viewer compatibility and support for each Action Contract are independent capabilities.
+
+**Initial provider selection:** A deployment selects one provider per capability. User Preferences for choosing among compatible viewers or editors are deferred. A standard Platform view preserves inspection of declared operations, contract-bound inputs and any recorded outputs when a specialized viewer is absent; expected outputs are not evidence of execution. Compatible Action providers can remain available independently of that specialized viewer.
+
+**Distinction from editing UI:** An editor gathers proposed changes for an Action; it is not an independent route for changing Recorded Values. A Registry Table's edit operation targets its document content, while registration targets the Entities represented by its rows.
+
+**Distinction from Slot Binding:** A Slot Binding places content in a workspace; an Action Binding makes an operation available on that content. Availability depends on a compatible installed provider and applicable permissions and record state; attaching a binding does not itself authorize execution.
+
+### Action Port
+
+A named, typed input or output declared by an exact Action Contract. Its stable identity distinguishes roles even when several ports accept the same Data Contract. Each port declares the permitted value type and whether it accepts one value or several; an Action Sequence connects compatible output and input ports through its concrete bindings.
+
+Port declarations use objects keyed by their stable names, without a redundant per-port ID property. Inputs, outputs and parameters reuse Data Contract type notation, including list types; an independent `multiple` flag is unnecessary. A contract reference identifies the exact value definition, while the port name identifies its role within the Action.
 
 ---
 
@@ -662,15 +889,15 @@ One of four universal operations understood by the Action system: **read**, **cr
 
 ### Action Policy
 
-The access rule evaluated before an Action can run. A policy can require a Project Role, an Organization Role, ownership, authentication, or public access. Authorization failure stops the operation; failure to write the subsequent audit record does not undo an operation that already succeeded.
+The access rule evaluated before an Action can run. A policy can require a Project Role, an Organization Role, ownership, authentication, or public access. Authorization failure stops the operation. In the durable-data target, required audit persistence is part of the commit guarantee; the current implementation's separate, best-effort logging does not provide that guarantee.
 
 ### Action Log Entry
 
 A framework-logged record of any mutating operation in the system. Created automatically by the `log_action()` dispatcher — not manually by users. Each entry records: who performed the operation (`performed_by`), what they did (`action_type`), what record they acted on (`target_type`, `target_id`), when (`created_at`), and relevant metadata about what changed (`metadata` JSON).
 
-Action log entries are the **audit trail** for CFR Part 11 compliance. Every mod owns its own action table via `register_action_model()`. Action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"` (e.g. `"eln.entry.created"`, `"eln.table.edited"`).
+Action Log Entries form the Platform audit trail. Action types use triple-dotted naming: `"{mod}.{target}.{verb_past}"` (e.g. `"eln.entry.created"`, `"eln.table.edited"`).
 
-**Invariant:** An action log entry belongs to exactly one mod's action table. Action logging failure must never break the operation being logged.
+**Durable-data target:** One authoritative Action records an invocation's actual operation, provider and participating records, referring to the exact contracts and committed Revisions involved. Required audit, record changes and Revisions commit together; audit failure prevents the commit. Data Contracts and Action Contracts are immutable definitions, not owners of execution history. This replaces the current implementation's single-target, best-effort logging behavior.
 
 **Synonyms:** audit record, action log row, logged action
 

@@ -16,7 +16,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import React from "react";
-import "../index";
+import { Mod } from "@helix/mod-api/host";
+import manifest from "../modManifest.json";
+import { register } from "../index";
+
+const registryMod = new Mod(manifest);
+register(registryMod);
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
@@ -34,6 +39,7 @@ vi.mock("../api", () => ({
   fetchActions: mockFetchActions,
   acquireLock: vi.fn().mockResolvedValue({}),
   releaseLock: vi.fn().mockResolvedValue(undefined),
+  getLockStatus: vi.fn().mockResolvedValue({ locked: false }),
   attachTags: vi.fn(),
   detachTag: vi.fn(),
 }));
@@ -86,7 +92,7 @@ vi.mock("../hooks/useAutoSave", () => ({
 }));
 
 /** Mock useTaggableItems — returns empty tags. */
-vi.mock("../../../bundled/labelling/tags/hooks", () => ({
+vi.mock("../tags/hooks", () => ({
   useTaggableItems: () => ({
     tags: [],
     pendingTagIds: [],
@@ -97,7 +103,7 @@ vi.mock("../../../bundled/labelling/tags/hooks", () => ({
 }));
 
 /** Mock TipTapRenderer — avoids useEditor() DOM requirements in jsdom. */
-vi.mock("../../../shell/src/workspace/TipTapRenderer", () => ({
+vi.mock("@helix/mod-api/host", () => ({
   TipTapRenderer: () => React.createElement("div", { "data-testid": "tiptap-renderer" }, "TipTapRenderer mock"),
 }));
 

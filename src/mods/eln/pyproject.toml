@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "helix-eln"
+version = "0.1.0"
+description = "Helix Electronic Lab Notebook external Mod"
+requires-python = ">=3.11"
+dependencies = ["helix-core>=0.1.0"]
+
+[project.entry-points."helix.mods"]
+"helix.eln" = "mods.eln"
+
+[tool.setuptools]
+packages = ["mods.eln", "mods.eln.migrations"]
+package-dir = {"mods.eln" = ".", "mods.eln.migrations" = "migrations"}
+
+[tool.setuptools.package-data]
+"mods.eln" = ["modManifest.json", "identity_map.json", "contracts/*.json", "migrations/*.json"]

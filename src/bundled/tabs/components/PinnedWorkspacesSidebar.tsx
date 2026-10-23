@@ -128,7 +128,7 @@ function PinnedWorkspacesSidebar() {
       <div className="flex flex-col items-center gap-1 py-2">
         {/* Pinned workspaces */}
     {[...pins].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((p) => {
-          const wsId = extractWorkspaceId(p.url);
+              const wsId = p.workspace?.workspace ?? extractWorkspaceId(p.url);
           const tooltip =
             p.label && p.label !== p.display_id
               ? `${p.label} — ${p.display_id}`
@@ -217,7 +217,7 @@ function topLevelItems(folders: TabFolder[], pins: PinnedWorkspace[]): TopLevelI
 }
 
 function TabItem({ pin, current, handleRowClick, unpin }: { pin: PinnedWorkspace; current: CurrentWorkspace | null; handleRowClick: (url: string) => void; unpin: (id: number) => Promise<void> }) {
-  const wsId = extractWorkspaceId(pin.url);
+  const wsId = pin.workspace?.workspace ?? extractWorkspaceId(pin.url);
   return <SortableTab id={pin.id}>{() => <div className="flex w-full min-w-0 items-center rounded-md pr-0.5 text-left"><TabRow displayId={pin.display_id} name={pin.label} icon={pin.icon ? <IconBadge iconKey={pin.icon} colorKey={pin.color || "muted"} size="sm" /> : wsId ? <WorkspaceIcon workspaceId={wsId} /> : <Box className="h-3.5 w-3.5" />} dragHandle={<GripVertical className="h-3.5 w-3.5" aria-hidden="true" />} iconAction={<IconButton className="grid h-6 w-6 place-items-center rounded p-0" style={{ width: "1.5rem", height: "1.5rem" }} title="Unpin this workspace" aria-label={`Unpin workspace: ${pin.display_id}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => void unpin(pin.id)}><PinOff className="h-3.5 w-3.5" /></IconButton>} active={current?.url === pin.url} ariaLabel={`Open workspace: ${pin.display_id}`} onClick={() => handleRowClick(pin.url)} /></div>}</SortableTab>;
 }
 

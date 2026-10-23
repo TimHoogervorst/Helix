@@ -16,7 +16,7 @@
  * - saveMode flows into the X-Save-Mode request header
  */
 import { useState, useRef, useCallback } from "react";
-import { put, NetworkError } from "../../../shell/src/api/client";
+import { put, NetworkError } from "@helix/mod-api/host";
 import type { EntryDetail } from "../types";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -76,6 +76,7 @@ export function useSaveQueue({
   // Refs avoid stale closures in the async drain loop and enqueue callback.
   const queueRef = useRef<QueuedSave[]>([]);
   const drainingRef = useRef(false);
+  const stateTokenRef = useRef<string | null>(null);
 
   const drain = useCallback(async () => {
     if (drainingRef.current) return;
@@ -94,14 +95,20 @@ export function useSaveQueue({
           extraHeaders["X-Block-Actions"] = "1";
         }
 
+        const payload = {
+          ...item.payload,
+          request_id: item.payload.request_id,
+          state_token: stateTokenRef.current ?? item.payload.state_token,
+        };
         const result = await put<EntryDetail>(
           `/eln/entries/${entryId}/`,
-          item.payload,
+          payload,
           undefined, // signal
           extraHeaders,
         );
 
         // Success — resolve, dequeue, update timestamp
+        stateTokenRef.current = result.platform_state_token ?? stateTokenRef.current;
         item.resolve(result);
         queueRef.current.shift();
         setQueueLength(queueRef.current.length);
@@ -133,8 +140,10 @@ export function useSaveQueue({
       hasBlockActions?: boolean,
     ): Promise<EntryDetail> => {
       const promise = new Promise<EntryDetail>((resolve, reject) => {
+        const requestId = globalThis.crypto?.randomUUID?.() ??
+          `eln-save-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         queueRef.current.push({
-          payload,
+          payload: { ...payload, request_id: payload.request_id ?? requestId },
           saveMode,
           hasBlockActions,
           resolve,

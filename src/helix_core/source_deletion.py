@@ -1,19 +1,36 @@
 """Deletion helpers for the polymorphic Source graph."""
 
 from django.contrib.contenttypes.models import ContentType
-from django.db import models
+from django.db import models, transaction
 
 
-def delete_source_descendants(root: models.Model) -> None:
+@transaction.atomic
+def delete_source_descendants(root: models.Model, *, actor=None) -> None:
     """Delete every item reached from *root* through Source edges.
 
     Source is a generic relation, so Django cannot cascade it.
     """
-    from helix_core.core.models import Folder
-    from mods.eln.models import NotebookEntry
-    from bundled.lims.models import Entity
+    from helix_core.mod_system.registry import registry
 
-    source_models = (Folder, NotebookEntry, Entity)
+    # Folders are valid roots without being provider-owned Sources. Registered
+    # providers and Platform Records expose the generic Source edge.
+    registered_sources = [
+        (provider, model)
+        for provider, model in registry.content_source_models()
+        if all(
+            field in {candidate.name for candidate in model._meta.get_fields()}
+            for field in ("source_type", "source_id")
+        )
+    ]
+    source_models = [model for _provider, model in registered_sources]
+    from helix_core.models import PlatformRecord
+    if PlatformRecord not in source_models:
+        source_models.append(PlatformRecord)
+    model_references = {
+        model: str(provider.model_reference)
+        for provider, model in registered_sources
+    }
+    model_references[PlatformRecord] = "helix.record"
     source_types = {
         model: ContentType.objects.get_for_model(model, for_concrete_model=False).pk
         for model in source_models
@@ -21,7 +38,8 @@ def delete_source_descendants(root: models.Model) -> None:
     root_type = ContentType.objects.get_for_model(root, for_concrete_model=False).pk
     pending = [(root_type, root.pk)]
     visited = set()
-    descendants = {model: set() for model in source_models}
+    ordered_descendants = []
+    model_by_type = {type_id: model for model, type_id in source_types.items()}
 
     while pending:
         source_type_id, source_id = pending.pop()
@@ -37,13 +55,26 @@ def delete_source_descendants(root: models.Model) -> None:
                     source_id=source_id,
                 ).values_list("pk", flat=True)
             )
-            descendants[model].update(child_ids)
+            ordered_descendants.extend((child_type, child_id) for child_id in child_ids)
             pending.extend((child_type, child_id) for child_id in child_ids)
 
-    # Children must go first.  This also bypasses entity reference checks:
-    # property references are not Source edges and must not block subtree
-    # deletion or cause the referencing entity to be deleted.
-    for model in reversed(source_models):
-        ids = descendants[model]
-        if ids:
-            model.objects.filter(pk__in=ids).delete()
+    # Children must go first. Property references are not Source edges and
+    # must not block subtree deletion or cause referencing records to delete.
+    from helix_core.record_persistence import delete_platform_record, delete_source_entity
+    for model_type, object_id in reversed(ordered_descendants):
+        model = model_by_type[model_type]
+        source = {"kind": "source-subtree", "type": root_type, "id": str(root.pk)}
+        if model is PlatformRecord:
+            try:
+                record = PlatformRecord.objects.get(pk=object_id)
+            except PlatformRecord.DoesNotExist:
+                continue
+            delete_platform_record(record, actor=actor, source=source)
+        else:
+            delete_source_entity(
+                model,
+                object_id,
+                target_model_reference=model_references[model],
+                actor=actor,
+                source=source,
+            )

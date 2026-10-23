@@ -18,8 +18,7 @@ function makeTestManifest(
   overrides?: Partial<ModManifest>,
 ): ModManifest {
   return {
-    vendor: "helix",
-    name: "test-mod",
+    id: "helix.test-mod",
     displayName: "Test Mod",
     version: "0.1.0",
     dependsOn: [],
@@ -68,12 +67,12 @@ describe("Mod", () => {
     });
 
     it("derives id as vendor.name", () => {
-      const mod = new Mod(makeTestManifest({ vendor: "acme", name: "widget" }));
+    const mod = new Mod(makeTestManifest({ id: "acme.widget" }));
       expect(mod.id).toBe("acme.widget");
     });
 
     it("derives id for default helix vendor", () => {
-      const mod = new Mod(makeTestManifest({ vendor: "helix", name: "eln" }));
+    const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
       expect(mod.id).toBe("helix.eln");
     });
   });
@@ -82,32 +81,32 @@ describe("Mod", () => {
 
   describe("registerBlock", () => {
     it("derives global ID from manifest.name + local name", () => {
-      const mod = new Mod(makeTestManifest({ name: "eln" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
       const handle = mod.registerBlock("table", makeBlockConfig());
 
-      expect(handle.globalId).toBe("eln.table");
+      expect(handle.globalId).toBe("helix.eln:table");
       expect(handle.modId).toBe("helix.eln");
       expect(handle.__brand).toBe("BlockHandle");
     });
 
     it("delegates to ModRegistry.registerBlock with derived global ID", () => {
-      const mod = new Mod(makeTestManifest({ name: "eln" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
       mod.registerBlock("table", makeBlockConfig());
 
       const blocks = registry.getBlocks();
-      expect(blocks.has("eln.table")).toBe(true);
-      expect(blocks.get("eln.table")?.label).toBe("Test Block");
+      expect(blocks.has("helix.eln:table")).toBe(true);
+      expect(blocks.get("helix.eln:table")?.label).toBe("Test Block");
     });
 
     it("returns a BlockHandle with empty emits when no emits in config", () => {
-      const mod = new Mod(makeTestManifest({ name: "eln" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
       const handle = mod.registerBlock("table", makeBlockConfig());
 
       expect(handle.emits).toEqual({});
     });
 
     it("returns a BlockHandle with typed emitters for each emits entry", () => {
-      const mod = new Mod(makeTestManifest({ name: "eln" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
       const handle = mod.registerBlock(
         "table",
         makeBlockConfig({
@@ -129,7 +128,7 @@ describe("Mod", () => {
     });
 
     it("passes through all block config fields to ModRegistry", () => {
-      const mod = new Mod(makeTestManifest({ name: "eln" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
       mod.registerBlock(
         "chart",
         makeBlockConfig({
@@ -140,7 +139,7 @@ describe("Mod", () => {
         }),
       );
 
-      const block = registry.getBlocks().get("eln.chart");
+      const block = registry.getBlocks().get("helix.eln:chart");
       expect(block).toBeDefined();
       expect(block?.label).toBe("Chart");
       expect(block?.tags).toEqual(["data", "visualization"]);
@@ -148,10 +147,10 @@ describe("Mod", () => {
     });
 
     it("uses the correct modId for different vendor/name combinations", () => {
-      const mod = new Mod(makeTestManifest({ vendor: "acme", name: "lims" }));
+      const mod = new Mod(makeTestManifest({ id: "acme.lims" }));
       const handle = mod.registerBlock("sample-viewer", makeBlockConfig());
 
-      expect(handle.globalId).toBe("lims.sample-viewer");
+      expect(handle.globalId).toBe("acme.lims:sample-viewer");
       expect(handle.modId).toBe("acme.lims");
     });
   });
@@ -160,7 +159,7 @@ describe("Mod", () => {
 
   describe("declareSlot", () => {
     it("derives global slot ID and returns SlotHandle", () => {
-      const mod = new Mod(makeTestManifest({ name: "eln" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
       const handle = mod.declareSlot("editor", {
         accepts: "block",
         renderer: DummyComponent,
@@ -170,13 +169,13 @@ describe("Mod", () => {
       });
 
       expect(handle.__brand).toBe("SlotHandle");
-      expect(handle.globalId).toBe("eln.editor");
+      expect(handle.globalId).toBe("helix.eln:editor");
       expect(handle.modId).toBe("helix.eln");
       expect(handle.accepts).toBe("block");
     });
 
     it("delegates to ModRegistry.declareSlot", () => {
-      const mod = new Mod(makeTestManifest({ name: "eln" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
       mod.declareSlot("editor", {
         accepts: "block" as const,
         renderer: DummyComponent,
@@ -185,13 +184,13 @@ describe("Mod", () => {
         defaults: {},
       });
 
-      const slot = registry.getSlots().get("eln.editor");
+      const slot = registry.getSlots().get("helix.eln:editor");
       expect(slot).toBeDefined();
       expect(slot?.accepts).toBe("block");
     });
 
     it("returns SlotHandle with correct accepts for button slots", () => {
-      const mod = new Mod(makeTestManifest({ name: "eln" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
       const handle = mod.declareSlot("header-actions", {
         accepts: "button",
         renderer: DummyComponent,
@@ -208,26 +207,26 @@ describe("Mod", () => {
 
   describe("registerButton", () => {
     it("derives global button ID and returns ButtonHandle", () => {
-      const mod = new Mod(makeTestManifest({ name: "eln" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
       const handle = mod.registerButton("export", {
         label: "Export",
         onClick: () => {},
       });
 
       expect(handle.__brand).toBe("ButtonHandle");
-      expect(handle.globalId).toBe("eln.export");
+      expect(handle.globalId).toBe("helix.eln:export");
       expect(handle.modId).toBe("helix.eln");
     });
 
     it("delegates to ModRegistry.registerButton", () => {
-      const mod = new Mod(makeTestManifest({ name: "eln" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
       mod.registerButton("export", {
         label: "Export",
         icon: DummyComponent,
         onClick: () => {},
       });
 
-      const button = registry.getButtons().get("eln.export");
+      const button = registry.getButtons().get("helix.eln:export");
       expect(button).toBeDefined();
       expect(button?.label).toBe("Export");
     });
@@ -237,7 +236,7 @@ describe("Mod", () => {
 
   describe("registerIntoSlot", () => {
     it("binds a block into a slot using handles", () => {
-      const mod = new Mod(makeTestManifest({ name: "eln" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
 
       const slot = mod.declareSlot("editor", {
         accepts: "block",
@@ -251,14 +250,14 @@ describe("Mod", () => {
 
       mod.registerIntoSlot(slot, block);
 
-      const bindings = registry.getBindings().get("eln.editor");
+      const bindings = registry.getBindings().get("helix.eln:editor");
       expect(bindings).toBeDefined();
       expect(bindings).toHaveLength(1);
-      expect(bindings![0].targetId).toBe("eln.table");
+      expect(bindings![0].targetId).toBe("helix.eln:table");
     });
 
     it("binds a button into a button slot using handles", () => {
-      const mod = new Mod(makeTestManifest({ name: "eln" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
 
       const slot = mod.declareSlot("header-actions", {
         accepts: "button",
@@ -275,13 +274,13 @@ describe("Mod", () => {
 
       mod.registerIntoSlot(slot, button);
 
-      const bindings = registry.getBindings().get("eln.header-actions");
+      const bindings = registry.getBindings().get("helix.eln:header-actions");
       expect(bindings).toBeDefined();
-      expect(bindings![0].targetId).toBe("eln.export");
+      expect(bindings![0].targetId).toBe("helix.eln:export");
     });
 
     it("passes overrides and order through to ModRegistry", () => {
-      const mod = new Mod(makeTestManifest({ name: "eln" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
 
       const slot = mod.declareSlot("editor", {
         accepts: "block",
@@ -295,13 +294,13 @@ describe("Mod", () => {
 
       mod.registerIntoSlot(slot, block, { nodeType: "inline" }, 5);
 
-      const binding = registry.getBindings().get("eln.editor")![0];
+      const binding = registry.getBindings().get("helix.eln:editor")![0];
       expect(binding.overrides).toEqual({ nodeType: "inline" });
       expect(binding.order).toBe(5);
     });
 
     it("binds multiple targets into the same slot", () => {
-      const mod = new Mod(makeTestManifest({ name: "eln" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
 
       const slot = mod.declareSlot("editor", {
         accepts: "block",
@@ -317,7 +316,7 @@ describe("Mod", () => {
       mod.registerIntoSlot(slot, table, {}, 0);
       mod.registerIntoSlot(slot, chart, {}, 1);
 
-      const bindings = registry.getBindings().get("eln.editor");
+      const bindings = registry.getBindings().get("helix.eln:editor");
       expect(bindings).toHaveLength(2);
     });
   });
@@ -326,7 +325,7 @@ describe("Mod", () => {
 
   describe("registerHub", () => {
     it("derives global hub ID and delegates", () => {
-      const mod = new Mod(makeTestManifest({ name: "lims" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.lims" }));
       mod.registerHub("entities", {
         label: "Entities",
         icon: DummyComponent,
@@ -335,7 +334,7 @@ describe("Mod", () => {
         order: 20,
       });
 
-      const hub = registry.getHubs().get("lims.entities");
+      const hub = registry.getHubs().get("helix.lims:entities");
       expect(hub).toBeDefined();
       expect(hub?.label).toBe("Entities");
       expect(hub?.route).toBe("/entities");
@@ -346,15 +345,15 @@ describe("Mod", () => {
 
   describe("registerRoute", () => {
     it("derives global route ID and auto-sets modId from manifest.name", () => {
-      const mod = new Mod(makeTestManifest({ name: "eln" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.eln" }));
       mod.registerRoute("entry-page", {
         path: "/eln/:id",
         component: DummyComponent,
       });
 
-      const route = registry.getRoutes().get("eln.entry-page");
+      const route = registry.getRoutes().get("helix.eln:entry-page");
       expect(route).toBeDefined();
-      expect(route?.modId).toBe("eln");
+      expect(route?.modId).toBe("helix.eln");
       expect(route?.path).toBe("/eln/:id");
     });
   });
@@ -363,7 +362,7 @@ describe("Mod", () => {
 
   describe("registerSettingsSection", () => {
     it("derives global section ID and auto-sets modId from manifest.name", () => {
-      const mod = new Mod(makeTestManifest({ name: "tags" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.tags" }));
       mod.registerSettingsSection("manage", {
         label: "Labelling",
         component: DummyComponent,
@@ -371,16 +370,16 @@ describe("Mod", () => {
       });
 
       const sections = registry.getSettingsSections();
-      const section = sections.find((s) => s.id === "tags.manage");
+      const section = sections.find((s) => s.id === "helix.tags:manage");
       expect(section).toBeDefined();
-      expect(section?.modId).toBe("tags");
+      expect(section?.modId).toBe("helix.tags");
       expect(section?.label).toBe("Labelling");
     });
   });
 
   describe("registerSchemaComponent", () => {
     it("derives a namespaced component ID", () => {
-      const mod = new Mod(makeTestManifest({ name: "lims" }));
+      const mod = new Mod(makeTestManifest({ id: "helix.lims" }));
       mod.registerSchemaComponent("results", {
         label: "Results",
         icon: DummyComponent,
@@ -399,14 +398,14 @@ describe("Mod", () => {
 
   describe("cross-mod isolation", () => {
     it("two Mod instances with different manifests produce isolated global IDs", () => {
-      const elnMod = new Mod(makeTestManifest({ name: "eln" }));
-      const limsMod = new Mod(makeTestManifest({ name: "lims" }));
+      const elnMod = new Mod(makeTestManifest({ id: "helix.eln" }));
+      const limsMod = new Mod(makeTestManifest({ id: "helix.lims" }));
 
       const elnBlock = elnMod.registerBlock("table", makeBlockConfig());
       const limsBlock = limsMod.registerBlock("table", makeBlockConfig());
 
-      expect(elnBlock.globalId).toBe("eln.table");
-      expect(limsBlock.globalId).toBe("lims.table");
+      expect(elnBlock.globalId).toBe("helix.eln:table");
+      expect(limsBlock.globalId).toBe("helix.lims:table");
       expect(elnBlock.modId).toBe("helix.eln");
       expect(limsBlock.modId).toBe("helix.lims");
 

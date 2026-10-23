@@ -64,7 +64,7 @@ vi.mock("../../../../shell/src/user/CurrentUserProvider", () => ({
 
 // ── Imports after mocks ───────────────────────────────────────────────────
 
-import HomePage from "../HomePage";
+import { MetricCardsBar } from "../../../../shell/src/shared/components/MetricCards/MetricCardsBar";
 import {
   resolveFormatting,
   applyValueTemplate,
@@ -145,7 +145,7 @@ afterEach(() => {
 function renderHomePage() {
   return render(
     <MemoryRouter>
-      <HomePage />
+      <MetricCardsBar />
     </MemoryRouter>,
   );
 }

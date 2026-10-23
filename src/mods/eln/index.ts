@@ -1,23 +1,32 @@
 import { lazy } from "react";
-import { FlaskConical, ListChecks, History, Table, MessageSquare, Database, Info, Link, Paperclip } from "lucide-react";
-import { Mod } from "../../shell/src/mod-system/Mod";
-import { BlockEvent } from "../../shell/src/mod-system/BlockEvent";
-import type { ModManifest } from "../../shell/src/mod-system/types";
-import { ButtonGroupRenderer } from "../../shell/src/workspace/ButtonGroupRenderer";
-import { SlotSidebar } from "../../shell/src/shared/components/Sidebar/SlotSidebar";
-import { TipTapRenderer } from "../../shell/src/workspace/TipTapRenderer";
+import { ListChecks, History, Table, Info, Link, Paperclip } from "lucide-react";
+import { type Mod, ButtonGroupRenderer, SlotSidebar, TipTapRenderer } from "@helix/mod-api";
 import { TableBlockComponent } from "./blocks/TableNodeView";
-import { CommentBlockComponent } from "./blocks/CommentNodeView";
-import { ProtocolBlockComponent } from "./blocks/ProtocolBlockNode";
-import { RegistryTableBlockComponent } from "./blocks/RegistryTableNode";
-import { ResultTableBlockComponent } from "./blocks/ResultTableNode";
 import { ActivityFeedBlock, activityFeedOnEvent } from "./components/ActivityFeedBlock";
 import { MetadataBlock } from "./blocks/MetadataBlock";
 import { LinkedEntitiesBlock } from "./blocks/LinkedEntitiesBlock";
 import { AttachmentsBlock } from "./blocks/AttachmentsBlock";
-import manifest from "./modManifest.json";
+import { createEntry, patchEntry, getLockStatus } from "./api";
 
-const mod = new Mod(manifest as ModManifest);
+const emptyEntryContent = { type: "doc", content: [{ type: "paragraph" }] } as const;
+
+export function register(mod: Mod) {
+
+mod.registerContentSource("entry", {
+  label: "ELN Entry",
+  create: async ({ sourceId, projectId }) => createEntry({
+    name: "Untitled entry",
+    content: emptyEntryContent,
+    source_id: sourceId ?? undefined,
+    project: projectId,
+  }),
+  edit: (displayId, changes) => patchEntry(displayId, changes),
+  lock: getLockStatus,
+  navigate: (displayId, params) => {
+    const query = params.toString();
+    return `/eln/${displayId}${query ? `?${query}` : ""}`;
+  },
+});
 
 // ── Slot: Header actions toolbar (dogfood #227) ──────────────────────────
 mod.declareSlot("header-actions", {
@@ -29,14 +38,13 @@ mod.declareSlot("header-actions", {
 });
 
 // ── Standalone route: entry detail page (full workspace) ──────────────
-mod.registerRoute("entry-page", {
-  path: "/eln/:id",
+mod.registerWorkspace("eln", {
   component: lazy(() => import("./workspace/ElnWorkspacePage")),
 });
 
 // ── Slot: ELN Editor ────────────────────────────────────
-export const editorSlot = mod.declareSlot("editor", {
-  accepts: "block",
+const editorSlot = mod.declareSlot("editor", {
+  accepts: ["editor"],
   renderer: TipTapRenderer,
   layout: "vertical",
   order: 0,
@@ -44,7 +52,7 @@ export const editorSlot = mod.declareSlot("editor", {
 });
 
 // ── Block: Table ───────────────────────────────────────────────────────
-export const tableBlock = mod.registerBlock("table", {
+mod.registerBlock("table", {
   label: "Table",
   layout: "dynamic-bleed",
   icon: Table,
@@ -53,6 +61,7 @@ export const tableBlock = mod.registerBlock("table", {
   onEvent: {},
   emits: [],
   tags: ["data", "spreadsheet"],
+  affinity: ["editor"],
   getDisplayName: (attrs) => (attrs.title as string) || "Table",
   serialize: (state) => JSON.stringify(state),
   deserialize: (json) => {
@@ -71,119 +80,11 @@ export const tableBlock = mod.registerBlock("table", {
   },
 });
 
-// ── Block: Comment ─────────────────────────────────────────────────────
-export const commentBlock = mod.registerBlock("comment", {
-  label: "Comment",
-  icon: MessageSquare,
-  component: CommentBlockComponent,
-  listensTo: [],
-  onEvent: {},
-  emits: [],
-  tags: ["discussion", "annotation"],
-  getDisplayName: (attrs) => {
-    const thread = attrs.thread as Array<{ authorName?: string }> | undefined;
-    return thread?.[0]?.authorName || "Comment";
-  },
-  serialize: (state) => JSON.stringify(state),
-  deserialize: (json) => {
-    try { return JSON.parse(json); } catch { return {}; }
-  },
-  defaultState: {
-    resolved: false,
-    thread: [],
-  },
-});
-
-// ── Block: Protocol ────────────────────────────────────────────────────
-export const protocolBlock = mod.registerBlock("protocol", {
-  label: "Protocol",
-  icon: FlaskConical,
-  component: ProtocolBlockComponent,
-  listensTo: [],
-  onEvent: {},
-  emits: [],
-  tags: ["procedure", "workflow"],
-  preserve: ["protocolId"],
-  getDisplayName: (attrs) => (attrs.name as string) || "Protocol",
-  serialize: (state) => JSON.stringify(state),
-  deserialize: (json) => {
-    try { return JSON.parse(json); } catch { return {}; }
-  },
-  defaultState: {
-    protocolId: null,
-    name: "Protocol",
-    items: [],
-    stepStates: {},
-    editable: false,
-  },
-});
-
-// ── Block: Registry Table ──────────────────────────────────────────────
-export const registryTableBlock = mod.registerBlock("registry-table", {
-  label: "Registry Table",
-  layout: "dynamic-bleed",
-  icon: Database,
-  component: RegistryTableBlockComponent,
-  listensTo: [],
-  onEvent: {},
-  emits: [
-    BlockEvent.action({ id: "entities-registered", core: "edited" }),
-    BlockEvent.action({ id: "row-added", core: "edited" }),
-    BlockEvent.ui({ id: "column-resized" }),
-  ],
-  tags: ["table", "registry", "lims"],
-  preserve: ["schemaId"],
-  getDisplayName: (attrs) =>
-    (attrs.schemaName || attrs.title) as string || "Registry Table",
-  serialize: (state) => JSON.stringify(state),
-  deserialize: (json) => {
-    try { return JSON.parse(json); } catch { return {}; }
-  },
-  defaultState: {
-    schemaId: null,
-    schemaName: null,
-    schemaContentHash: null,
-    title: "Registry Table",
-    columns: [],
-    rows: [],
-  },
-});
-
-// ── Block: Result Table ───────────────────────────────────────────────────
-export const resultTableBlock = mod.registerBlock("result-table", {
-  label: "Result Table",
-  layout: "dynamic-bleed",
-  icon: Database,
-  component: ResultTableBlockComponent,
-  listensTo: [],
-  onEvent: {},
-  emits: [BlockEvent.action({ id: "results-registered", core: "edited" })],
-  tags: ["table", "result", "lims"],
-  preserve: ["schemaId"],
-  getDisplayName: (attrs) => (attrs.schemaName || attrs.title) as string || "Result Table",
-  serialize: (state) => JSON.stringify(state),
-  deserialize: (json) => {
-    try { return JSON.parse(json); } catch { return {}; }
-  },
-  defaultState: {
-    schemaId: null,
-    schemaName: null,
-    schemaContentHash: null,
-    title: "Result Table",
-    columns: [],
-    rows: [],
-  },
-});
-
-// ── Bind blocks into editor slot ────────────────────────────────────────
-mod.registerIntoSlot(editorSlot, tableBlock, {}, 0);
-mod.registerIntoSlot(editorSlot, commentBlock, {}, 1);
-mod.registerIntoSlot(editorSlot, protocolBlock, {}, 2);
-mod.registerIntoSlot(editorSlot, registryTableBlock, {}, 3);
-mod.registerIntoSlot(editorSlot, resultTableBlock, {}, 4);
+// Table, protocol, and comment blocks are platform-owned by LIMS. The editor
+// slot pulls every installed block advertising the `editor` capability.
 
 // ── Slot: ELN Sidebar (dogfood #233) ────────────────────────────────────
-export const sidebarSlot = mod.declareSlot("sidebar", {
+const sidebarSlot = mod.declareSlot("sidebar", {
   accepts: "block",
   renderer: SlotSidebar,
   layout: "vertical",
@@ -192,7 +93,7 @@ export const sidebarSlot = mod.declareSlot("sidebar", {
 });
 
 // ── Block: Metadata ─────────────────────────────────────────────────────
-export const metadataBlock = mod.registerBlock("metadata", {
+const metadataBlock = mod.registerBlock("metadata", {
   label: "Metadata",
   icon: Info,
   component: MetadataBlock,
@@ -206,7 +107,7 @@ export const metadataBlock = mod.registerBlock("metadata", {
 });
 
 // ── Block: Linked Entities ──────────────────────────────────────────────
-export const linkedEntitiesBlock = mod.registerBlock("linked-entities", {
+const linkedEntitiesBlock = mod.registerBlock("linked-entities", {
   label: "Linked Entities",
   icon: Link,
   component: LinkedEntitiesBlock,
@@ -220,7 +121,7 @@ export const linkedEntitiesBlock = mod.registerBlock("linked-entities", {
 });
 
 // ── Block: Attachments ──────────────────────────────────────────────────
-export const attachmentsBlock = mod.registerBlock("attachments", {
+const attachmentsBlock = mod.registerBlock("attachments", {
   label: "Attachments",
   icon: Paperclip,
   component: AttachmentsBlock,
@@ -239,7 +140,7 @@ mod.registerIntoSlot(sidebarSlot, linkedEntitiesBlock, {}, 1);
 mod.registerIntoSlot(sidebarSlot, attachmentsBlock, {}, 2);
 
 // ── Block: Activity Feed ────────────────────────────────────────────────
-export const activityFeedBlock = mod.registerBlock("activity-feed", {
+const activityFeedBlock = mod.registerBlock("activity-feed", {
   label: "Activity Feed",
   icon: History,
   component: ActivityFeedBlock,
@@ -263,5 +164,4 @@ mod.registerSettingsSection("protocol-settings", {
   order: 20,
 });
 
-/** No-op — all registrations happen at module scope via the Mod class. */
-export function register() {}
+}

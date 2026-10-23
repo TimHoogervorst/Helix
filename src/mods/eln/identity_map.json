@@ -1,0 +1,73 @@
+{
+  "schema_types": {
+    "eln.entry": "helix.eln:entry",
+    "lims.entity": "helix.lims:entity",
+    "lims.result": "helix.lims:result"
+  },
+  "workspaces": {
+    "eln": "helix.eln:workspace",
+    "lims": "helix.lims:workspace",
+    "results": "helix.lims:results-workspace",
+    "library": "helix.library:hub",
+    "tabs": "helix.tabs:sidebar"
+  },
+  "models": {
+    "mods.eln.models.NotebookEntry": "helix.eln:entry",
+    "bundled.lims.models.Entity": "helix.lims:entity",
+    "mods.lims.models.Entity": "helix.lims:entity"
+  },
+  "entity_tabs": {
+    "lims.results": "helix.lims:results"
+  },
+  "blocks": {
+    "eln.table": "helix.eln:table",
+    "eln.comment": "helix.eln:comment",
+    "eln.protocol": "helix.eln:protocol",
+    "eln.registry-table": "helix.eln:registry-table",
+    "eln.result-table": "helix.eln:result-table",
+    "eln.metadata": "helix.eln:metadata",
+    "eln.linked-entities": "helix.eln:linked-entities",
+    "eln.attachments": "helix.eln:attachments",
+    "eln.activity-feed": "helix.eln:activity-feed",
+    "table": "helix.eln:table",
+    "comment": "helix.eln:comment",
+    "protocol": "helix.eln:protocol",
+    "registry-table": "helix.eln:registry-table",
+    "result-table": "helix.eln:result-table",
+    "lims.selection": "helix.lims:selection",
+    "lims.my-views": "helix.lims:my-views",
+    "lims.global-views": "helix.lims:global-views",
+    "lims.activity-feed": "helix.lims:activity-feed",
+    "library.selection": "helix.library:selection",
+    "library.views": "helix.library:views"
+  },
+  "slots": {
+    "eln.header-actions": "helix.eln:header-actions",
+    "eln.editor": "helix.eln:editor",
+    "eln.sidebar": "helix.eln:sidebar",
+    "lims.sidebar": "helix.lims:sidebar",
+    "library.sidebar": "helix.library:sidebar"
+  },
+  "actions": {
+    "eln.entry.created": "helix.eln:entry.created",
+    "eln.entry.edited": "helix.eln:entry.edited",
+    "eln.entry.deleted": "helix.eln:entry.deleted",
+    "eln.entities.registered": "helix.eln:entities.registered",
+    "eln.table.created": "helix.eln:table.created",
+    "eln.table.edited": "helix.eln:table.edited",
+    "eln.table.deleted": "helix.eln:table.deleted",
+    "eln.registry-table.entities-registered": "helix.eln:registry-table.entities-registered",
+    "eln.registry-table.row-added": "helix.eln:registry-table.row-added",
+    "lims.entity.created": "helix.lims:entity.created",
+    "lims.entity.edited": "helix.lims:entity.edited",
+    "lims.entity.deleted": "helix.lims:entity.deleted",
+    "lims.entity.tags_attached": "helix.lims:entity.tags_attached",
+    "lims.entity.tag_detached": "helix.lims:entity.tag_detached"
+  },
+  "target_types": {
+    "eln.entry": "helix.eln:entry",
+    "lims.entity": "helix.lims:entity",
+    "lims.entities": "helix.lims:entity",
+    "lims.result": "helix.lims:result"
+  }
+}

@@ -1,3 +1,4 @@
+import { createElement } from "react";
 import type {
   HubConfig,
   SettingsSectionConfig,
@@ -14,9 +15,13 @@ import type {
   SchemaColumnDef,
   ModManifest,
   ActionCatalogEntry,
+  ContentSourceConfig,
   IconLibraryEntry,
   ColorToken,
+  MetricProviderConfig,
 } from "./types";
+import { WorkspaceReference } from "./references";
+import Unavailable from "../shared/components/Unavailable";
 import {
   getClientFormulaFunctionIds,
   hydrateFormulaCatalog,
@@ -31,6 +36,7 @@ interface BackendSchemaType {
   prefix: string;
   columns?: Record<string, unknown>[];
   icon?: string;
+  capabilities?: string[];
 }
 
 /** Operator definition from the backend column type registry. */
@@ -73,6 +79,9 @@ export interface BackendFormulaFunction {
 /** Single workspace entry in the backend mod-registry response. */
 interface BackendModRegistryEntry {
   workspaceId: string;
+  vendor?: string;
+  mod?: string;
+  workspace?: string;
   schemaTypes: BackendSchemaType[];
   actions: Array<{ id: string; label: string; action_type: string }>;
 }
@@ -89,6 +98,34 @@ function isWorkspaceEntry(
   );
 }
 
+function legacyCompatibleMap<T extends { id: string }>(
+  values: Map<string, T>,
+): ReadonlyMap<string, T> {
+  const legacyId = (id: string) => {
+    const [modId, localKey] = id.split(":", 2);
+    return modId && localKey ? `${modId.split(".").pop()}.${localKey}` : id;
+  };
+  return {
+    get: (key: string) => {
+      const exact = values.get(key);
+      if (exact) return exact;
+      return [...values.values()].find((value) => legacyId(value.id) === key);
+    },
+    has: (key: string) => values.has(key) || [...values.values()].some((value) => legacyId(value.id) === key),
+    get size() { return values.size; },
+    keys: () => values.keys(),
+    values: () => values.values(),
+    entries: () => values.entries(),
+    forEach: (callbackfn) => values.forEach(callbackfn),
+    [Symbol.iterator]: () => values[Symbol.iterator](),
+  };
+}
+
+function legacyIdFor(id: string): string {
+  const [modId, localKey] = id.split(":", 2);
+  return modId && localKey ? `${modId.split(".").pop()}.${localKey}` : id;
+}
+
 /**
  * Central registry for all mod registrations.
  *
@@ -100,13 +137,6 @@ function isWorkspaceEntry(
  * must be available outside the component tree (e.g. route matching, mod
  * loading) and must not trigger re-renders.
  */
-
-function getCsrfCookie(): string | null {
-  const value = `; ${document.cookie}`;
-  const parts = value.split("; csrftoken=");
-  if (parts.length === 2) return parts.pop()?.split(";").shift() ?? null;
-  return null;
-}
 
 export class ModRegistry {
   // ── Singleton ─────────────────────────────────────────────────────────
@@ -132,6 +162,8 @@ export class ModRegistry {
   private schemaComponents = new Map<string, SchemaComponentRegistration>();
   private routes = new Map<string, RouteConfig>();
   private services = new Map<string, ServiceConfig>();
+  private metricProviders = new Map<string, MetricProviderConfig>();
+  private contentSources = new Map<string, ContentSourceConfig>();
   private workspaces = new Map<string, WorkspaceConfig>();
   private blocks = new Map<string, BlockRegistration>();
   private slots = new Map<string, SlotDeclaration>();
@@ -176,6 +208,17 @@ export class ModRegistry {
     this.hubs.set(config.id, config);
   }
 
+  registerContentSource(config: ContentSourceConfig): void {
+    if (this.contentSources.has(config.kind)) {
+      throw new Error(`Duplicate content source registration: '${config.kind}'`);
+    }
+    this.contentSources.set(config.kind, config);
+  }
+
+  getContentSources(): ReadonlyMap<string, ContentSourceConfig> {
+    return this.contentSources;
+  }
+
   registerSettingsSection(config: SettingsSectionConfig): void {
     if (this.settingsSections.has(config.id)) {
       throw new Error(
@@ -203,6 +246,13 @@ export class ModRegistry {
     this.routes.set(config.id, config);
   }
 
+  registerWorkspace(config: WorkspaceConfig): void {
+    if (this.workspaces.has(config.id)) {
+      throw new Error(`Duplicate workspace registration: '${config.id}' is already registered.`);
+    }
+    this.workspaces.set(config.id, config);
+  }
+
   registerService(config: ServiceConfig): void {
     if (this.services.has(config.id)) {
       throw new Error(
@@ -210,6 +260,21 @@ export class ModRegistry {
       );
     }
     this.services.set(config.id, config);
+  }
+
+  registerMetricProvider(config: MetricProviderConfig): void {
+    if (this.metricProviders.has(config.id)) {
+      throw new Error(`Duplicate metric provider registration: '${config.id}'`);
+    }
+    this.metricProviders.set(config.id, config);
+  }
+
+  getMetricProviders(): ReadonlyMap<string, MetricProviderConfig> {
+    return this.metricProviders;
+  }
+
+  async callMetricProvider(provider: MetricProviderConfig): Promise<unknown> {
+    return this.call(provider.service);
   }
 
   /**
@@ -284,17 +349,50 @@ export class ModRegistry {
         continue;
       }
 
+      if (key === "metricProviders" && Array.isArray(value)) {
+        this.metricProviders.clear();
+        for (const entry of value) {
+          const metric = entry as MetricProviderConfig & { displayLabel?: string };
+          if (typeof metric.id !== "string" || typeof metric.service !== "string") continue;
+          if (!this.services.has(metric.service)) {
+            this.services.set(metric.service, {
+              id: metric.service,
+              handler: async () => {
+                const response = await fetch(
+                  `/api/home/providers/${encodeURIComponent(metric.id)}/value/`,
+                );
+                if (!response.ok) throw new Error(`Metric provider failed (${response.status})`);
+                return response.json();
+              },
+            });
+          }
+          this.metricProviders.set(metric.id, {
+            ...metric,
+            label: metric.label ?? metric.displayLabel ?? metric.id,
+          });
+        }
+        continue;
+      }
+
       // Structural guard: workspace entries have a workspaceId property.
       if (!isWorkspaceEntry(value)) {
         continue;
       }
 
       const wsEntry = value;
-      const manifest = manifests.get(key);
+      const manifest = manifests.get(key) ?? [...manifests.values()].find((candidate) =>
+        candidate.id.endsWith(`.${key}`),
+      );
+      const candidateModId = wsEntry.vendor && wsEntry.mod
+        ? `${wsEntry.vendor}.${wsEntry.mod}`
+        : manifest?.id ?? `helix.${key}`;
+      const modId = candidateModId.includes(".") ? candidateModId : `helix.${candidateModId}`;
+      const reference = new WorkspaceReference(modId, wsEntry.workspace ?? key);
       const schemaType = wsEntry.schemaTypes?.[0];
 
       this.workspaces.set(key, {
         id: key,
+        reference,
         displayName: manifest?.displayName ?? key,
         icon: undefined,
         schemaType: schemaType
@@ -303,6 +401,7 @@ export class ModRegistry {
               displayName: schemaType.displayName,
               defaultPrefix: schemaType.prefix,
               columns: schemaType.columns as SchemaColumnDef[] | undefined,
+              capabilities: schemaType.capabilities,
               ...(schemaType.icon ? { icon: schemaType.icon } : {}),
             }
           : undefined,
@@ -376,8 +475,9 @@ export class ModRegistry {
     targetId: string,
     overrides: Record<string, unknown> = {},
     order = 0,
+    provider?: string,
   ): void {
-    const binding: SlotBinding = { slotId, targetId, overrides, order };
+    const binding: SlotBinding = { slotId, targetId, overrides, order, provider };
     const existing = this.bindings.get(slotId);
     if (existing) {
       existing.push(binding);
@@ -387,6 +487,19 @@ export class ModRegistry {
   }
 
   // ── Resolution methods ────────────────────────────────────────────────
+
+  /** Resolve a canonical ID while accepting pre-632 short IDs at read time. */
+  private static findById<T extends { id: string }>(
+    store: ReadonlyMap<string, T>,
+    id: string,
+  ): T | undefined {
+    const exact = store.get(id);
+    if (exact) return exact;
+    for (const value of store.values()) {
+      if (legacyIdFor(value.id) === id) return value;
+    }
+    return undefined;
+  }
 
   /**
    * Resolve a slot into its renderer-ready bindings.
@@ -403,18 +516,68 @@ export class ModRegistry {
   resolveSlot(
     slotId: string,
   ): { renderer: SlotDeclaration["renderer"]; bindings: (BlockBinding | ButtonBinding)[] } | null {
-    const slot = this.slots.get(slotId);
+    const slot = ModRegistry.findById(this.slots, slotId);
     if (!slot) return null;
 
-    const rawBindings = this.bindings.get(slotId);
-    if (!rawBindings || rawBindings.length === 0) return null;
+    const bindingKey = this.bindings.has(slotId)
+      ? slotId
+      : [...this.bindings.keys()].find((key) => legacyIdFor(key) === slotId);
+    const rawBindings = bindingKey ? this.bindings.get(bindingKey) : undefined;
+    if ((!rawBindings || rawBindings.length === 0) && !Array.isArray(slot.accepts)) return null;
 
     const resolved: (BlockBinding | ButtonBinding)[] = [];
 
-    for (const binding of rawBindings) {
+    if (Array.isArray(slot.accepts)) {
+      const accepted = new Set(slot.accepts);
+      for (const [blockId, block] of this.blocks.entries()) {
+        if (!block.affinity?.some((capability) => accepted.has(capability))) continue;
+        resolved.push({
+          type: "block" as const,
+          id: block.id,
+          label: block.label,
+          icon: block.icon,
+          component: block.component,
+          listensTo: block.listensTo,
+          onEvent: block.onEvent,
+          getDisplayName: block.getDisplayName,
+          tags: block.tags,
+          affinity: block.affinity,
+          layout: block.layout,
+          emits: block.emits,
+          overrides: { ...slot.defaults },
+          serialize: block.serialize,
+          deserialize: block.deserialize,
+          defaultState: block.defaultState,
+          preserve: block.preserve,
+          order: [...this.blocks.keys()].indexOf(blockId),
+        });
+      }
+    } else for (const binding of rawBindings ?? []) {
       if (slot.accepts === "block") {
-        const block = this.blocks.get(binding.targetId);
-        if (!block) continue;
+        const block = ModRegistry.findById(this.blocks, binding.targetId);
+        if (!block) {
+          // Unregistered ephemeral bindings remain ignored. A provider stamp
+          // identifies persisted content whose owning mod may be absent.
+          if (!binding.provider) continue;
+          // Keep persisted bindings visible when their owning mod is absent.
+          // The renderer can then show a safe placeholder instead of silently
+          // dropping document structure.
+          resolved.push({
+            type: "block" as const,
+            id: binding.targetId,
+            label: "Unavailable block",
+            icon: () => null,
+            component: () => createElement(Unavailable, { kind: "Block", name: binding.targetId }),
+            listensTo: [],
+            onEvent: {},
+            overrides: { ...slot.defaults, ...binding.overrides },
+            serialize: (state) => JSON.stringify(state),
+            deserialize: (json) => { try { return JSON.parse(json) as Record<string, unknown>; } catch { return {}; } },
+            defaultState: {},
+            order: binding.order,
+          });
+          continue;
+        }
 
         // Merge slot defaults with binding overrides (binding wins per-key)
         const mergedOverrides: Record<string, unknown> = {
@@ -432,6 +595,7 @@ export class ModRegistry {
           onEvent: block.onEvent,
           getDisplayName: block.getDisplayName,
           tags: block.tags,
+          affinity: block.affinity,
           layout: block.layout,
           emits: block.emits,
           overrides: mergedOverrides,
@@ -442,7 +606,7 @@ export class ModRegistry {
           order: binding.order,
         });
       } else {
-        const button = this.buttons.get(binding.targetId);
+        const button = ModRegistry.findById(this.buttons, binding.targetId);
         if (!button) continue;
 
         resolved.push({
@@ -490,9 +654,12 @@ export class ModRegistry {
 
   /**
    * Validate cross-references across all registrations.
-   * Throws on the first error found.
+   * Throws on the first error found for required references. Slot binding
+   * issues remain warn-and-skip by default for callers that resolve lazily.
+   * Boot uses ``strict: true`` so activation cannot start partially.
    */
-  validate(): void {
+  validate(options: { strict?: boolean } = {}): void {
+    const errors: string[] = [];
     // Validate route modIds resolve to registered mods
     for (const route of this.routes.values()) {
       if (!this.modIds.has(route.modId)) {
@@ -517,6 +684,7 @@ export class ModRegistry {
 
       // Check 1: slot must be declared before bindings target it
       if (!slot) {
+        errors.push(`Slot binding references undeclared slot '${slotId}'.`);
         console.warn(
           `Slot binding skipped: slot '${slotId}' is not declared. ` +
             `Declare the slot with declareSlot() before calling registerIntoSlot().`,
@@ -527,11 +695,15 @@ export class ModRegistry {
 
       // Check 2 & 3: each binding's target must exist and match slot accepts
       const validBindings = slotBindings.filter((binding) => {
+        if (Array.isArray(slot.accepts)) return false;
         // Check target exists in blocks or buttons
         const targetInBlocks = this.blocks.has(binding.targetId);
         const targetInButtons = this.buttons.has(binding.targetId);
 
         if (!targetInBlocks && !targetInButtons) {
+          errors.push(
+            `Slot '${slotId}' references unknown target '${binding.targetId}'.`,
+          );
           console.warn(
             `Slot binding skipped: target '${binding.targetId}' is not a registered ` +
               `block or button. Register the target before calling registerIntoSlot().`,
@@ -541,6 +713,9 @@ export class ModRegistry {
 
         // Check target type matches slot's accepts
         if (slot.accepts === "block" && !targetInBlocks) {
+          errors.push(
+            `Slot '${slotId}' requires a block but '${binding.targetId}' is not one.`,
+          );
           console.warn(
             `Slot binding skipped: slot '${slotId}' accepts 'block' but target ` +
               `'${binding.targetId}' is a button.`,
@@ -549,6 +724,9 @@ export class ModRegistry {
         }
 
         if (slot.accepts === "button" && !targetInButtons) {
+          errors.push(
+            `Slot '${slotId}' requires a button but '${binding.targetId}' is not one.`,
+          );
           console.warn(
             `Slot binding skipped: slot '${slotId}' accepts 'button' but target ` +
               `'${binding.targetId}' is a block.`,
@@ -566,13 +744,17 @@ export class ModRegistry {
         this.bindings.delete(slotId);
       }
     }
+
+    if (options.strict && errors.length > 0) {
+      throw new Error(`Mod activation validation failed:\n${errors.join("\n")}`);
+    }
   }
 
   // ── Read-only accessors ───────────────────────────────────────────────
 
   /** Returns a read-only view of all registered hubs. */
   getHubs(): ReadonlyMap<string, HubConfig> {
-    return this.hubs;
+    return legacyCompatibleMap(this.hubs);
   }
 
   /** Returns a read-only view of all registered settings sections, sorted by order. */
@@ -584,7 +766,7 @@ export class ModRegistry {
 
   /** Returns a read-only view of all registered routes. */
   getRoutes(): ReadonlyMap<string, RouteConfig> {
-    return this.routes;
+    return legacyCompatibleMap(this.routes);
   }
 
   /** Returns only routes registered with ``public: true`` (outside Layout). */
@@ -604,17 +786,17 @@ export class ModRegistry {
 
   /** Returns a read-only view of all registered blocks. */
   getBlocks(): ReadonlyMap<string, BlockRegistration> {
-    return this.blocks;
+    return legacyCompatibleMap(this.blocks);
   }
 
   /** Returns a read-only view of all declared slots. */
   getSlots(): ReadonlyMap<string, SlotDeclaration> {
-    return this.slots;
+    return legacyCompatibleMap(this.slots);
   }
 
   /** Returns a read-only view of all registered buttons. */
   getButtons(): ReadonlyMap<string, ButtonRegistration> {
-    return this.buttons;
+    return legacyCompatibleMap(this.buttons);
   }
 
   /** Returns a read-only view of all slot bindings, keyed by slotId. */
@@ -703,115 +885,6 @@ export class ModRegistry {
     return catalog.find((a) => a.id === actionType)?.label ?? actionType;
   }
 
-  // ── Action sync ──────────────────────────────────────────────────────
-
-  /**
-   * Compute action IDs from block emits and lifecycle actions, then
-   * sync them to the backend via ``POST /api/mod-registry/sync-actions/``.
-   *
-   * Called by ModLoader during boot **before**
-   * ``loadFromBackend`` so the backend catalog is up-to-date when the
-   * frontend fetches it.
-   *
-   * **Editor-slot-bound blocks** (renderer name ``"TipTapRenderer"``)
-   * get three baked-in lifecycle actions: ``{blockId}.created``,
-   * ``{blockId}.edited``, ``{blockId}.deleted``.
-   *
-   * **Custom emit actions** are derived from each block's ``emits``
-   * array: ``{blockId}.{emit.id}`` for every ``BlockEvent.action()``
-   * entry.  ``BlockEvent.ui()`` entries are skipped — they stay on the
-   * bus and never hit the database.
-   *
-   * Actions are grouped by mod (first ``"."``-separated segment of the
-   * block ID) and POSTed to the backend.  Per-mod POSTs are
-   * parallelized via ``Promise.all`` — each mod's sync is independent.
-   *
-   * Returns a rejected promise when any mod's backend POST returns a
-   * validation mismatch (non-OK response).  The caller (ModLoader)
-   * catches this and boots fail-soft, proceeding to the registry fetch
-   * without a fresh action catalog.
-   */
-  async syncActions(): Promise<void> {
-    // Step 1 — identify editor-slot-bound block IDs.
-    const editorBlockIds = new Set<string>();
-
-    for (const [slotId, slotBindings] of this.bindings) {
-      const slot = this.slots.get(slotId);
-      if (!slot) continue;
-
-      // Editor slots are identified by renderer name — TipTapRenderer
-      // is the only editor renderer in the platform.
-      if (slot.renderer.name !== "TipTapRenderer") continue;
-
-      for (const binding of slotBindings) {
-        editorBlockIds.add(binding.targetId);
-      }
-    }
-
-    // Step 2 — compute action IDs grouped by mod.
-    const actionsByMod = new Map<
-      string,
-      Array<{ id: string; core: string }>
-    >();
-
-    const addAction = (modId: string, actionId: string, core: string) => {
-      if (!actionsByMod.has(modId)) {
-        actionsByMod.set(modId, []);
-      }
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      actionsByMod.get(modId)!.push({ id: actionId, core });
-    };
-
-    for (const [blockId, block] of this.blocks) {
-      // First segment is the mod name (e.g. "eln" in "eln.table").
-      const modId = blockId.split(".")[0];
-
-      // Lifecycle actions — only for editor-slot-bound blocks.
-      if (editorBlockIds.has(blockId)) {
-        addAction(modId, `${blockId}.created`, "created");
-        addAction(modId, `${blockId}.edited`, "edited");
-        addAction(modId, `${blockId}.deleted`, "deleted");
-      }
-
-      // Custom emit actions — skip UI-only events.
-      if (block.emits) {
-        for (const emit of block.emits) {
-          if (emit.category === "action") {
-            addAction(modId, `${blockId}.${emit.id}`, emit.core);
-          }
-        }
-      }
-    }
-
-    // Step 3 — POST each mod's actions to the backend in parallel.
-    await Promise.all(
-      Array.from(actionsByMod.entries()).map(async ([modId, actions]) => {
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        const csrfToken = getCsrfCookie();
-        if (csrfToken) {
-          headers["X-CSRFToken"] = csrfToken;
-        }
-        const response = await fetch("/api/mod-registry/sync-actions/", {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ mod_id: modId, actions }),
-        });
-
-        if (!response.ok) {
-          const result = (await response.json()) as any;
-          throw new Error(
-            `Action sync failed for mod '${modId}': ` +
-              (result.missing
-                ? `Missing actions: ${result.missing.join(", ")}`
-                : result.error || `HTTP ${response.status}`),
-          );
-        }
-      }),
-    );
-  }
-
   // ── Backend hydration ─────────────────────────────────────────────────
 
   /**
@@ -827,9 +900,7 @@ export class ModRegistry {
    *
    * @param manifests - Mod manifests already collected from JSON globs.
    *   Used to supply ``displayName`` for each workspace.
-   * @returns A promise that resolves when hydration completes (even on
-   *   failure — errors are caught and logged as warnings, keeping the
-   *   promise resolved so boot is never permanently blocked).
+   * @returns A promise that rejects when backend boot data cannot be loaded.
    */
   static async loadFromBackend(
     manifests: ReadonlyMap<string, ModManifest>,
@@ -843,16 +914,14 @@ export class ModRegistry {
         const payload = (await response.json()) as any;
         registry.hydrateFromBackend(payload, manifests);
       } else {
-        console.warn(
-          `Failed to fetch /api/mod-registry/ (status ${response.status}). ` +
-            `Workspaces won't be hydrated from backend.`,
+        throw new Error(
+          `Failed to fetch /api/mod-registry/ (HTTP ${response.status}).`,
         );
       }
     } catch (err) {
-      console.warn(
-        "Failed to fetch /api/mod-registry/. Workspaces won't be hydrated from backend.",
-        err,
-      );
+      throw err instanceof Error
+        ? err
+        : new Error("Failed to fetch /api/mod-registry/.");
     }
   }
 }

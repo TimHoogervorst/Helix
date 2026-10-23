@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { RendererProps, BlockBinding, SlotContext } from "../mod-system/types";
 import { useBlockInstance } from "./useBlockInstance";
+import { invokePlatformAction, resolveActionContext } from "../api/actionInvocations";
 
 /**
  * Renders blocks as vertically stacked panels.
@@ -93,6 +94,8 @@ function PanelBlock({ binding, slotId, bus, context }: PanelBlockProps) {
 
   // Blocks can opt out of the card wrapper via `noCard: true` in overrides.
   const noCard = binding.overrides?.noCard === true;
+  const actionContext = resolveActionContext(context.actionContext);
+  const invokeAction = context.invokeAction ?? invokePlatformAction;
 
   if (noCard) {
     return (
@@ -101,6 +104,8 @@ function PanelBlock({ binding, slotId, bus, context }: PanelBlockProps) {
         instance={instance}
         overrides={binding.overrides}
         emits={emits}
+        actionContext={actionContext}
+        invokeAction={invokeAction}
       />
     );
   }
@@ -112,6 +117,8 @@ function PanelBlock({ binding, slotId, bus, context }: PanelBlockProps) {
         instance={instance}
         overrides={binding.overrides}
         emits={emits}
+        actionContext={actionContext}
+        invokeAction={invokeAction}
       />
     </div>
   );

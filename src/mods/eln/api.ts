@@ -1,5 +1,17 @@
-import { get, post, patch, del } from "../../shell/src/api/client";
+import { get, post, patch, del } from "@helix/mod-api/host";
 import type { EntryDetail, EntryListItem, ElnAction, TipTapDoc } from "./types";
+
+export interface DropdownDefinition {
+  id: number;
+  name: string;
+  options: string[];
+}
+
+/** Read dropdown definitions through the host API rather than another Mod's source. */
+export async function listDropdowns(): Promise<DropdownDefinition[]> {
+  const response = await get<PaginatedResponse<DropdownDefinition> | DropdownDefinition[]>("/dropdowns/");
+  return Array.isArray(response) ? response : response.results;
+}
 
 /** Lock status response from the lock endpoints. */
 export interface LockStatus {
@@ -19,6 +31,42 @@ export interface PaginatedResponse<T> {
   next: string | null;
   previous: string | null;
   results: T[];
+}
+
+export interface HistoricalRendition {
+  id: string;
+  revision_id: string;
+  revision_sequence: number;
+  source_hash: string;
+  captured_by: { id?: string; username?: string; displayName?: string };
+  captured_at: string;
+  presentation_provider: string;
+  presentation_version: string;
+  presentation_context: Record<string, unknown>;
+  download_url: string;
+  kind: "historical_rendition";
+}
+
+export interface ReviewCapture extends Omit<HistoricalRendition, "revision_sequence" | "captured_by" | "kind"> {
+  attachment_id: string;
+}
+
+export function captureReview(
+  displayId: string,
+  stateToken: string,
+  revisionId: string,
+): Promise<ReviewCapture> {
+  return post<ReviewCapture>(`/eln/entries/${displayId}/review/`, {
+    state_token: stateToken,
+    revision_id: revisionId,
+  });
+}
+
+export async function listRenditions(displayId: string): Promise<HistoricalRendition[]> {
+  const response = await get<{ results: HistoricalRendition[] }>(
+    `/eln/entries/${displayId}/renditions/`,
+  );
+  return response.results;
 }
 
 /** List ELN entries with optional pagination. */

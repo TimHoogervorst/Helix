@@ -5,7 +5,7 @@
  * useLocation() — no registration API needed. Layout.tsx renders the
  * component directly as a regular sidebar section.
  */
-export function register() {
+export function register(_mod: import("@helix/mod-api").Mod) {
   // No-op: the Tabs component is rendered directly by Layout.tsx.
   // Navigation reactivity is handled internally via useLocation().
 }

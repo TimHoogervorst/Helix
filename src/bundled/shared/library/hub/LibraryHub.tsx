@@ -22,6 +22,10 @@ import LibraryNewDropdown from "./LibraryNewDropdown";
 import { BaseCard } from "../../../../shell/src/shared/components/BaseCard";
 import type { PropertyField } from "../../../../shell/src/shared/components/BaseCard";
 import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
+import {
+  legacyWorkspaceUrlForId,
+  workspaceUrl,
+} from "../../../../shell/src/mod-system/references";
 import type { SlotContext, SchemaColumnDef } from "../../../../shell/src/mod-system/types";
 import { SlotSidebar } from "../../../../shell/src/shared/components/Sidebar/SlotSidebar";
 import { WorkspaceBus } from "../../../../shell/src/workspace/WorkspaceBus";
@@ -656,7 +660,7 @@ function LibraryHub() {
       } else {
         const message = `Delete entity "${item.title}"? This cannot be undone.`;
         if (!window.confirm(message)) return;
-        deleteEntity(item.display_id).then(() => setRefreshKey((k) => k + 1));
+        deleteEntity(item.display_id, item.record_id).then(() => setRefreshKey((k) => k + 1));
       }
     },
     [],
@@ -679,7 +683,12 @@ function LibraryHub() {
       }
       const params = new URLSearchParams({ project: projectUid ?? "" });
       if (currentProjectId !== null) params.set("projectId", String(currentProjectId));
-      navigate(`/${item.workspace_id}/${item.display_id}?${params.toString()}`);
+      const workspace = ModRegistry.getInstance().getWorkspaces().get(item.workspace_id);
+      const targetId = item.type === "entity" ? item.record_id ?? item.display_id : item.display_id;
+      const url = workspace?.reference
+        ? workspaceUrl(workspace.reference, targetId)
+        : legacyWorkspaceUrlForId(item.workspace_id, targetId);
+      navigate(`${url}?${params.toString()}`);
     },
     [navigateToFolder, navigate, projectUid, currentProjectId],
   );
@@ -1062,7 +1071,7 @@ function LibraryHub() {
           onClose={() => setPropertiesItem(null)}
           entry={propertiesItem}
           projectMeta={projectMeta}
-          canEdit={isOrgAdmin || currentRole === "edit"}
+          canEdit={!propertiesItem.record_id && (isOrgAdmin || currentRole === "edit")}
           folders={folderPaths}
           projectUid={projectUid}
           onMutated={() => {

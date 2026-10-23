@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import { BlockEvent } from "../BlockEvent";
 import { ModRegistry } from "../ModRegistry";
 import type {
   HubConfig,
@@ -11,6 +10,7 @@ import type {
   BlockRegistration,
   ModManifest,
   SchemaComponentRegistration,
+  MetricProviderConfig,
 } from "../types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -27,6 +27,28 @@ function resetRegistry(): ModRegistry {
   (ModRegistry as any).instance = null;
   return ModRegistry.getInstance();
 }
+
+describe("metric providers", () => {
+  it("enumerates providers and invokes their registered service", async () => {
+    const registry = resetRegistry();
+    const provider: MetricProviderConfig = {
+      id: "acme.inventory:low-stock",
+      label: "Low stock",
+      service: "acme.inventory:low-stock-value",
+      refreshMs: 30_000,
+      sourceKind: "inventory.item",
+      aggregate: "count",
+    };
+    registry.registerService({
+      id: provider.service,
+      handler: async () => ({ value: 4 }),
+    });
+    registry.registerMetricProvider(provider);
+
+    expect([...registry.getMetricProviders()]).toEqual([[provider.id, provider]]);
+    await expect(registry.callMetricProvider(provider)).resolves.toEqual({ value: 4 });
+  });
+});
 
 function makeHub(overrides?: Partial<HubConfig>): HubConfig {
   return {
@@ -425,6 +447,28 @@ describe("ModRegistry", () => {
     expect(binding.order).toBe(5);
   });
 
+  it("pulls every block whose affinity matches a capability slot after registration", () => {
+    const registry = resetRegistry();
+    const renderer = (() => null) as never;
+    registry.declareSlot({
+      id: "eln.editor",
+      accepts: ["editor"],
+      renderer,
+      layout: "vertical",
+      order: 0,
+      defaults: {},
+    });
+    registry.registerBlock(makeBlockRegistration({ id: "lims.protocol", affinity: ["editor"] }));
+    registry.registerBlock(makeBlockRegistration({ id: "other.preview", affinity: ["preview"] }));
+    registry.registerBlock(makeBlockRegistration({ id: "lims.comment", affinity: ["editor", "discussion"] }));
+
+    const resolved = registry.resolveSlot("eln.editor");
+    expect(resolved?.bindings.map((binding) => binding.id)).toEqual([
+      "lims.protocol",
+      "lims.comment",
+    ]);
+  });
+
   it("registerIntoSlot defaults overrides to {} and order to 0", () => {
     registry.registerIntoSlot("eln.editor", "eln.table");
     const binding = registry.getBindings().get("eln.editor")![0];
@@ -450,6 +494,14 @@ describe("ModRegistry", () => {
     registry.registerBlock(makeBlockRegistration({ id: "eln.table" }));
     registry.registerIntoSlot("eln.editor", "eln.table");
     expect(() => registry.validate()).not.toThrow();
+  });
+
+  it("validate strict mode fails on an unresolved slot binding", () => {
+    registry.registerIntoSlot("eln.editor", "eln.missing");
+
+    expect(() => registry.validate({ strict: true })).toThrow(
+      "Mod activation validation failed",
+    );
   });
 
   it("validate warns and removes binding when slot is not declared", () => {
@@ -775,6 +827,8 @@ describe("ModRegistry", () => {
 
       const ws = workspaces.get("lims")!;
       expect(ws.id).toBe("lims");
+      expect(ws.reference.id).toBe("helix.lims:lims");
+      expect(ws.reference.urlFor("BLOOD1")).toBe("/w/helix/lims/lims/BLOOD1");
       expect(ws.displayName).toBe("LIMS");
       expect(ws.icon).toBeUndefined();
       expect(ws.schemaType).toEqual({
@@ -1360,9 +1414,7 @@ describe("ModRegistry", () => {
       }
     });
 
-    it("handles non-ok response gracefully", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
+    it("rejects a non-ok response so the boot gate remains closed", async () => {
       const originalFetch = globalThis.fetch;
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: false,
@@ -1371,43 +1423,37 @@ describe("ModRegistry", () => {
 
       try {
         const manifests = new Map([["lims", makeManifest()]]);
-        await ModRegistry.loadFromBackend(manifests);
+        await expect(ModRegistry.loadFromBackend(manifests)).rejects.toThrow(
+          "HTTP 500",
+        );
 
         // Workspaces are NOT hydrated on failure.
         expect(registry.getWorkspaces().size).toBe(0);
-        expect(warnSpy).toHaveBeenCalledWith(
-          expect.stringContaining("Failed to fetch /api/mod-registry/"),
-        );
       } finally {
         globalThis.fetch = originalFetch;
-        warnSpy.mockRestore();
       }
     });
 
-    it("handles network error gracefully", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
+    it("rejects a network error so the boot gate remains closed", async () => {
       const originalFetch = globalThis.fetch;
       globalThis.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
 
       try {
         const manifests = new Map([["lims", makeManifest()]]);
-        await ModRegistry.loadFromBackend(manifests);
+        await expect(ModRegistry.loadFromBackend(manifests)).rejects.toThrow(
+          "Network error",
+        );
 
         // Workspaces are NOT hydrated on error.
         expect(registry.getWorkspaces().size).toBe(0);
-        expect(warnSpy).toHaveBeenCalledWith(
-          "Failed to fetch /api/mod-registry/. Workspaces won't be hydrated from backend.",
-          expect.any(Error),
-        );
       } finally {
         globalThis.fetch = originalFetch;
-        warnSpy.mockRestore();
       }
     });
   });
 
-  // ── syncActions ──────────────────────────────────────────────────────
+  /* Removed: frontend action catalogs are backend-owned. The catalog is
+     hydrated from ModRegistry API data and is never synchronized at runtime.
 
   describe("syncActions", () => {
     let registry: ModRegistry;
@@ -1781,5 +1827,5 @@ describe("ModRegistry", () => {
 
       await syncPromise;
     });
+  */
   });
-});

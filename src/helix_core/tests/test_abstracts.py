@@ -1,10 +1,9 @@
 """Tests for AbstractEntity — the shared abstract base for entity-like models.
 
-Uses a concrete test model defined in this file to exercise the
+Uses a concrete model from the Platform fixture package to exercise the
 AbstractEntity fields, _get_display_id_prefix(), and save behaviour.
 """
 
-from django.db import connection, models
 from django.test import TransactionTestCase
 
 from helix_core.core.models import Folder, Project, User
@@ -15,12 +14,7 @@ from helix_core.models import Schema, SchemaType
 # ── Concrete test model ───────────────────────────────────────────────────
 
 
-class ConcreteTestEntity(AbstractEntity):
-    """A concrete model for testing AbstractEntity behaviour."""
-
-    class Meta:
-        app_label = "helix_core"
-        db_table = "helix_test_concrete_entity"
+from helix_core.tests.fixtures.external_mod.models import ConcreteTestEntity
 
 
 # ── Tests ──────────────────────────────────────────────────────────────────
@@ -29,31 +23,12 @@ class ConcreteTestEntity(AbstractEntity):
 class AbstractEntityFieldTests(TransactionTestCase):
     """AbstractEntity provides the declared fields on concrete subclasses."""
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        # The conftest.py session fixture may have already created this
-        # table.  Only create it if it doesn't exist yet.
-        from django.db.utils import OperationalError, ProgrammingError
-        try:
-            with connection.schema_editor() as schema_editor:
-                schema_editor.create_model(ConcreteTestEntity)
-        except (OperationalError, ProgrammingError):
-            pass  # table already exists
-
-    @classmethod
-    def tearDownClass(cls):
-        # Don't drop the table: leaving it in place avoids cascade-
-        # collector failures in later tests that discover this model
-        # through Django's app registry.
-        super().tearDownClass()
-
     def setUp(self):
         self.user = User.objects.create_user(username="testuser", password="pass")
         self.schema_type = SchemaType.objects.create(
             display_name="Test Type",
             workspace_id="test",
-            model="helix_core.tests.test_abstracts.ConcreteTestEntity",
+            model="helix_core.tests.fixtures.external_mod.models.ConcreteTestEntity",
         )
         self.schema = Schema.objects.create(
             name="Default",

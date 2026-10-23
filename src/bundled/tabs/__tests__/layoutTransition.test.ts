@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { moveLayoutItem, moveTab, rejectFolderNesting, reorderFolders, reorderRootTabs } from "../layoutTransition";
 import type { PinnedWorkspace } from "../types";

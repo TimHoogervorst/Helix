@@ -6,8 +6,6 @@ the Metric Card API and pre-seeds two global cards per surface.
 
 from django.urls import include, path
 
-from helix_core.mod_system.registry import registry
-
 DEFAULT_FORMATTING = {
     "rules": [],
     "default": {"color": "flask", "icon": "flask-conical", "text": None},
@@ -81,11 +79,9 @@ def _seed_global_cards():
             )
 
 
-def register():
+def register(mod):
     """Called by ModLoader after topological sort."""
-    registry.register_urls(
-        "home", [path("api/home/", include("bundled.shared.home.urls"))]
-    )
+    mod.register_urls([path("api/home/", include("bundled.shared.home.urls"))])
 
     try:
         _seed_global_cards()

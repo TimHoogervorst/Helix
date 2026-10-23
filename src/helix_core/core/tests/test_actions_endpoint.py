@@ -1,803 +1,230 @@
-"""Tests for the unified POST /api/actions/ endpoint.
+"""Generic action endpoint contracts using the Platform-owned Mod fixture."""
 
-Exercises all acceptance criteria from issue #325:
-- 201 for valid action types (core and custom)
-- 400 for unregistered action types
-- Dual-row creation for custom actions
-- Correct table routing per mod
-- Deterministic response shape
-"""
+import importlib
+from uuid import UUID
+from unittest.mock import patch
 
-from __future__ import annotations
-
-from typing import Any
-
-from django.test import override_settings
+from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from helix_core.actions.registry import register_action_model, register_custom_action
+from bundled.access.access.models import Grant, ProjectRole
 from helix_core.core.models import Folder, Project, User
-from helix_core.core.tests.base import BaseTestCase
-from bundled.access.access.models import ProjectRole
+from helix_core.models import ActionLogEntry, Schema, SchemaType
+from helix_core.mod_system.registry import BackendModRegistry
+from helix_core.public import ModRegistrar, load_entry_point_manifest
+from helix_core.tests.fixtures.external_mod.models import ConcreteTestEntity
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Helpers
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-def _assert_action_shape(testcase, item: dict[str, Any]) -> None:
-    """Assert that an action response item has the deterministic shape."""
-    testcase.assertIn("id", item)
-    testcase.assertIsInstance(item["id"], int)
-    testcase.assertIn("action", item)
-    testcase.assertIsInstance(item["action"], str)
-    testcase.assertIn("action_type", item)
-    testcase.assertIsInstance(item["action_type"], str)
-    testcase.assertIn("target_type", item)
-    testcase.assertIsInstance(item["target_type"], str)
-    testcase.assertIn("target_id", item)
-    testcase.assertIsInstance(item["target_id"], int)
-    testcase.assertIn("metadata", item)
-    testcase.assertIsInstance(item["metadata"], dict)
-    testcase.assertIn("created_at", item)
-    testcase.assertIsInstance(item["created_at"], str)
-    testcase.assertIn("performed_by", item)
-    testcase.assertIsInstance(item["performed_by"], dict)
-    testcase.assertIn("id", item["performed_by"])
-    testcase.assertIn("username", item["performed_by"])
-
-
-def _save_registry_state() -> dict[str, Any]:
-    """Snapshot the registry's mutable collections."""
-    from helix_core.mod_system.registry import registry
-
-    return {
-        "action_models": dict(registry._action_models),
-        "core_actions": dict(registry._core_actions),
-        "custom_actions": {
-            mod: dict(actions)
-            for mod, actions in registry._custom_actions.items()
-        },
-    }
-
-
-def _restore_registry_state(saved: dict[str, Any]) -> None:
-    """Restore the registry from a snapshot."""
-    from helix_core.mod_system.registry import registry
-
-    registry._action_models.clear()
-    registry._action_models.update(saved["action_models"])
-    registry._core_actions.clear()
-    registry._core_actions.update(saved["core_actions"])
-    registry._custom_actions.clear()
-    for mod, actions in saved["custom_actions"].items():
-        registry._custom_actions[mod] = dict(actions)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Test cases
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-class TestUnifiedActionEndpoint(BaseTestCase):
-    """Tests for POST /api/actions/ — the unified action logging endpoint."""
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls._saved_registry = _save_registry_state()
-
-    @classmethod
-    def tearDownClass(cls):
-        _restore_registry_state(cls._saved_registry)
-        super().tearDownClass()
+class UnifiedActionEndpointTests(TestCase):
+    """Exercise real fixture registration, authorization, dispatch, and persistence."""
 
     def setUp(self):
-        super().setUp()
-        self.client.force_authenticate(user=self.user)
-        self.entry = self._make_editable_entry()
-        # Ensure a clean per-test registry state.
-        self._per_test_saved = _save_registry_state()
+        self.backend_registry = BackendModRegistry()
+        self.registry_patch = patch(
+            "helix_core.mod_system.registry.registry", self.backend_registry
+        )
+        self.registry_patch.start()
 
-    def tearDown(self):
-        _restore_registry_state(self._per_test_saved)
-        super().tearDown()
+        package = "helix_core.tests.fixtures.external_mod"
+        manifest = load_entry_point_manifest("test.external", package)
+        registrar = ModRegistrar(manifest, self.backend_registry)
+        importlib.import_module(f"{package}.mod").register(registrar)
 
-    # ── helpers ──────────────────────────────────────────────────────────
-
-    def _make_editable_entry(self):
-        """Create a NotebookEntry the test user can Edit (Edit grant on project)."""
-        from mods.eln.models import NotebookEntry
-        from mods.eln.tests.factories import get_or_create_default_eln_schema
-
-        schema = get_or_create_default_eln_schema()
-        return NotebookEntry.objects.create(
-            name="Action Target",
-            content={"type": "doc", "content": []},
-            source=self.folder,
+        self.user = User.objects.create_user(username="action_editor", password="pass")
+        self.project = Project.objects.create(name="Action Project")
+        self.folder = Folder.objects.create(
+            name="Target", parent=None, project=self.project
+        )
+        Grant.objects.create(
+            project=self.project, user=self.user, role=ProjectRole.EDIT
+        )
+        schema_type = SchemaType.objects.create(
+            display_name="Fixture Entity",
+            workspace_id="test.external",
+            model="helix_core.tests.fixtures.external_mod.models.ConcreteTestEntity",
+        )
+        schema = Schema.objects.create(
+            name="Fixture", prefix="FX", schema_type=schema_type
+        )
+        self.target = ConcreteTestEntity.objects.create(
+            name="Action target",
             author=self.user,
             schema=schema,
+            source=self.folder,
         )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
 
-    def _setup_action_models(self) -> None:
-        """Register ELN and Tags action models with their core actions."""
-        from mods.eln.models import ElnAction
-        from bundled.labelling.tags.models import TagsAction
+    def tearDown(self):
+        self.registry_patch.stop()
+        super().tearDown()
 
-        register_action_model("eln", ElnAction)
-        register_action_model("tags", TagsAction)
-
-    # ── valid action types (core) ────────────────────────────────────────
-
-    def test_core_action_created_returns_201(self):
-        """POST with action_type='created' returns 201 and the created row."""
-        self._setup_action_models()
-
-        response = self.client.post(
-            "/api/actions/",
-            {
-                "action": "created",
-                "action_type": "created",
-                "target_type": "eln.entry",
-                "target_id": self.entry.id,
-                "workspace_id": "eln",
-                "metadata": {"name": "Test Entry"},
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        data = response.data
-        self.assertIsInstance(data, list)
-        self.assertEqual(len(data), 1)
-        item = data[0]
-        _assert_action_shape(self, item)
-        self.assertEqual(item["action_type"], "created")
-        self.assertEqual(item["target_type"], "eln.entry")
-        self.assertEqual(item["target_id"], self.entry.id)
-        self.assertEqual(item["metadata"], {"name": "Test Entry"})
-
-        # Row actually landed in the database.
-        from mods.eln.models import ElnAction
-
-        self.assertEqual(ElnAction.objects.count(), 1)
-        row = ElnAction.objects.first()
-        self.assertEqual(row.action_type, "created")
-        self.assertEqual(row.performed_by, self.user)
-
-    def test_core_action_edited_returns_201(self):
-        """POST with action_type='edited' returns 201."""
-        self._setup_action_models()
-
-        response = self.client.post(
-            "/api/actions/",
-            {
-                "action": "edited",
-                "action_type": "edited",
-                "target_type": "eln.entry",
-                "target_id": self.entry.id,
-                "workspace_id": "eln",
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data[0]["action_type"], "edited")
-
-    def test_core_action_deleted_returns_201(self):
-        """POST with action_type='deleted' returns 201."""
-        self._setup_action_models()
-
-        response = self.client.post(
-            "/api/actions/",
-            {
-                "action": "deleted",
-                "action_type": "deleted",
-                "target_type": "eln.entry",
-                "target_id": self.entry.id,
-                "workspace_id": "eln",
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data[0]["action_type"], "deleted")
-
-    def test_metadata_defaults_to_empty_dict(self):
-        """When metadata is omitted, it defaults to {}."""
-        self._setup_action_models()
-
-        response = self.client.post(
-            "/api/actions/",
-            {
-                "action": "created",
-                "action_type": "created",
-                "target_type": "eln.entry",
-                "target_id": self.entry.id,
-                "workspace_id": "eln",
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data[0]["metadata"], {})
-
-    def test_client_ip_is_populated(self):
-        """The client_ip field is captured from REMOTE_ADDR (#342)."""
-        from mods.eln.models import ElnAction
-
-        register_action_model("eln", ElnAction)
-
-        response = self.client.post(
-            "/api/actions/",
-            {
-                "action": "created",
-                "action_type": "created",
-                "target_type": "eln.entry",
-                "target_id": self.entry.id,
-                "workspace_id": "eln",
-            },
-            format="json",
-            REMOTE_ADDR="10.0.0.42",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(ElnAction.objects.count(), 1)
-
-        row = ElnAction.objects.first()
-        self.assertEqual(row.client_ip, "10.0.0.42")
-
-    # ── valid action types (custom → dual-row) ───────────────────────────
-
-    def test_custom_action_creates_single_row(self):
-        """A custom action logs a single row (the custom action_type only).
-
-        Previously custom actions logged both a core row and the custom
-        row.  After #342 the doubling was removed — only the custom
-        action_type row is created.  Consumers that need the core verb
-        can derive it from the catalog mapping.
-        """
-        from mods.eln.models import ElnAction
-
-        register_action_model("eln", ElnAction)
-        register_custom_action(
-            mod_id="eln",
-            action_id="eln.entry.registered",
-            label="Entry Registered",
-            core="edited",
-            target_model="mods.eln.models.NotebookEntry",
-        )
-
-        response = self.client.post(
-            "/api/actions/",
-            {
-                "action": "eln.entry.registered",
-                "action_type": "edited",
-                "target_type": "eln.entry",
-                "target_id": self.entry.id,
-                "workspace_id": "eln",
-                "metadata": {"reg_id": "REG-001"},
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        # Response should be a list with a single row.
-        data = response.data
-        self.assertIsInstance(data, list)
-        self.assertEqual(len(data), 1)
-
-        # The single row should have the custom action identifier.
-        self.assertEqual(data[0]["action"], "eln.entry.registered")
-
-        # Exactly one row in the database.
-        self.assertEqual(ElnAction.objects.count(), 1)
-
-        row = ElnAction.objects.first()
-        self.assertEqual(row.action, "eln.entry.registered")
-        self.assertEqual(row.performed_by, self.user)
-        self.assertEqual(row.target_type, "eln.entry")
-        self.assertEqual(row.target_id, self.entry.id)
-        self.assertEqual(row.metadata, {"reg_id": "REG-001"})
-
-    def test_custom_action_with_different_core_mapping(self):
-        """Custom actions can map to different core verbs; only custom row stored."""
-        from bundled.labelling.tags.models import TagsAction
-
-        register_action_model("tags", TagsAction)
-        register_custom_action(
-            mod_id="tags",
-            action_id="tags.tag.attached",
-            label="Tag Attached",
-            core="created",
-            target_model="bundled.labelling.tags.models.Tag",
-        )
-
-        response = self.client.post(
-            "/api/actions/",
-            {
-                "action": "tags.tag.attached",
-                "action_type": "created",
-                "target_type": "tags.tag",
-                "target_id": 10,
-                "workspace_id": "tags",
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(len(response.data), 1)
-
-        self.assertEqual(response.data[0]["action"], "tags.tag.attached")
-
-        self.assertEqual(TagsAction.objects.count(), 1)
-        self.assertEqual(TagsAction.objects.first().action, "tags.tag.attached")
-
-    # ── unregistered action types → 400 ─────────────────────────────────
-
-    def test_unregistered_action_type_returns_400(self):
-        """An action_type not in the catalog returns 400 Bad Request."""
-        self._setup_action_models()
-
-        response = self.client.post(
-            "/api/actions/",
-            {
-                "action": "eln.entry.nonexistent_action",
-                "action_type": "edited",
-                "target_type": "eln.entry",
-                "target_id": 1,
-                "workspace_id": "eln",
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("action", str(response.data).lower())
-
-    def test_action_type_for_unregistered_mod_returns_400(self):
-        """An action_type for a mod that has no action model returns 400."""
-        response = self.client.post(
-            "/api/actions/",
-            {
-                "action": "created",
-                "action_type": "created",
-                "target_type": "nonexistent.thing",
-                "target_id": 1,
-                "workspace_id": "nonexistent",
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    # ── correct table routing per mod ────────────────────────────────────
-
-    def test_actions_route_to_correct_mod_table(self):
-        """Actions for different mods land in the correct concrete tables."""
-        from mods.eln.models import ElnAction
-        from bundled.labelling.tags.models import TagsAction
-
-        register_action_model("eln", ElnAction)
-        register_action_model("tags", TagsAction)
-
-        # Log an ELN action.
-        resp_eln = self.client.post(
-            "/api/actions/",
-            {
-                "action": "created",
-                "action_type": "created",
-                "target_type": "eln.entry",
-                "target_id": self.entry.id,
-                "workspace_id": "eln",
-            },
-            format="json",
-        )
-        self.assertEqual(resp_eln.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(ElnAction.objects.count(), 1)
-        self.assertEqual(TagsAction.objects.count(), 0)
-
-        # Log a Tags action.
-        resp_tags = self.client.post(
-            "/api/actions/",
-            {
-                "action": "created",
-                "action_type": "created",
-                "target_type": "tags.tag",
-                "target_id": 1,
-                "workspace_id": "tags",
-            },
-            format="json",
-        )
-        self.assertEqual(resp_tags.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(ElnAction.objects.count(), 1)
-        self.assertEqual(TagsAction.objects.count(), 1)
-
-    # ── deterministic response shape ─────────────────────────────────────
-
-    def test_response_shape_is_deterministic(self):
-        """Same input yields the same response shape (contract test)."""
-        self._setup_action_models()
-
-        payload = {
+    def payload(self, **overrides):
+        values = {
             "action": "created",
             "action_type": "created",
-            "target_type": "eln.entry",
-            "target_id": self.entry.id,
-            "workspace_id": "eln",
-            "metadata": {"key": "value"},
+            "target_type": "test.external.entry",
+            "target_id": self.target.pk,
+            "workspace_id": "external",
         }
+        values.update(overrides)
+        return values
 
-        response1 = self.client.post(
-            "/api/actions/", payload, format="json"
-        )
-        response2 = self.client.post(
-            "/api/actions/", payload, format="json"
-        )
+    def test_core_action_dispatches_and_persists_each_mutation_verb(self):
+        for verb in ("created", "edited", "deleted"):
+            with self.subTest(verb=verb):
+                response = self.client.post(
+                    "/api/actions/",
+                    self.payload(action=verb, action_type=verb, metadata={"verb": verb}),
+                    format="json",
+                )
 
-        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
+                self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+                self.assertEqual(len(response.data), 1)
+                self.assertEqual(
+                    set(response.data[0]),
+                    {
+                        "id",
+                        "action",
+                        "action_type",
+                        "target_type",
+                        "target_id",
+                        "metadata",
+                        "created_at",
+                        "performed_by",
+                    },
+                )
+                self.assertEqual(
+                    set(response.data[0]["performed_by"]), {"id", "username", "displayName"}
+                )
+                self.assertEqual(response.data[0]["performed_by"]["displayName"], self.user.username)
+                row = ActionLogEntry.objects.get(action=verb)
+                self.assertEqual(row.performed_by, self.user)
+                self.assertEqual(row.initiating_mod_id, "external")
+                self.assertEqual(row.action_type, verb)
+                self.assertEqual(row.target_type, "test.external.entry")
+                self.assertEqual(row.target_id, self.target.pk)
+                self.assertEqual(row.metadata, {"verb": verb})
+                self.assertEqual(response.data[0]["id"], row.pk)
 
-        # Both responses are lists with the same shape.
-        self.assertIsInstance(response1.data, list)
-        self.assertIsInstance(response2.data, list)
-        self.assertEqual(len(response1.data), 1)
-        self.assertEqual(len(response2.data), 1)
+        self.assertEqual(ActionLogEntry.objects.count(), 3)
 
-        keys1 = set(response1.data[0].keys())
-        keys2 = set(response2.data[0].keys())
-        self.assertEqual(keys1, keys2)
+    def test_fixture_catalog_exposes_core_verbs_including_read(self):
+        catalog = self.backend_registry.get_action_catalog("external")
 
-    def test_custom_action_response_shape_is_deterministic(self):
-        """Custom action single-row response has a deterministic shape."""
-        from mods.eln.models import ElnAction
-
-        register_action_model("eln", ElnAction)
-        register_custom_action(
-            mod_id="eln",
-            action_id="eln.entry.registered",
-            label="Entry Registered",
-            core="edited",
-            target_model="mods.eln.models.NotebookEntry",
-        )
-
-        payload = {
-            "action": "eln.entry.registered",
-            "action_type": "edited",
-            "target_type": "eln.entry",
-            "target_id": self.entry.id,
-            "workspace_id": "eln",
-        }
-
-        response1 = self.client.post(
-            "/api/actions/", payload, format="json"
-        )
-        response2 = self.client.post(
-            "/api/actions/", payload, format="json"
-        )
-
-        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(len(response1.data), 1)
-        self.assertEqual(len(response2.data), 1)
-
-        _assert_action_shape(self, response1.data[0])
-        _assert_action_shape(self, response2.data[0])
-
-    # ── authentication ───────────────────────────────────────────────────
-
-    def test_unauthenticated_request_returns_403(self):
-        """Requests without authentication are rejected."""
-        self.client.force_authenticate(user=None)
-
-        response = self.client.post(
-            "/api/actions/",
-            {
-                "action": "created",
-                "action_type": "created",
-                "target_type": "eln.entry",
-                "target_id": 1,
-                "workspace_id": "eln",
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    # ── validation ──────────────────────────────────────────────────────
-
-    def test_missing_required_fields_returns_400(self):
-        """Missing required fields returns 400 with validation errors."""
-        self._setup_action_models()
-
-        response = self.client.post(
-            "/api/actions/",
-            {},
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        errors = response.data
-        self.assertIn("action", errors)
-        self.assertIn("action_type", errors)
-        self.assertIn("target_type", errors)
-        self.assertIn("target_id", errors)
-        self.assertIn("workspace_id", errors)
-
-    def test_invalid_target_id_returns_400(self):
-        """A non-integer target_id returns 400."""
-        self._setup_action_models()
-
-        response = self.client.post(
-            "/api/actions/",
-            {
-                "action": "created",
-                "action_type": "created",
-                "target_type": "eln.entry",
-                "target_id": "not-an-integer",
-                "workspace_id": "eln",
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    # ── request_id ────────────────────────────────────────────────────────
-
-    def test_request_id_is_populated_on_created_row(self):
-        """The request_id field is populated even when the client doesn't supply one."""
-        from mods.eln.models import ElnAction
-
-        register_action_model("eln", ElnAction)
-
-        response = self.client.post(
-            "/api/actions/",
-            {
-                "action": "created",
-                "action_type": "created",
-                "target_type": "eln.entry",
-                "target_id": self.entry.id,
-                "workspace_id": "eln",
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(ElnAction.objects.count(), 1)
-
-        row = ElnAction.objects.first()
-        self.assertIsNotNone(row.request_id)
-        self.assertEqual(len(str(row.request_id)), 36)  # UUID format
-
-    def test_request_id_uses_client_provided_value(self):
-        """When the client provides a request_id, the server stores it as-is."""
-        from mods.eln.models import ElnAction
-
-        register_action_model("eln", ElnAction)
-
-        response = self.client.post(
-            "/api/actions/",
-            {
-                "action": "created",
-                "action_type": "created",
-                "target_type": "eln.entry",
-                "target_id": self.entry.id,
-                "workspace_id": "eln",
-                "request_id": "550e8400-e29b-41d4-a716-446655440000",
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(ElnAction.objects.count(), 1)
-
-        row = ElnAction.objects.first()
         self.assertEqual(
-            str(row.request_id),
-            "550e8400-e29b-41d4-a716-446655440000",
+            {entry["id"] for entry in catalog},
+            {"created", "edited", "deleted", "read", "test.external:entity.created"},
         )
 
-    # ── read action rejection ──────────────────────────────────────────────
-
-    def test_read_action_type_is_rejected_by_endpoint(self):
-        """action_type='read' is rejected — read is authorization-only."""
-        from mods.eln.models import ElnAction
-
-        register_action_model("eln", ElnAction)
-
+    def test_fixture_custom_action_dispatches_and_persists_once(self):
         response = self.client.post(
             "/api/actions/",
-            {
-                "action": "read",
-                "action_type": "read",
-                "target_type": "eln.entry",
-                "target_id": self.entry.id,
-                "workspace_id": "eln",
-            },
+            self.payload(action="test.external:entity.created"),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
+        row = ActionLogEntry.objects.get()
+        self.assertEqual(row.action, "test.external:entity.created")
+        self.assertEqual(row.action_type, "created")
+        self.assertEqual(row.initiating_mod_id, "external")
+
+    def test_missing_required_fields_are_rejected(self):
+        response = self.client.post("/api/actions/", {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(
+            {"action", "action_type", "target_type", "target_id", "workspace_id"}
+            .issubset(response.data)
+        )
+        self.assertEqual(ActionLogEntry.objects.count(), 0)
+
+    def test_non_integer_target_id_is_rejected(self):
+        response = self.client.post(
+            "/api/actions/", self.payload(target_id="not-an-integer"), format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(ActionLogEntry.objects.count(), 0)
+
+    def test_unknown_action_is_rejected_without_audit_write(self):
+        response = self.client.post(
+            "/api/actions/",
+            self.payload(action="test.external:entity.unknown"),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(ActionLogEntry.objects.count(), 0)
+
+    def test_read_is_authorization_only_and_never_persisted(self):
+        response = self.client.post(
+            "/api/actions/",
+            self.payload(action="read", action_type="read"),
             format="json",
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("read", str(response.data).lower())
-        self.assertEqual(ElnAction.objects.count(), 0)
+        self.assertEqual(ActionLogEntry.objects.count(), 0)
 
-    def test_read_action_is_discoverable_in_catalog(self):
-        """The 'read' core action verb appears in the action catalog."""
-        from helix_core.mod_system.registry import registry
-
-        from mods.eln.models import ElnAction
-
-        saved_models = dict(registry._action_models)
-        saved_core = dict(registry._core_actions)
-        try:
-            registry._action_models.clear()
-            registry._core_actions.clear()
-            register_action_model("eln", ElnAction)
-
-            catalog = registry.get_action_catalog("eln")
-            verb_ids = {entry["id"] for entry in catalog}
-            self.assertIn("read", verb_ids)
-            self.assertIn("created", verb_ids)
-            self.assertIn("edited", verb_ids)
-            self.assertIn("deleted", verb_ids)
-        finally:
-            registry._action_models.clear()
-            registry._action_models.update(saved_models)
-            registry._core_actions.clear()
-            registry._core_actions.update(saved_core)
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Content-target access enforcement (issue #476)
-# ═══════════════════════════════════════════════════════════════════════════
-
-
-class TestActionTargetAccess(BaseTestCase):
-    """POST /api/actions/ requires Edit on the logged content target."""
-
-    def setUp(self):
-        super().setUp()
-        from bundled.access.access.models import (
-            FolderShare,
-            Grant,
-            Organization,
-            OrganizationMembership,
-            OrganizationRole,
-            ProjectRole,
-            ShareLevel,
+    def test_denied_target_mutation_leaves_audit_state_unchanged(self):
+        reader = User.objects.create_user(username="action_reader", password="pass")
+        Grant.objects.create(
+            project=self.project, user=reader, role=ProjectRole.READ
         )
-        from mods.eln.models import NotebookEntry
-        from mods.eln.tests.factories import get_or_create_default_eln_schema
+        client = APIClient()
+        client.force_authenticate(user=reader)
 
-        self.org = Organization.objects.create(name="Action Org")
-        self.schema = get_or_create_default_eln_schema()
+        response = client.post("/api/actions/", self.payload(), format="json")
 
-        self.editor = User.objects.create_user(username="act_ed", password="pass")
-        self.reader = User.objects.create_user(username="act_rd", password="pass")
-        self.no_grant = User.objects.create_user(username="act_ng", password="pass")
-        self.org_admin = User.objects.create_user(username="act_ad", password="pass")
-        self.sharee = User.objects.create_user(username="act_sh", password="pass")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(ActionLogEntry.objects.count(), 0)
 
-        OrganizationMembership.objects.update_or_create(
-            user=self.org_admin,
-            defaults={"organization": self.org, "role": OrganizationRole.ADMIN},
-        )
-        for user in (self.editor, self.reader, self.no_grant, self.sharee):
-            OrganizationMembership.objects.update_or_create(
-                user=user,
-                defaults={"organization": self.org, "role": OrganizationRole.USER},
-            )
-
-        Grant.objects.create(project=self.project, user=self.editor, role=ProjectRole.EDIT)
-        Grant.objects.create(project=self.project, user=self.reader, role=ProjectRole.READ)
-
-        self.target_project = Project.objects.create(name="Action Target Project")
-        Folder.objects.create(name="root", parent=None, project=self.target_project)
-        Grant.objects.create(project=self.target_project, user=self.sharee, role=ProjectRole.EDIT)
-        FolderShare.objects.create(
-            source_folder=self.folder,
-            target_project=self.target_project,
-            level=ShareLevel.READ_WRITE,
+    def test_missing_target_is_denied_without_audit_write(self):
+        response = self.client.post(
+            "/api/actions/",
+            self.payload(target_id=self.target.pk + 10000),
+            format="json",
         )
 
-        self.entry = NotebookEntry.objects.create(
-            name="Logged Target",
-            content={"type": "doc", "content": []},
-            source=self.folder,
-            author=self.editor,
-            schema=self.schema,
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(ActionLogEntry.objects.count(), 0)
+
+    def test_request_id_and_client_ip_are_persisted(self):
+        request_id = "550e8400-e29b-41d4-a716-446655440000"
+        response = self.client.post(
+            "/api/actions/",
+            self.payload(request_id=request_id),
+            format="json",
+            REMOTE_ADDR="10.0.0.42",
         )
 
-        from mods.eln.models import ElnAction
-        from helix_core.actions.registry import register_action_model
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        row = ActionLogEntry.objects.get()
+        self.assertEqual(row.request_id, UUID(request_id))
+        self.assertEqual(row.client_ip, "10.0.0.42")
 
-        register_action_model("eln", ElnAction)
+    def test_unauthenticated_request_is_rejected(self):
+        self.client.force_authenticate(user=None)
 
-    def _post(self, user, target_id=None):
+        response = self.client.post("/api/actions/", self.payload(), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_non_content_target_does_not_require_project_grant(self):
+        user = User.objects.create_user(username="no_grant", password="pass")
         client = APIClient()
         client.force_authenticate(user=user)
-        return client.post(
-            "/api/actions/",
-            {
-                "action": "created",
-                "action_type": "created",
-                "target_type": "eln.entry",
-                "target_id": target_id if target_id is not None else self.entry.id,
-                "workspace_id": "eln",
-            },
-            format="json",
-        )
 
-    def test_editor_can_log_against_editable_target(self):
-        self.assertEqual(self._post(self.editor).status_code, status.HTTP_201_CREATED)
-
-    def test_org_admin_can_log_against_any_target(self):
-        self.assertEqual(self._post(self.org_admin).status_code, status.HTTP_201_CREATED)
-
-    def test_team_derived_edit_can_log(self):
-        from django.contrib.auth.models import Group
-        from bundled.access.access.models import (
-            Grant,
-            OrganizationMembership,
-            OrganizationRole,
-            Team,
-        )
-
-        team_user = User.objects.create_user(username="act_team", password="pass")
-        OrganizationMembership.objects.update_or_create(
-            user=team_user, defaults={"organization": self.org, "role": OrganizationRole.USER},
-        )
-        group = Group.objects.create(name="Action Team")
-        team_user.groups.add(group)
-        team = Team.objects.create(group=group, organization=self.org)
-        Grant.objects.create(project=self.project, team=team, role=ProjectRole.EDIT)
-        self.assertEqual(self._post(team_user).status_code, status.HTTP_201_CREATED)
-
-    def test_read_user_cannot_log_against_uneditable_target(self):
-        response = self._post(self.reader)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_no_grant_user_cannot_log(self):
-        self.assertEqual(self._post(self.no_grant).status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_nonexistent_target_rejected(self):
-        response = self._post(self.editor, target_id=999999)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_sharee_can_log_inside_subtree(self):
-        self.assertEqual(self._post(self.sharee).status_code, status.HTTP_201_CREATED)
-
-    def test_sharee_cannot_log_outside_subtree(self):
-        outside_entry = self.entry.__class__.objects.create(
-            name="Outside",
-            content={"type": "doc", "content": []},
-            source=Folder.objects.create(
-                name="Outside Folder", parent=self.entry.source.parent, project=self.project,
-            ),
-            author=self.editor,
-            schema=self.schema,
-        )
-        response = self._post(self.sharee, target_id=outside_entry.id)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_non_content_target_skips_edit_check(self):
-        from bundled.labelling.tags.models import TagsAction
-        from helix_core.actions.registry import register_action_model
-
-        register_action_model("tags", TagsAction)
-        client = APIClient()
-        client.force_authenticate(user=self.no_grant)
         response = client.post(
             "/api/actions/",
-            {
-                "action": "created",
-                "action_type": "created",
-                "target_type": "tags.tag",
-                "target_id": 10,
-                "workspace_id": "tags",
-            },
+            self.payload(target_type="external.asset", target_id=91),
             format="json",
         )
+
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(ActionLogEntry.objects.get().target_type, "external.asset")

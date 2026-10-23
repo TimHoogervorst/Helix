@@ -3,6 +3,7 @@ import logging
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Q
+from django_filters import rest_framework as filters
 from rest_framework import serializers, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -10,11 +11,11 @@ from rest_framework.response import Response
 from helix_core.actions.logger import log_action
 from helix_core.actions.mixins import ActionLoggingMixin, logs_action
 from helix_core.source_deletion import delete_source_descendants
-from helix_core.models import SchemaType
+from helix_core.models import ActionLogEntry, SchemaType
 from bundled.access.access.permissions import IsOrganizationAdmin
 from bundled.access.access.scoping import visible_rows_q
 
-from .models import Entity, Action, LimsView, Metric
+from .models import Entity, LimsView, Metric
 from bundled.labelling.tags.models import Tag
 from .serializers import (
     EntitySerializer,
@@ -72,6 +73,42 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
     filterset_fields = ["schema"]
     search_fields = ["name", "display_id"]
 
+    def get_object(self):
+        # UUID links identify Platform records; legacy display IDs continue to
+        # resolve through the existing entity queryset. Only expose read paths.
+        from uuid import UUID
+        from django.shortcuts import get_object_or_404
+        from django.http import Http404
+        from helix_core.models import PlatformRecord
+
+        if self.action in ("retrieve", "results"):
+            lookup = self.kwargs[self.lookup_field]
+            try:
+                record_id = UUID(lookup)
+            except (ValueError, TypeError):
+                try:
+                    return super().get_object()
+                except Http404:
+                    record_lookup = {"display_id": lookup}
+            else:
+                record_lookup = {"pk": record_id}
+            record = get_object_or_404(
+                PlatformRecord.objects.filter(visible_rows_q(self.request.user))
+                .select_related("schema__schema_type", "author", "last_editor", "project"),
+                **record_lookup,
+            )
+            self.check_object_permissions(self.request, record)
+            return record
+        return super().get_object()
+
+    def retrieve(self, request, *args, **kwargs):
+        from helix_core.models import PlatformRecord
+        from .serializers import PlatformEntitySerializer
+
+        entity = self.get_object()
+        serializer = PlatformEntitySerializer if isinstance(entity, PlatformRecord) else self.serializer_class
+        return Response(serializer(entity, context=self.get_serializer_context()).data)
+
     def get_permissions(self):
         if self.action in ("delete_all", "recompute"):
             return [IsOrganizationAdmin()]
@@ -99,7 +136,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 "You do not have permission to delete this entity."
             )
         with transaction.atomic():
-            delete_source_descendants(instance)
+            delete_source_descendants(instance, actor=self.request.user)
             super().perform_destroy(instance)
 
     def perform_create(self, serializer):
@@ -118,14 +155,16 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             raise PermissionDenied(
                 "You do not have permission to create entities in this Project."
             )
-        instance = serializer.save(
-            author=self.request.user,
-            project=project,
-        )
-        self._maybe_log(
-            "create",
-            instance=instance,
-            validated_data=serializer.validated_data,
+        from helix_core.record_persistence import mutate_provider_record
+
+        mutate_provider_record(
+            write=lambda: serializer.save(author=self.request.user, project=project),
+            actor=self.request.user,
+            action="lims.entity.created",
+            target_model_reference="lims.entity",
+            request_id=self._request_id,
+            client_ip=self._client_ip,
+            metadata={"changed_fields": sorted(serializer.validated_data)},
         )
 
     def perform_update(self, serializer):
@@ -143,12 +182,22 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             new_source = instance.resolve_source(source_type, source_id)
             if effective_role(self.request.user, new_source) != "edit":
                 raise ValidationError("You do not have permission to move the entity there.")
-            instance.set_source(new_source)
-        serializer.save()
-        self._maybe_log(
-            self.action,
-            instance=serializer.instance,
-            validated_data=serializer.validated_data,
+        from helix_core.record_persistence import mutate_provider_record
+
+        def write_update():
+            if "source_type" in serializer.validated_data or "source_id" in serializer.validated_data:
+                instance.set_source(new_source)
+            return serializer.save()
+
+        mutate_provider_record(
+            write=write_update,
+            instance=instance,
+            actor=self.request.user,
+            action="lims.entity.edited",
+            target_model_reference="lims.entity",
+            request_id=self._request_id,
+            client_ip=self._client_ip,
+            metadata={"changed_fields": sorted(serializer.validated_data)},
         )
 
     @logs_action(
@@ -199,8 +248,8 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         entity = self.get_object()
         result_schema_type_ids = [
             schema_type.pk
-            for schema_type in SchemaType.objects.only("pk", "tags")
-            if "ResultTable" in (schema_type.tags or [])
+            for schema_type in SchemaType.objects.only("pk", "capabilities")
+            if "ResultTable" in (schema_type.capabilities or [])
         ]
         result_entities = (
             Entity.objects.filter(
@@ -299,12 +348,13 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             for entity in list(Entity.objects.all()):
                 if not Entity.objects.filter(pk=entity.pk).exists():
                     continue
-                delete_source_descendants(entity)
+                delete_source_descendants(entity, actor=request.user)
                 entity.delete()
                 count += 1
         return Response({"deleted": count})
 
     @action(detail=False, methods=["post"], url_path="batch-register")
+    @transaction.atomic
     def batch_register(self, request):
         """Batch-register (create or update) LIMS entities.
 
@@ -349,11 +399,19 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         containing_entry = None
         if entry_id is not None:
-            from mods.eln.models import NotebookEntry
+            from helix_core.mod_system.registry import registry
+
+            entry_provider = registry.get_content_source("entry")
+            if entry_provider is None:
+                return Response(
+                    {"entry_id": "The entry source is not available."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            entry_model = registry.resolve_content_source_model("entry")
 
             try:
-                containing_entry = NotebookEntry.objects.get(pk=entry_id)
-            except NotebookEntry.DoesNotExist:
+                containing_entry = entry_model.objects.get(pk=entry_id)
+            except entry_model.DoesNotExist:
                 return Response(
                     {"detail": f"Entry with id {entry_id} not found."},
                     status=status.HTTP_404_NOT_FOUND,
@@ -418,10 +476,12 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             for name, definition in _column_defs.items()
             if definition.get("type") == "formula"
         }
-        is_result_schema = "ResultTable" in (schema.schema_type.tags or [])
+        is_result_schema = "ResultTable" in (schema.schema_type.capabilities or [])
 
         results = []
         errors = []
+        before_snapshots = {}
+        from helix_core.record_persistence import _provider_snapshot
 
         for row_index, row in enumerate(rows):
             entity_id = row.get("entity_id")
@@ -606,6 +666,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                             "message": "The entity must belong to the project.",
                         })
                         continue
+                    before_snapshots.setdefault(str(entity.pk), _provider_snapshot(entity))
                     update_fields = ["name", "properties"]
                     entity.name = name
                     entity.properties = persisted_values
@@ -652,6 +713,7 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         name=name, schema=schema
                     ).first()
                 if existing:
+                    before_snapshots.setdefault(str(existing.pk), _provider_snapshot(existing))
                     existing.properties = persisted_values
                     existing.save(update_fields=["properties"])
                     results.append({
@@ -691,27 +753,29 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         "schema_content_hash": schema.content_hash,
                     })
 
-        # Action logging — log eln.entities.registered
+        # One shared Action records the batch; per-record snapshots and
+        # participants commit in the same transaction as the entity writes.
         if author and results:
-            try:
-                with transaction.atomic():
-                    log_action(
-                        user=author,
-                        action="eln.entities.registered",
-                        target_type="lims.entities",
-                        target_id=schema_id,
-                        metadata={
-                            "schema_id": schema_id,
-                            "count": len(results),
-                            "entity_ids": [r["entity_id"] for r in results],
-                        },
-                        request_id=getattr(self, "_request_id", None),
-                        client_ip=request.META.get("REMOTE_ADDR", "") or None,
-                    )
-            except Exception:
-                logger.exception(
-                    "Action logging failed for EntityViewSet.batch_register"
-                )
+            from helix_core.record_persistence import record_provider_batch
+
+            entity_ids = [result["entity_id"] for result in results]
+            records = list(Entity.objects.filter(pk__in=entity_ids).select_related("schema__schema_type"))
+            record_provider_batch(
+                records=records,
+                before_snapshots=before_snapshots,
+                actor=author,
+                action="eln.entities.registered",
+                target_model_reference="lims.entities",
+                target_object_id=schema_id,
+                request_id=getattr(self, "_request_id", None),
+                client_ip=request.META.get("REMOTE_ADDR", "") or None,
+                metadata={
+                    "schema_id": schema_id,
+                    "count": len(results),
+                    "entity_ids": entity_ids,
+                },
+                action_writer=log_action,
+            )
 
         return Response({"results": results, "errors": errors})
 
@@ -845,40 +909,48 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         return Response({"results": results, "errors": errors})
 
 
+class ActionLogFilter(filters.FilterSet):
+    """Keep the LIMS action query aliases over the shared action log."""
+
+    entity = filters.CharFilter(field_name="target_object_id")
+    target_type = filters.CharFilter(field_name="target_model_reference")
+    target_id = filters.CharFilter(field_name="target_object_id")
+
+    class Meta:
+        model = ActionLogEntry
+        fields = ["action_type"]
+
+
 class ActionViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint for LIMS actions (read-only for Phase 1).
     """
 
     serializer_class = ActionSerializer
-    filterset_fields = ["entity", "action_type", "target_type", "target_id"]
+    filterset_class = ActionLogFilter
 
     def get_queryset(self):
+        from helix_core.mod_system.registry import registry
+
         visible_entities = Entity.objects.filter(
             visible_rows_q(self.request.user)
-        ).values("pk")
-        from mods.eln.models import NotebookEntry
-
-        visible_entries = NotebookEntry.objects.filter(
-            visible_rows_q(self.request.user)
-        ).values("pk")
-
-        visible_related_targets = (
-            Q(entity_id__in=visible_entities)
+        ).values_list("pk", flat=True)
+        query = Q(
+            target_model_reference__in=("lims.entity", "lims.entities"),
+            target_object_id__in=[str(pk) for pk in visible_entities],
         )
-        visible_generic_targets = (
-            Q(entity__isnull=True)
-            & (
-                Q(
-                    target_type__in=("lims.entity", "lims.entities"),
-                    target_id__in=visible_entities,
-                )
-                | Q(target_type="eln.entry", target_id__in=visible_entries)
+        entry_provider = registry.get_content_source("entry")
+        if entry_provider is not None:
+            entry_model = registry.resolve_content_source_model("entry")
+            visible_entries = entry_model.objects.filter(
+                visible_rows_q(self.request.user)
+            ).values_list("pk", flat=True)
+            entry_ref = getattr(entry_provider.model_reference, "id", entry_provider.model_reference)
+            query |= Q(
+                target_model_reference__in=(entry_ref, "eln.entry"),
+                target_object_id__in=[str(pk) for pk in visible_entries],
             )
-        )
-        return Action.objects.filter(
-            visible_related_targets | visible_generic_targets
-        ).select_related("entity", "performed_by")
+        return ActionLogEntry.objects.filter(query).select_related("performed_by")
 
 
 class LimsViewViewSet(viewsets.ModelViewSet):

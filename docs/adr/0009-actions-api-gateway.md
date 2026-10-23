@@ -26,6 +26,8 @@ Three approaches were considered:
 
 **All actions — whether from HTTP endpoints or blocks — go through a single unified `POST /api/actions/` endpoint. Core CRUD actions are auto-derived from every registered model/viewset. Custom domain actions are explicitly registered in the backend and map to a core action base. Blocks send actions at runtime via the unified endpoint rather than declaring action messages statically.**
 
+For Platform-owned scientific records, execution and persistence share one transaction boundary. `POST /api/actions/execute/` invokes a registered provider, validates its declared contract and proposed effects, and commits the record values, immutable Revisions, and one authoritative Action together. The audit-only `POST /api/actions/` endpoint cannot create a success event targeting `helix.record`; legacy record writers that are in scope delegate to the same persistence service.
+
 ### Action model
 
 ```

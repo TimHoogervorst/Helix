@@ -26,12 +26,12 @@
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { get, del, ApiError } from "../../../shell/src/api/client";
+import { get, del, ApiError } from "@helix/mod-api/host";
 import type { TipTapDoc, EntryDetail } from "../types";
-import { useMentionContext } from "../../../shell/src/mentions/MentionProvider";
+import { useMentionContext } from "@helix/mod-api/host";
 import { attachTags, acquireLock, releaseLock, getLockStatus } from "../api";
 import { useSaveQueue, type SaveStatus } from "./useSaveQueue";
-import { useCurrentUser } from "../../../shell/src/user/CurrentUserProvider";
+import { useCurrentUser } from "@helix/mod-api/host";
 import {
   splitFirstParagraph,
   prependDescription,
@@ -157,6 +157,7 @@ export function useEntryCrud({
         name: title.trim(),
         content: fullContent,
         status,
+        state_token: entry?.platform_state_token,
       };
 
       enqueue(payload, "autosave", hasBlockActions).then((saved) => {
@@ -181,14 +182,14 @@ export function useEntryCrud({
         }
       });
     },
-    [effectiveEntryId, title, description, status, contentRef, enqueue, resolveIds, isLockedByOther],
+    [effectiveEntryId, title, description, status, contentRef, enqueue, resolveIds, isLockedByOther, entry?.platform_state_token],
   );
 
   // ── Manual save (returns promise) ──
   const save = useCallback(
     async (_folderId: number | null, tagIds: number[], hasBlockActions?: boolean) => {
-      if (!effectiveEntryId || !title.trim()) return;
-      if (isLockedByOther) return;
+      if (!effectiveEntryId || !title.trim()) return null;
+      if (isLockedByOther) return null;
 
       const fullContent = prependDescription(contentRef.current, description);
 
@@ -196,6 +197,7 @@ export function useEntryCrud({
         name: title.trim(),
         content: fullContent,
         status,
+        state_token: entry?.platform_state_token,
       };
 
       const saved = await enqueue(payload, "manual", hasBlockActions);
@@ -207,8 +209,9 @@ export function useEntryCrud({
       } else {
         applySavedEntry(saved);
       }
+      return saved;
     },
-    [effectiveEntryId, title, description, status, isNew, contentRef, enqueue, applySavedEntry, isLockedByOther],
+    [effectiveEntryId, title, description, status, isNew, contentRef, enqueue, applySavedEntry, isLockedByOther, entry?.platform_state_token],
   );
 
   const setDescription = useCallback((d: string) => {

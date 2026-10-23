@@ -2,9 +2,18 @@
 Django settings for Helix project.
 """
 import os
+import json
+import sys
 from pathlib import Path
 
 from helix_core.mod_system.loader import get_helix_mods
+
+# The canonical backend suite tests the platform without optional packages.
+# Keep this test-only default here so a locally installed External Mod cannot
+# silently change the test composition; individual tests can still opt into a
+# fake Mod by patching discovery explicitly.
+if "pytest" in sys.modules:
+    os.environ.setdefault("HELIX_NO_EXTERNAL_MODS", "1")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -19,11 +28,50 @@ ALLOWED_HOSTS = ["*"]
 
 # ── Helix Mod System ─────────────────────────────────────────────────────────
 
-# Override external auto-discovery by setting HELIX_MODS to an explicit list of
-# dotted mod paths (e.g. ["mods.eln", "bundled.lims"]).  Bundled mods are listed
-# explicitly in helix_core.mod_system.bundled; external mods remain discovered
-# from mods/ when this setting is None.
+# Override discovery for focused tests with an explicit list of importable
+# package roots (e.g. ["bundled.lims"]). Normal startup uses the closed bundled
+# list plus installed ``helix.mods`` entry points.
 HELIX_MODS = None
+
+# Namespace ownership is deployment configuration, never inferred from a
+# package's self-declared manifest. Keys are contract namespaces and values
+# are the exact Mod publisher IDs authorized to create new definitions.
+_configured_contract_publishers = json.loads(
+    os.environ.get("HELIX_CONTRACT_PUBLISHERS", "{}")
+)
+if not isinstance(_configured_contract_publishers, dict):
+    raise ValueError("HELIX_CONTRACT_PUBLISHERS must be a JSON object")
+if _configured_contract_publishers.get("helix", "helix.timhoogervorst") != "helix.timhoogervorst":
+    raise ValueError("the helix contract namespace is reserved")
+HELIX_CONTRACT_PUBLISHERS = {
+    **_configured_contract_publishers,
+    "helix": "helix.timhoogervorst",
+}
+# First-party packages may supply contracts in the reserved namespace only
+# when deployment code explicitly delegates the namespace owner's identity.
+# Keep this narrow and immutable in configuration: no manifest self-claims.
+HELIX_CONTRACT_PUBLISHER_PACKAGES = {
+    "helix.eln": "helix.timhoogervorst",
+    "helix.lims": "helix.timhoogervorst",
+}
+
+# A deployment may provide the build-time catalog.  Validate it against a
+# fresh discovery pass before Django starts so package changes cannot boot
+# against stale application metadata.
+HELIX_MOD_CATALOG = os.environ.get("HELIX_MOD_CATALOG")
+HELIX_INSTALLATION_FINGERPRINT = os.environ.get("HELIX_INSTALLATION_FINGERPRINT")
+if HELIX_MOD_CATALOG:
+    from helix_core.mod_system.bundled import BUNDLED_MODS
+    from helix_core.mod_system.catalog import build_catalog, read_catalog
+
+    _current_catalog = build_catalog(bundled_paths=BUNDLED_MODS)
+    read_catalog(
+        HELIX_MOD_CATALOG,
+        expected_fingerprint=(
+            HELIX_INSTALLATION_FINGERPRINT
+            or _current_catalog["installationFingerprint"]
+        ),
+    )
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -41,8 +89,7 @@ INSTALLED_APPS = [
     # Helix platform
     "helix_core",
     "helix_core.core",
-    # Helix mods — auto-discovered from mods/*/mod.py (or overridden
-    # via HELIX_MODS above).  Returned in dependency order.
+    # Helix mods — loaded from package metadata (or overridden via HELIX_MODS).
     *get_helix_mods(base_dir=BASE_DIR, helix_mods_override=HELIX_MODS),
     "helix_core.mentions",
 ]

@@ -2,15 +2,16 @@ from rest_framework import serializers
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 
-from helix_core.core.models import Folder, Project, User
-from helix_core.abstracts import hydrate_source_path
-from bundled.access.users.serializers import UserSerializer
+from helix_core.public import Folder, Project, User
+from helix_core.public import hydrate_source_path
+from helix_core.public import UserSerializer
 
-from bundled.labelling.tags.models import Tag
+from helix_core.public import Tag
 
-from helix_core.mentions.models import Mention
+from helix_core.public import Mention
 
-from .models import NotebookEntry, ElnAction, Protocol
+from .models import NotebookEntry, Protocol
+from helix_core.public import ActionLogEntry
 
 
 def validate_tiptap_json(value):
@@ -65,10 +66,19 @@ class MentionSerializer(serializers.ModelSerializer):
 
 
 # Re-export for backward compatibility — canonical in bundled.labelling.tags.serializers.
-from bundled.labelling.tags.serializers import TagSerializer  # noqa: F401, E402
+from helix_core.public import TagSerializer  # noqa: F401, E402
 
 
 class NotebookEntrySerializer(serializers.ModelSerializer):
+    content = serializers.JSONField(validators=[validate_tiptap_json], required=False)
+    state_token = serializers.UUIDField(write_only=True, required=False)
+    request_id = serializers.UUIDField(write_only=True, required=False)
+    platform_state_token = serializers.SerializerMethodField()
+    platform_record_id = serializers.SerializerMethodField()
+    platform_record_revision_id = serializers.SerializerMethodField()
+    platform_schema_state = serializers.SerializerMethodField()
+    document_group_id = serializers.SerializerMethodField()
+    document_revision_id = serializers.SerializerMethodField()
     author_username = serializers.SerializerMethodField()
     author_info = UserSerializer(source="author", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
@@ -105,11 +115,72 @@ class NotebookEntrySerializer(serializers.ModelSerializer):
             "schema_prefix",
             "mentions",
             "tags",
+            "platform_state_token",
+            "platform_record_id",
+            "platform_record_revision_id",
+            "platform_schema_state",
+            "document_group_id",
+            "document_revision_id",
+            "state_token",
+            "request_id",
         ]
         read_only_fields = ["id", "display_id", "project", "author", "created_at", "updated_at", "schema", "source_path"]
 
     def get_author_username(self, obj):
         return obj.author.username if obj.author else None
+
+    def _document_revision(self, obj):
+        record = getattr(obj, "platform_record", None)
+        if record is None:
+            return None, None
+        group = record.revision_groups.filter(group_key="document").select_related(
+            "current_revision"
+        ).first()
+        return group, group.current_revision if group else None
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        _group, revision = self._document_revision(instance)
+        if revision is not None:
+            representation["content"] = revision.snapshot.get("document", instance.content)
+        return representation
+
+    def get_platform_state_token(self, obj):
+        record = getattr(obj, "platform_record", None)
+        return str(record.state_token) if record else None
+
+    def _record_action_state(self, obj):
+        record = getattr(obj, "platform_record", None)
+        if record is None:
+            return None
+        cache = self.context.setdefault("record_action_state_cache", {})
+        if record.pk in cache:
+            return cache[record.pk]
+        from helix_core.public import record_action_state
+
+        state = record_action_state(str(record.pk))
+        cache[record.pk] = state
+        return state
+
+    def get_platform_record_id(self, obj):
+        state = self._record_action_state(obj)
+        return state["record_id"] if state else None
+
+    def get_platform_record_revision_id(self, obj):
+        state = self._record_action_state(obj)
+        return state["revision_id"] if state else None
+
+    def get_platform_schema_state(self, obj):
+        state = self._record_action_state(obj)
+        return state["schema_state"] if state else None
+
+    def get_document_group_id(self, obj):
+        group, _revision = self._document_revision(obj)
+        return str(group.pk) if group else None
+
+    def get_document_revision_id(self, obj):
+        _group, revision = self._document_revision(obj)
+        return str(revision.pk) if revision else None
 
     def get_source_path(self, obj):
         cache = self.context.setdefault("source_path_cache", {})
@@ -127,13 +198,14 @@ class NotebookEntryCreateSerializer(serializers.ModelSerializer):
         queryset=Project.objects.all(), required=False,
     )
     content = serializers.JSONField(validators=[validate_tiptap_json])
+    request_id = serializers.UUIDField(required=False, write_only=True)
     status = serializers.ChoiceField(choices=["in_progress", "finished"], required=False)
     tag_ids = serializers.PrimaryKeyRelatedField(
         queryset=Tag.objects.all(), many=True, required=False, write_only=True
     )
     class Meta:
         model = NotebookEntry
-        fields = ["name", "content", "source_type", "source_id", "project", "status", "tag_ids"]
+        fields = ["name", "content", "source_type", "source_id", "project", "status", "tag_ids", "request_id"]
 
     def validate(self, data):
         source_type = data.get("source_type")
@@ -186,7 +258,7 @@ class ElnActionSerializer(serializers.ModelSerializer):
     performed_by = UserSerializer(read_only=True)
 
     class Meta:
-        model = ElnAction
+        model = ActionLogEntry
         fields = [
             "id",
             "action",
@@ -205,7 +277,7 @@ class ElnActionCreateSerializer(serializers.ModelSerializer):
     """Write-only serializer for logging a custom action against an entry."""
 
     class Meta:
-        model = ElnAction
+        model = ActionLogEntry
         fields = ["action", "action_type", "metadata"]
         # target_type, target_id, and performed_by are set by the view
 

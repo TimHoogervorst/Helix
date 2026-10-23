@@ -24,6 +24,23 @@ Three approaches were considered:
 
 ## Decision
 
+### Retained scientific meaning and executable capabilities
+
+Declarative Data and Action Contracts are immutable Platform records identified
+by exact `(kind, id, version)` and fingerprinted over their complete meaning,
+including descriptions. Their definitions remain readable after the package
+that supplied them is inactive or removed. They are not Python `ColumnType`
+implementations and do not make executable validation or specialized behavior
+available.
+
+`ColumnType` remains an executable capability for legacy Schema-based columns.
+New scientific values bind to retained contract identities. Machine constraints
+are enforced by Platform validators; declarations naming unavailable validators
+block affected edits. The retained contract read API serves the stored envelope
+without importing or invoking its supplier. This amendment supersedes the
+original implication that retaining a value's meaning requires retaining its
+Python class.
+
 **Column types are proper Python classes registered into a backend-owned registry. Each type owns its identity, operators, validation, and rendering hints. Mods extend types via subclassing. The frontend discovers the type catalog at boot and renders columns generically from the metadata.**
 
 ### Column type model

@@ -1,12 +1,12 @@
 from django.urls import include, path
 
-from helix_core.column_types import (
+from helix_core.public import (
     AggregateMeta,
     ColumnType,
     OperatorMeta,
-    registry as column_type_registry,
+    SignalKind,
+    public_column_type_registry as column_type_registry,
 )
-from helix_core.mod_system.registry import registry
 
 
 class TiptapContentColumnType(ColumnType):
@@ -45,37 +45,56 @@ class TiptapContentColumnType(ColumnType):
         return f"Expected TipTap JSON (dict, list, or string), got {type(value).__name__}"
 
 
-def register():
+def register(mod):
     """Called by ModLoader after topological sort. Populates the backend registry."""
-    from django.db.models.signals import post_save
-
     from mods.eln.cascade import update_status_from_source
-    from mods.eln.models import ElnAction, NotebookEntry
-    from bundled.lims.models import Entity
+    from mods.eln.models import NotebookEntry
+    from mods.eln.serializers import NotebookEntrySerializer
+    from mods.eln.views import NotebookEntryViewSet
+    from helix_core.public import visible_rows_q
 
     # Register the tiptap_content column type so consumers (entity hub,
     # registry table) can discover and render it generically.
-    column_type_registry.register_column_type(TiptapContentColumnType())
+    mod.register_column_type(TiptapContentColumnType())
 
-    registry.register_action_model("eln", ElnAction)
+    entry = mod.register_model("entry", NotebookEntry)
+    mod.register_revision_group(
+        "document",
+        entry,
+        # Keep the historical target label written into Actions and group
+        # rows while canonical ownership comes from this Mod registration.
+        target_model_reference="eln.entry",
+        action_identities={
+            "created": "eln.entry.created",
+            "edited": "eln.entry.edited",
+        },
+    )
+    mod.register_source_kind(
+        "entry",
+        entry,
+        visibility_query=lambda request, queryset: queryset.filter(
+            visible_rows_q(request.user)
+        ),
+        serializer=NotebookEntrySerializer,
+        hub_visible=True,
+        display_metadata={
+            "label": "ELN Entry",
+            "workspace_id": "eln",
+            "icon": "notebook",
+            "color": "flask",
+        },
+        mutation_handlers={
+            "create": NotebookEntryViewSet.perform_create,
+            "edit": NotebookEntryViewSet.perform_update,
+            "lock": NotebookEntryViewSet._acquire_lock,
+        },
+    )
 
     # ── Entry-level custom actions ───────────────────────────────────────
     # Actions used by @logs_action decorators in views.py.  Must be
     # registered before the views are imported.
-    registry.register_custom_action(
-        mod_id="eln",
-        action_id="eln.entry.tags_attached",
-        label="Tags Attached",
-        core="edited",
-        target_model="mods.eln.models.NotebookEntry",
-    )
-    registry.register_custom_action(
-        mod_id="eln",
-        action_id="eln.entry.tag_detached",
-        label="Tag Detached",
-        core="edited",
-        target_model="mods.eln.models.NotebookEntry",
-    )
+    mod.register_custom_action("eln.entry.tags_attached", "Tags Attached", "edited", entry)
+    mod.register_custom_action("eln.entry.tag_detached", "Tag Detached", "edited", entry)
 
     # ── Block-level custom actions ───────────────────────────────────────
     # Per docs/actions-system-design.md the backend catalog is the single
@@ -103,29 +122,33 @@ def register():
         ("eln.registry-table.edited", "Registry Table Edited", "edited"),
         ("eln.registry-table.deleted", "Registry Table Deleted", "deleted"),
     ]
+    # The editor emits lifecycle IDs from the owning block's canonical ID,
+    # even when a LIMS block is hosted inside an ELN entry. Keep the legacy
+    # declarations above for older clients and retained activity records.
+    for block_id, label in (
+        ("helix.eln:table", "Table"),
+        ("helix.lims:comment", "Comment"),
+        ("helix.lims:protocol", "Protocol"),
+        ("helix.lims:registry-table", "Registry Table"),
+        ("helix.lims:result-table", "Result Table"),
+    ):
+        for verb in ("created", "edited", "deleted"):
+            block_actions.append((f"{block_id}.{verb}", f"{label} {verb.title()}", verb))
+    block_actions.extend([
+        ("helix.lims:registry-table.entities-registered", "Entities Registered", "edited"),
+        ("helix.lims:registry-table.row-added", "Row Added", "edited"),
+        ("helix.lims:result-table.results-registered", "Results Registered", "edited"),
+    ])
     for action_id, label, core in block_actions:
-        registry.register_custom_action(
-            mod_id="eln",
-            action_id=action_id,
-            label=label,
-            core=core,
-            target_model="mods.eln.models.NotebookEntry",
-        )
+        mod.register_custom_action(action_id, label, core, entry)
 
-    registry.register_schema_type(
+    mod.register_schema_type(
         display_name="ELN Entry",
         workspace_id="eln",
-        model="mods.eln.models.NotebookEntry",
+        model=entry,
         prefix="E",
         icon="notebook",
         color="flask",
     )
-    registry.register_signal(
-        "eln", post_save, update_status_from_source, sender=NotebookEntry
-    )
-    registry.register_signal(
-        "eln", post_save, update_status_from_source, sender=Entity
-    )
-    registry.register_urls(
-        "eln", [path("api/eln/", include("mods.eln.urls"))]
-    )
+    mod.register_signal(SignalKind.MODEL_POST_SAVE, entry, update_status_from_source)
+    mod.register_urls([path("api/eln/", include("mods.eln.urls"))])

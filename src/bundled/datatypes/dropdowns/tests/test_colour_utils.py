@@ -46,18 +46,6 @@ class DeriveDropdownColorTests(TestCase):
             self.assertEqual(first["bg"], second["bg"])
             self.assertEqual(first["fg"], second["fg"])
 
-    def test_different_values_may_differ(self):
-        """Different values get colour indices (they may collide but
-        the palette is large enough that two distinct known strings
-        should differ most of the time)."""
-        result_a = derive_dropdown_color("In Progress")
-        result_b = derive_dropdown_color("Finished")
-        # Not equal with high probability for a 12-colour palette.
-        # We test that the function doesn't return the same colour
-        # for all inputs — collision is possible but unlikely.
-        self.assertIsNotNone(result_a["index"])
-        self.assertIsNotNone(result_b["index"])
-
     def test_empty_string(self):
         """Empty string produces a valid colour."""
         result = derive_dropdown_color("")

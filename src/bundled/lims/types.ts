@@ -1,5 +1,30 @@
 import type { Tag } from "../labelling/tags/types";
 
+export interface ProtocolItem {
+  type: "step" | "note";
+  text: string;
+}
+
+export interface Protocol {
+  id: number;
+  name: string;
+  items: ProtocolItem[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EntityTypeSummary {
+  id: number;
+  name: string;
+  prefix: string;
+  columns: ColumnDef[];
+  is_active: boolean;
+  is_default?: boolean;
+  content_hash: string;
+  capabilities: string[];
+}
+
 export interface SourcePathSegment {
   kind: "project" | "folder" | "entry" | "entity";
   id: number;
@@ -42,7 +67,7 @@ export interface Schema {
   prefix: string;
   schema_type: number;
   schema_type_display: string;
-  tags: string[];
+  capabilities: string[];
   columns: ColumnDef[];
   is_default: boolean;
   is_active: boolean;
@@ -71,12 +96,13 @@ export interface SchemaTypeItem {
   workspace_id: string;
   is_active: boolean;
   schema_type_id: string;
-  tags: string[];
+  capabilities: string[];
 }
 
 /** An entity as returned by the entity API. */
 export interface EntityListItem {
-  id: number;
+  id: number | string;
+  record_id?: string;
   display_id: string;
   name: string;
   schema: number;
@@ -98,6 +124,9 @@ export interface EntityListItem {
   created_at: string;
   tags: Tag[];
   effective_role: "read" | "edit";
+  /** Portable raw content owned by core, even when a specialized mod is absent. */
+  content?: unknown;
+  raw_content?: unknown;
 }
 
 /** Paginated response wrapper. */
@@ -227,8 +256,17 @@ export interface LimsViewItem {
   owner: number;
   owner_username: string;
   name: string;
+  source_kind: string;
+  spec: {
+    filter?: Record<string, unknown>;
+    sort?: unknown[];
+    columns?: string[];
+    [key: string]: unknown;
+  };
   filter_state: ViewFilterState;
   is_public: boolean;
+  is_inert: boolean;
+  availability: "available" | "source unavailable";
   created_at: string;
   updated_at: string;
 }
@@ -236,6 +274,8 @@ export interface LimsViewItem {
 /** Payload for creating a new View. */
 export interface LimsViewCreatePayload {
   name: string;
+  source_kind?: string;
+  spec?: LimsViewItem["spec"];
   filter_state: ViewFilterState;
   is_public?: boolean;
 }
@@ -243,6 +283,27 @@ export interface LimsViewCreatePayload {
 /** Payload for updating a View. */
 export interface LimsViewUpdatePayload {
   name?: string;
+  source_kind?: string;
+  spec?: LimsViewItem["spec"];
   filter_state?: ViewFilterState;
   is_public?: boolean;
+}
+
+/** Restore the portable source specification used by saved-view consumers. */
+export function viewFilterState(view: Pick<LimsViewItem, "spec" | "filter_state">): ViewFilterState {
+  const filter = view.spec?.filter ?? {};
+  const sort = view.spec?.sort?.[0];
+  const sortField = typeof sort === "object" && sort !== null && "field" in sort
+    ? String((sort as { field: unknown }).field ?? "")
+    : typeof sort === "string" ? sort : "";
+  return {
+    search: String(filter.search ?? ""),
+    schema_type: String(filter.schema_type ?? ""),
+    schema: String(filter.schema ?? ""),
+    status: String(filter.status ?? ""),
+    sort: sortField,
+    fields: Array.isArray(filter.fields) ? filter.fields.map(String) : [],
+    columns: Array.isArray(view.spec?.columns) ? view.spec.columns.map(String) : [],
+    viewMode: view.filter_state?.viewMode === "compact" ? "compact" : "list",
+  };
 }

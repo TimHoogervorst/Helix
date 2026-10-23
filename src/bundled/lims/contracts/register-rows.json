@@ -1,0 +1,22 @@
+{
+  "formatVersion": 1,
+  "kind": "action",
+  "id": "helix.lims.registry-register",
+  "version": "1.0.0",
+  "description": "Register saved Registry Table rows as Platform records and link them to the saved document.",
+  "definition": {
+    "inputs": {
+      "rows": { "type": "json" }
+    },
+    "parameters": {
+      "schemaId": { "type": "number" },
+      "fieldMapping": { "type": "json" },
+      "blockId": { "type": "string" }
+    },
+    "outputs": {
+      "created": { "type": "json" }
+    },
+    "targets": { "record": "helix.record" },
+    "effects": { "record": "edited", "records": "created", "document": "edited" }
+  }
+}

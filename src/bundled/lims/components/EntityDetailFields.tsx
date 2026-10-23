@@ -17,6 +17,7 @@ export interface EntityDetailFieldsProps {
 }
 
 import { formatDate } from "../../../shell/src/shared/format";
+import JsonDisplayField from "../../../shell/src/shared/components/JsonDisplayField";
 
 function EntityDetailFields({
   entity,
@@ -26,6 +27,18 @@ function EntityDetailFields({
   return (
     <>
       <div className="detail-body">
+        <div className="detail-field">
+          <span className="detail-label">Display ID</span>
+          <span>{entity.display_id}</span>
+        </div>
+        <div className="detail-field">
+          <span className="detail-label">Name</span>
+          <span>{entity.name || "—"}</span>
+        </div>
+        <div className="detail-field">
+          <span className="detail-label">Status</span>
+          <span>{entity.status || "—"}</span>
+        </div>
         <div className="detail-field">
           <span className="detail-label">Type</span>
           <span>
@@ -60,7 +73,9 @@ function EntityDetailFields({
                   <TableRow key={key}>
                     <TableCell className="prop-key">{key}</TableCell>
                     <TableCell className="prop-value">
-                      {typeof value === "boolean"
+                      {value !== null && typeof value === "object"
+                        ? <JsonDisplayField value={value} />
+                        : typeof value === "boolean"
                         ? value
                           ? "✓"
                           : "✗"

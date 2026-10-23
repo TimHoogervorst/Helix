@@ -24,7 +24,7 @@ const mockPut = vi.fn();
 
 // We need the mocked NetworkError to be importable so tests can create
 // instances for the hook's instanceof/name check.
-vi.mock("../../../shell/src/api/client", () => {
+vi.mock("@helix/mod-api/host", () => {
   class NetworkError extends Error {
     constructor(message: string) {
       super(message);
@@ -37,7 +37,7 @@ vi.mock("../../../shell/src/api/client", () => {
   };
 });
 
-import { NetworkError } from "../../../shell/src/api/client";
+import { NetworkError } from "@helix/mod-api/host";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 

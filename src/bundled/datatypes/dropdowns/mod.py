@@ -7,8 +7,6 @@ pre-seeds the built-in "Status" dropdown.
 
 from django.urls import include, path
 
-from helix_core.mod_system.registry import registry
-
 
 def _seed_builtin_dropdowns():
     """Pre-seed the Status dropdown with "in_progress" and "finished".
@@ -31,14 +29,9 @@ def _seed_builtin_dropdowns():
             dropdown.save(update_fields=["options"])
 
 
-def register():
+def register(mod):
     """Called by ModLoader after topological sort."""
-    from .models import DropdownsAction
-
-    registry.register_action_model("dropdowns", DropdownsAction)
-    registry.register_urls(
-        "dropdowns", [path("api/dropdowns/", include("bundled.datatypes.dropdowns.urls"))]
-    )
+    mod.register_urls([path("api/dropdowns/", include("bundled.datatypes.dropdowns.urls"))])
 
     # Pre-seed built-in dropdowns.
     try:

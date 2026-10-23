@@ -20,6 +20,7 @@ import type { NodeViewProps } from "@tiptap/react";
 import type { BlockBinding, SlotContext, BlockInstance } from "../../mod-system/types";
 import type { WorkspaceBus } from "../WorkspaceBus";
 import type { LifecycleEventPayload } from "./useActionAccumulator";
+import { invokePlatformAction, resolveActionContext } from "../../api/actionInvocations";
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -49,8 +50,9 @@ export interface BlockNodeViewProps extends NodeViewProps {
  * events, subscribes to bus events declared in `listensTo`, and renders
  * the block's React component via `NodeViewWrapper`.
  *
- * The block component receives `BlockComponentProps` — `{ context, instance }`.
- * There is no `bus` prop; blocks respond to events declaratively via `onEvent`.
+ * The block component receives `BlockComponentProps` with its instance,
+ * readonly Action context and the Platform-owned invocation callback. There
+ * is no `bus` prop; blocks respond to events declaratively via `onEvent`.
  */
 export function BlockNodeView(props: BlockNodeViewProps) {
   const { node, updateAttributes, getPos, binding, bus, slotId, context, onLifecycleEvent } = props;
@@ -217,6 +219,8 @@ export function BlockNodeView(props: BlockNodeViewProps) {
   // ── Render ─────────────────────────────────────────────────────────────
 
   const BlockComponent = binding.component;
+  const actionContext = resolveActionContext(context.actionContext);
+  const invokeAction = context.invokeAction ?? invokePlatformAction;
 
   // ── Typed emitters ────────────────────────────────────────────────────
 
@@ -272,6 +276,8 @@ export function BlockNodeView(props: BlockNodeViewProps) {
         instance={instanceRef.current}
         overrides={binding.overrides}
         emits={emits}
+        actionContext={actionContext}
+        invokeAction={invokeAction}
       />
     </NodeViewWrapper>
   );

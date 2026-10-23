@@ -5,7 +5,7 @@ All tests exercise the API through HTTP calls using DRF's APIClient.
 """
 from unittest.mock import patch
 
-from helix_core.core.tests.base import BaseTestCase
+from helix_core.core.tests.base import BundledApiTestCase
 from bundled.datatypes.dropdowns.models import Dropdown
 from bundled.access.access.models import Organization, OrganizationMembership, OrganizationRole
 
@@ -31,7 +31,7 @@ def _make_admin(user):
     return user
 
 
-class DropdownsApiTests(BaseTestCase):
+class DropdownsApiTests(BundledApiTestCase):
     """Tests for the Dropdown CRUD endpoints."""
 
     def setUp(self):
@@ -161,7 +161,7 @@ class DropdownsApiTests(BaseTestCase):
         self.assertEqual(response.status_code, 404)
 
 
-class DropdownsAuthTests(BaseTestCase):
+class DropdownsAuthTests(BundledApiTestCase):
     """Tests for authentication and permission gating."""
 
     def test_unauthenticated_rejected(self):
@@ -205,7 +205,7 @@ class DropdownsAuthTests(BaseTestCase):
         self.assertEqual(response.status_code, 403)
 
 
-class DropdownsActionLoggingTests(BaseTestCase):
+class DropdownsActionLoggingTests(BundledApiTestCase):
     """Test that dropdown CRUD operations log actions."""
 
     def setUp(self):

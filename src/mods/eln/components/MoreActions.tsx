@@ -1,6 +1,6 @@
 import { EllipsisVertical } from "lucide-react";
-import { Menu } from "../../../shell/src/shared/primitives/Menu";
-import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import { Menu } from "@helix/mod-api/host";
+import { IconButton } from "@helix/mod-api/host";
 
 export interface MoreActionsItem {
   key: string;

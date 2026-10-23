@@ -7,9 +7,9 @@ mention sync, then conditional save.
 Adding a new sync step (e.g. Protocol widgets) changes this file alone
 — the view layer stays one call.
 """
-from helix_core.core.signals import entry_content_sync
-from helix_core.mentions.node_walker import collect_reference_ids
-from helix_core.mentions.sync import sync_mentions
+from helix_core.public import entry_content_sync
+from helix_core.public import collect_reference_ids
+from helix_core.public import sync_mentions
 
 from .models import NotebookEntry
 
@@ -37,8 +37,8 @@ def sync_entry_content(
     1. Fingerprint pre-check — if *old_content* is provided and the
        reference fingerprint didn't change vs the current content, skip
        the expensive signal dispatch and mention sync entirely.
-       Text-only auto-saves are just a ContentVersion insert +
-       entry.content pointer update.
+       Text-only auto-saves are persisted as Platform document Revisions
+       by the entry save boundary, without running reference synchronization.
     2. ``entry_content_sync`` signal — extension point for mods to hook
        into the sync pipeline (e.g. entity sync, protocol widgets).
     3. ``sync_mentions`` — walks the (possibly patched) JSON for reference

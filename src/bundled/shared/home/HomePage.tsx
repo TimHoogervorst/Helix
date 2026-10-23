@@ -14,6 +14,7 @@ import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
 import type { HubConfig } from "../../../shell/src/mod-system/types";
 import { MetricCardsBar } from "../../../shell/src/shared/components/MetricCards";
 
+
 // ── Decorative Header ────────────────────────────────────────────────────────
 
 /**
@@ -138,7 +139,7 @@ function HubCard({
       </h3>
 
       {/* Placeholder stats line (mono) */}
-      <p className="font-mono text-xs text-muted-foreground">
+       <p className="font-[var(--font-label)] text-xs text-muted-foreground">
         {PLACEHOLDER_STATS}
       </p>
 
@@ -154,7 +155,7 @@ function HubCard({
         <span className="chip">
           <Beaker className="h-3 w-3" aria-hidden="true" /> open
         </span>
-        <span className="font-mono">edited 8 min ago</span>
+         <span className="font-[var(--font-label)]">edited 8 min ago</span>
       </div>
     </Link>
   );
@@ -292,7 +293,7 @@ function ActivityRow({ item }: { item: RecentActivityItem }) {
           {item.action}{" "}
           <span className="font-medium">{item.target}</span>
         </p>
-        <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+        <p className="mt-0.5 font-[var(--font-label)] text-xs text-muted-foreground">
           {item.timestamp} — {item.filePath}
         </p>
       </div>
@@ -370,7 +371,7 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
   return (
     <div className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
       {/* Time label */}
-      <span className="font-mono text-xs text-muted-foreground shrink-0 w-10">
+      <span className="font-[var(--font-label)] text-xs text-muted-foreground shrink-0 w-10">
         {entry.time}
       </span>
 
@@ -433,7 +434,7 @@ function HomePage() {
     <div className="flex flex-1 flex-col overflow-y-auto">
       {/* <DecorativeHeader /> */}
       <GreetingSection />
-      <MetricCardsBar />
+      <MetricCardsBar surface="home" />
       <JumpBackIn />
       <section className="px-6 py-6">
         <div className="mx-auto grid max-w-4xl gap-5 lg:grid-cols-3">

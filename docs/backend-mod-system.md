@@ -93,8 +93,9 @@ src/
   "id": "eln",
   "displayName": "Electronic Lab Notebook",
   "version": "0.1.0",
-  "dependsOn": ["lims", "tags"],
-  "coreVersion": "0.1.0",
+  "requiresHelix": ">=1.0.0",
+  "artifacts": ["backend"],
+  "dependsOn": [{"id": "helix.lims", "version": "^1.0.0"}],
   "description": "Rich-text electronic lab notebook with TipTap editor"
 }
 ```
@@ -104,8 +105,9 @@ src/
 | `id` | ✅ | Globally unique mod identifier. Used for directory name, URL namespace, and dependency references. Convention: lowercase, single word or hyphenated. |
 | `displayName` | ✅ | Human-readable name shown in mod listing screens. |
 | `version` | ✅ | Semver version string. |
-| `dependsOn` | ✅ | Array of mod IDs that must load before this mod. Each entry can be a bare string (`"lims"`) or an object with optional `version` constraint (`{"id": "lims", "version": ">=0.1.0"}`). |
-| `coreVersion` | No | Minimum platform version required. If the running platform is older, the mod is skipped with a warning. |
+| `requiresHelix` | ✅ | npm-compatible SemVer range for the Helix platform. |
+| `artifacts` | ✅ | Non-empty unique subset of `frontend` and `backend`. |
+| `dependsOn` | ✅ | Array of `{id, version}` objects; string shorthand is invalid. |
 | `description` | No | Short description for settings and mod listing screens. |
 
 ### What the manifest does NOT describe
@@ -294,6 +296,8 @@ entity = registry.call("lims.resolve_entity", display_id="DNA34")
 
 **Import boundary:** External mods import from `helix_core` — never the other way around. `helix_core` has zero dependencies on any mod.
 
+Human packaging guidance is in [External Mod Packaging](mod-packaging.md). The permanent hello-world tutorial and golden fixture is [`src/mods/hello_world`](../src/mods/hello_world).
+
 ---
 
 ## URL Routing
@@ -332,7 +336,7 @@ urlpatterns = [
 External Mods use the same `modManifest.json` + `mod.py` + `register_*()` pattern as Bundled Mods. The contract:
 
 1. **Package:** External Mods are packages under `src/mods/` for repository dogfood
-2. **Entry point:** The repository discovery path loads each package's `mod.py`; packaged entry points remain future work
+2. **Entry point:** Installed backend artifacts advertise `helix.mods` with the canonical Mod ID as the entry-point name and package root as its value; repository packages retain `mod.py` fallback discovery
 3. **Manifest:** `modManifest.json` at package root — same schema as Bundled Mods
 4. **Registration:** `mod.py` `register()` function — same `register_*()` API
 5. **Dependencies:** `dependsOn` in manifest — can depend on Bundled Mods or other External Mods

@@ -9,10 +9,6 @@ Usage::
     from helix_core.mod_system.registry import registry
 
     # In mod.py register():
-    registry.register_action_model("eln", ElnAction)
-    registry.register_urls("eln", [path("api/eln/", include("mods.eln.urls"))])
-    registry.register_setting("eln", "eln_lock_timeout_minutes", 5)
-    registry.register_signal("eln", post_save, handler, sender=NotebookEntry)
     registry.register_service("lims.cascadeEntryStatus", cascade_handler)
 
     # Cross-mod behavioral call:
@@ -28,7 +24,8 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import Any, Callable, Generator, Optional
+from dataclasses import dataclass, field
+from typing import Any, Callable, Generator, Mapping, Optional
 
 from helix_core.mod_system.manifest import ModManifest
 
@@ -47,6 +44,21 @@ CORE_ACTION_LABELS = {
     "deleted": "Deleted",
 }
 
+
+@dataclass(frozen=True, slots=True)
+class ContentSourceProvider:
+    """Backend capabilities for one Library content source."""
+
+    kind: str
+    model_reference: Any
+    visibility_query: Callable[..., Any] | None = None
+    serializer: Any = None
+    display_metadata: Mapping[str, Any] = field(default_factory=dict)
+    hub_visible: bool = False
+    mutation_handlers: Mapping[str, Callable[..., Any]] = field(default_factory=dict)
+    capabilities: tuple[str, ...] = ()
+    provider_mod_id: str | None = None
+
 FORMULA_FUNCTION_ID = re.compile(r"^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$")
 
 
@@ -63,11 +75,29 @@ class BackendModRegistry:
     def __init__(self) -> None:
         # ── storage ──────────────────────────────────────────────────────
         self._action_models: dict[str, type] = {}
+        self._action_providers: dict[str, tuple[str, str]] = {}
+        self._record_actions: dict[str, dict[str, Any]] = {}
+        # Revision-group registrations may intentionally share a historical
+        # target alias; preserve all declarations so resolution can fail
+        # closed instead of silently choosing the last provider.
+        self._revision_group_registrations: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
         self._url_patterns: dict[str, list] = defaultdict(list)
         self._settings: dict[str, dict[str, Any]] = defaultdict(dict)
         self._signal_registrations: list[dict[str, Any]] = []
         self._services: dict[str, Callable[..., Any]] = {}
+        self._registered_models: dict[str, type | str] = {}
+        self._source_kinds: dict[str, Any] = {}
+        self._content_sources: dict[str, ContentSourceProvider] = {}
         self._formula_functions: dict[str, dict[str, Any]] = {}
+        # Generic capability-bearing registrations.  Keep the common shape in
+        # one place so new registry citizens do not grow bespoke capability
+        # stores or payload conventions.
+        self._capability_registrations: dict[str, dict[str, dict[str, Any]]] = {
+            "services": {},
+            "blocks": {},
+            "slots": {},
+            "metricProviders": {},
+        }
 
         # Optional: topological mod order for build_urlpatterns().
         # Set via set_mod_order() after loader runs.
@@ -87,6 +117,222 @@ class BackendModRegistry:
         # register_action_model() is called.
         # Each entry: {"created": {...}, "edited": {...}, "deleted": {...}}
         self._core_actions: dict[str, dict[str, dict[str, Any]]] = {}
+        # Registrations may refer to contributions from a mod that has not
+        # run yet.  Keep intent here and resolve it only at the boot barrier.
+        self._pending_schema_types: list[dict[str, Any]] = []
+        self._pending_public_signals: list[dict[str, Any]] = []
+
+    # These methods are intentionally adapter-only.  Mod packages use the
+    # owner-bound facade in ``helix_core`` rather than this registry.
+    def register_model_reference(self, reference: str, model: type | str) -> None:
+        if reference in self._registered_models:
+            raise ValueError(f"Duplicate model reference '{reference}'")
+        self._registered_models[reference] = model
+
+    def get_registered_models(self) -> dict[str, type | str]:
+        return dict(self._registered_models)
+
+    def register_source_kind(
+        self,
+        kind: str,
+        model_reference: Any,
+        **kwargs: Any,
+    ) -> None:
+        """Register the legacy model-only form of a source kind."""
+        self.register_content_source(kind, model_reference, **kwargs)
+
+    def register_content_source(
+        self,
+        kind: str,
+        model_reference: Any,
+        *,
+        visibility_query: Callable[..., Any] | None = None,
+        serializer: Any = None,
+        display_metadata: Mapping[str, Any] | None = None,
+        hub_visible: bool = False,
+        mutation_handlers: Mapping[str, Callable[..., Any]] | None = None,
+        capabilities: list[str] | None = None,
+        provider_mod_id: str | None = None,
+    ) -> None:
+        if kind in self._source_kinds:
+            raise ValueError(f"Duplicate source kind '{kind}'")
+        self._source_kinds[kind] = model_reference
+        self._content_sources[kind] = ContentSourceProvider(
+            kind=kind,
+            model_reference=model_reference,
+            visibility_query=visibility_query,
+            serializer=serializer,
+            display_metadata=dict(display_metadata or {}),
+            hub_visible=hub_visible,
+            mutation_handlers=dict(mutation_handlers or {}),
+            capabilities=tuple(dict.fromkeys(capabilities or [])),
+            provider_mod_id=provider_mod_id,
+        )
+        self._register_capability(
+            "services", kind, capabilities=capabilities,
+            registration_type="content_source", provider_mod_id=provider_mod_id,
+        )
+
+    def _register_capability(
+        self,
+        kind: str,
+        registration_id: str,
+        *,
+        capabilities: list[str] | None = None,
+        **metadata: Any,
+    ) -> None:
+        self._capability_registrations[kind][registration_id] = {
+            "id": registration_id,
+            "capabilities": list(dict.fromkeys(capabilities or [])),
+            **metadata,
+        }
+
+    def get_source_kinds(self) -> dict[str, Any]:
+        return dict(self._source_kinds)
+
+    def get_content_source(self, kind: str) -> ContentSourceProvider | None:
+        provider = self._content_sources.get(kind)
+        if provider is not None:
+            return provider
+        local_kind = kind.rsplit(":", 1)[-1]
+        owner_alias = kind.rsplit(":", 1)[0] if ":" in kind else None
+        return next(
+            (
+                item
+                for key, item in self._content_sources.items()
+                if key.rsplit(":", 1)[-1] == local_kind
+                and (
+                    owner_alias is None
+                    or key.rsplit(":", 1)[0] == owner_alias
+                    or key.rsplit(":", 1)[0].endswith(f".{owner_alias}")
+                )
+            ),
+            None,
+        )
+
+    def resolve_content_source_model(self, kind: str) -> type:
+        """Resolve a provider's model reference without importing its mod."""
+        provider = self.get_content_source(kind)
+        if provider is None:
+            raise KeyError(f"Unknown content source kind '{kind}'")
+        reference = provider.model_reference
+        reference_id = getattr(reference, "id", reference)
+        model = self._registered_models.get(reference_id)
+        if model is None:
+            raise LookupError(f"Model reference '{reference_id}' is unresolved")
+        if isinstance(model, str):
+            from django.apps import apps
+
+            model = apps.get_model(model)
+        return model
+
+    def get_content_sources(self) -> dict[str, ContentSourceProvider]:
+        return dict(self._content_sources)
+
+    def list_content_sources(self) -> tuple[ContentSourceProvider, ...]:
+        """Enumerate providers in registration order for generic consumers."""
+        return tuple(self._content_sources.values())
+
+    def content_source_models(self) -> tuple[tuple[ContentSourceProvider, type], ...]:
+        """Return registered source providers whose models are available.
+
+        Consumers use this instead of importing another mod's model.  A
+        provider can be registered before its optional app is installed, so
+        unresolved providers are intentionally skipped.
+        """
+        resolved = []
+        for provider in self.list_content_sources():
+            try:
+                resolved.append((provider, self.resolve_content_source_model(provider.kind)))
+            except (KeyError, LookupError):
+                continue
+        return tuple(resolved)
+
+    def query_source_kind(self, kind: str, request: Any, queryset: Any = None) -> Any:
+        """Compatibility spelling for consumers that work with source kinds."""
+        return self.query_content_sources(kind, request, queryset)
+
+    def query_content_sources(self, kind: str, request: Any, queryset: Any = None) -> Any:
+        """Apply a provider's visibility query to a queryset.
+
+        Providers may accept either ``(request, queryset)`` or just ``request``;
+        the latter is useful when the provider owns query construction.
+        """
+        provider = self.get_content_source(kind)
+        if provider is None:
+            raise KeyError(f"Unknown content source kind '{kind}'")
+        if provider.visibility_query is None:
+            return queryset
+        try:
+            return provider.visibility_query(request, queryset)
+        except TypeError:
+            return provider.visibility_query(request)
+
+    def register_public_signal(
+        self, mod_id: str, kind: Any, sender_ref: Any, sender: type, handler: Callable[..., Any]
+    ) -> None:
+        from django.db.models.signals import (
+            post_delete,
+            post_save,
+            pre_delete,
+            pre_save,
+        )
+
+        signal = {
+            "model.pre_save": pre_save,
+            "model.post_save": post_save,
+            "model.pre_delete": pre_delete,
+            "model.post_delete": post_delete,
+        }.get(str(kind))
+        if signal is not None:
+            signal.connect(handler, sender=sender)
+        self._signal_registrations.append({
+            "mod_id": mod_id,
+            "kind": kind,
+            "sender_ref": sender_ref,
+            "sender": sender,
+            "handler": handler,
+        })
+
+    def resolve_references(self) -> None:
+        """Resolve all deferred cross-registration references together.
+
+        Sorting by stable reference ID makes diagnostics independent of mod
+        discovery order and prevents a partially populated registry from
+        changing the result.
+        """
+        pending_schema = sorted(self._pending_schema_types, key=lambda item: str(item["model_ref"]))
+        pending_signals = sorted(self._pending_public_signals, key=lambda item: (str(item["sender_ref"]), item["mod_id"]))
+        self._pending_schema_types.clear()
+        self._pending_public_signals.clear()
+        errors: list[str] = []
+
+        for item in pending_schema:
+            model = self._registered_models.get(item["model_ref"].id)
+            if model is None:
+                errors.append(
+                    f"Model reference '{item['model_ref']}' required by schema "
+                    f"'{item['display_name']}' is unresolved. Register the model first."
+                )
+                continue
+            model_path = model if isinstance(model, str) else f"{model.__module__}.{model.__qualname__}"
+            schema_item = {key: value for key, value in item.items() if key != "model_ref"}
+            self.register_schema_type(**{**schema_item, "model": model_path})
+
+        for item in pending_signals:
+            model = self._registered_models.get(item["sender_ref"].id)
+            if model is None:
+                errors.append(
+                    f"Model reference '{item['sender_ref']}' required by signal "
+                    f"for mod '{item['mod_id']}' is unresolved."
+                )
+                continue
+            self.register_public_signal(
+                item["mod_id"], item["kind"], item["sender_ref"], model, item["handler"]
+            )
+
+        if errors:
+            raise ValueError("Unresolved registrations:\n" + "\n".join(errors))
 
     # ── mod order ────────────────────────────────────────────────────────
 
@@ -188,7 +434,7 @@ class BackendModRegistry:
         workspace_id: str,
         model: str,
         columns: list[dict[str, Any]] | None = None,
-        tags: list[str] | None = None,
+        capabilities: list[str] | None = None,
         prefix: str,
         schema_name: str = "Default",
         icon: str = "",
@@ -199,7 +445,7 @@ class BackendModRegistry:
         Idempotent across boots — safe to call on every ``mod.py.register()``.
         Uses ``update_or_create`` so repeated calls with the same identity
         don't create duplicates, and changed fields (columns, display_name,
-        tags) are updated in-place.
+            capabilities) are updated in-place.
         are updated in-place.
 
         Parameters:
@@ -209,7 +455,7 @@ class BackendModRegistry:
             model: Dotted Python path to the model class
                    (e.g. ``"bundled.lims.models.Entity"``).
             columns: Optional list of column definition dicts.
-            tags: Optional capability tags declared by the owning mod.
+            capabilities: Optional capabilities declared by the owning mod.
             prefix: Uppercase prefix for the default Schema's display-ID
                     generation (e.g. ``"E"``).
             schema_name: Name for the default Schema row (default ``"Default"``).
@@ -218,42 +464,111 @@ class BackendModRegistry:
             color: Open key string referencing a ColorToken key
                    (e.g. ``"muted"``).
         """
-        from django.db import OperationalError, ProgrammingError
+        from django.db import OperationalError, ProgrammingError, transaction
 
         from helix_core.models import Schema, SchemaType
 
         if columns is None:
             columns = []
-        if tags is None:
-            tags = []
+        if capabilities is None:
+            capabilities = []
 
         try:
-            schema_type, _ = SchemaType.objects.update_or_create(
-                model=model,
-                defaults={
-                    "display_name": display_name,
-                    "workspace_id": workspace_id,
-                    "columns": columns,
-                    "tags": tags,
-                },
-            )
+            with transaction.atomic():
+                # Match Action invocation lock order: SchemaType before Schema.
+                # Boot/re-registration updates are live schema mutations too.
+                schema_type = SchemaType.objects.select_for_update().filter(
+                    model=model
+                ).first()
+                if schema_type is None:
+                    schema_type, _ = SchemaType.objects.update_or_create(
+                        model=model,
+                        defaults={
+                            "display_name": display_name,
+                            "workspace_id": workspace_id,
+                            "columns": columns,
+                            "capabilities": capabilities,
+                        },
+                    )
+                else:
+                    schema_type.display_name = display_name
+                    schema_type.workspace_id = workspace_id
+                    schema_type.columns = columns
+                    schema_type.capabilities = capabilities
+                    schema_type.save(update_fields=[
+                        "display_name", "workspace_id", "columns", "capabilities"
+                    ])
 
-            Schema.objects.update_or_create(
-                schema_type=schema_type,
-                is_default=True,
-                defaults={
-                    "name": schema_name,
-                    "prefix": prefix,
-                    "columns": columns,
-                    "icon": icon,
-                    "color": color,
-                },
-            )
+                schema = Schema.objects.select_for_update().filter(
+                    schema_type=schema_type, is_default=True
+                ).first()
+                if schema is None:
+                    Schema.objects.update_or_create(
+                        schema_type=schema_type,
+                        is_default=True,
+                        defaults={
+                            "name": schema_name,
+                            "prefix": prefix,
+                            "columns": columns,
+                            "icon": icon,
+                            "color": color,
+                        },
+                    )
+                else:
+                    schema.name = schema_name
+                    schema.prefix = prefix
+                    schema.columns = columns
+                    schema.icon = icon
+                    schema.color = color
+                    schema.save(update_fields=[
+                        "name", "prefix", "columns", "icon", "color"
+                    ])
         except (OperationalError, ProgrammingError):
             # DB not available (e.g. during makemigrations) — skip.
             # The schema type will be created on next boot when the DB
             # is available and mod.py.register() runs again.
             pass
+
+    def register_block(
+        self, block_id: str, *, capabilities: list[str] | None = None, **metadata: Any
+    ) -> None:
+        """Register a block and its backend-declared capabilities."""
+        self._register_capability("blocks", block_id, capabilities=capabilities, **metadata)
+
+    def register_slot(
+        self,
+        slot_id: str,
+        *,
+        accepts: list[str] | None = None,
+        capabilities: list[str] | None = None,
+        **metadata: Any,
+    ) -> None:
+        """Register a slot; ``accepts`` is its capability filter."""
+        accepted = list(accepts if accepts is not None else capabilities or [])
+        self._register_capability(
+            "slots", slot_id, capabilities=accepted, accepts=accepted, **metadata
+        )
+
+    def register_metric_provider(
+        self,
+        provider_id: str,
+        service: Any,
+        *,
+        capabilities: list[str] | None = None,
+        **metadata: Any,
+    ) -> None:
+        """Register a metric provider backed by a public service reference."""
+        self._register_capability(
+            "metricProviders", provider_id, capabilities=capabilities,
+            service=str(service), **metadata
+        )
+
+    def list_metric_providers(self) -> dict[str, dict[str, Any]]:
+        """Return the active metric-provider definitions without their handlers."""
+        return {
+            provider_id: dict(entry)
+            for provider_id, entry in self._capability_registrations["metricProviders"].items()
+        }
 
     def register_action_model(self, mod_id: str, model_class: type) -> None:
         """Register a concrete action model class for *mod_id*.
@@ -301,6 +616,9 @@ class BackendModRegistry:
         label: str,
         core: str,
         target_model: str,
+        *,
+        provider_mod_id: str | None = None,
+        provider_mod_version: str | None = None,
     ) -> None:
         """Register a custom action for *mod_id*.
 
@@ -330,82 +648,152 @@ class BackendModRegistry:
                 f"{', '.join(CORE_ACTION_VERBS)}."
             )
 
-        if mod_id not in self._action_models:
-            raise ValueError(
-                f"Cannot register custom action '{action_id}' for mod "
-                f"'{mod_id}' — no action model registered. Call "
-                f"register_action_model() before register_custom_action()."
-            )
-
         self._custom_actions[mod_id][action_id] = {
             "id": action_id,
             "label": label,
             "action_type": core,
             "target_model": target_model,
+            "provider_mod_id": provider_mod_id or mod_id,
+            "provider_mod_version": provider_mod_version or "unknown",
         }
 
-    def sync_actions(
-        self, mod_id: str, actions: list[dict[str, str]]
-    ) -> dict[str, Any]:
-        """Atomically replace all custom actions for *mod_id*.
+    def register_action_provider(self, mod_id: str, version: str) -> None:
+        """Record a Mod as a provider of Platform-owned core Actions."""
+        self._action_providers[mod_id] = (mod_id, version)
+        self._core_actions.setdefault(
+            mod_id,
+            {
+                verb: {
+                    "id": verb,
+                    "label": CORE_ACTION_LABELS[verb],
+                    "action_type": verb,
+                    "target_model": None,
+                }
+                for verb in CORE_ACTION_VERBS
+            },
+        )
+        self._persist_action_definition(mod_id, "created", "Created", "created", None, mod_id, version)
+        self._persist_action_definition(mod_id, "edited", "Edited", "edited", None, mod_id, version)
+        self._persist_action_definition(mod_id, "deleted", "Deleted", "deleted", None, mod_id, version)
 
-        Receives action IDs from the frontend (derived from block emits
-        and lifecycle verbs), derives human-readable labels, and upserts
-        them into the custom actions catalog.  All existing custom actions
-        for *mod_id* are cleared first, so the catalog exactly matches
-        what the frontend sends.
+    def register_record_action(
+        self,
+        mod_id: str,
+        action_id: str,
+        label: str,
+        action_contract_id: str,
+        action_contract_version: str,
+        handler,
+        *,
+        provider_mod_id: str,
+        provider_mod_version: str,
+    ) -> None:
+        """Register an executor that can propose effects for Platform validation."""
+        if not callable(handler):
+            raise TypeError("Record Action handlers must be callable")
+        self._record_actions[action_id] = {
+            "mod_id": mod_id,
+            "action_id": action_id,
+            "label": label,
+            "action_contract_id": action_contract_id,
+            "action_contract_version": action_contract_version,
+            "handler": handler,
+            "provider_mod_id": provider_mod_id,
+            "provider_mod_version": provider_mod_version,
+        }
+        self._custom_actions[mod_id][action_id] = {
+            "id": action_id,
+            "label": label,
+            "action_type": "edited",
+            "target_model": "helix.record",
+            "provider_mod_id": provider_mod_id,
+            "provider_mod_version": provider_mod_version,
+        }
 
-        Labels are auto-derived from the action ID segments (see
-        :meth:`_derive_label`).
+    def register_revision_group(
+        self,
+        group_key: str,
+        target_model_reference: str,
+        *,
+        owner_mod_id: str,
+        provider_mod_version: str,
+        action_identities: Mapping[str, str],
+    ) -> None:
+        """Register the owner and permitted audit actions for one group."""
+        if not isinstance(group_key, str) or not group_key or group_key == "record":
+            raise ValueError("A non-empty Mod-owned group key is required")
+        if not isinstance(target_model_reference, str) or not target_model_reference:
+            raise ValueError("A target model reference is required")
+        if not isinstance(owner_mod_id, str) or not owner_mod_id:
+            raise ValueError("A canonical owner Mod ID is required")
+        if not isinstance(provider_mod_version, str) or not provider_mod_version:
+            raise ValueError("A provider Mod version is required")
+        if not action_identities or any(
+            verb not in {"created", "edited"}
+            or not isinstance(identity, str)
+            or not identity
+            for verb, identity in action_identities.items()
+        ):
+            raise ValueError("Revision groups require registered created/edited Action identities")
+        registrations = self._revision_group_registrations[(target_model_reference, group_key)]
+        value = {
+            "group_key": group_key,
+            "target_model_reference": target_model_reference,
+            "owner_mod_id": owner_mod_id,
+            "provider_mod_version": provider_mod_version,
+            "action_identities": dict(action_identities),
+        }
+        for index, current in enumerate(registrations):
+            if current["owner_mod_id"] == owner_mod_id:
+                registrations[index] = value
+                break
+        else:
+            registrations.append(value)
 
-        After upsert, validates that every provided action ID exists in
-        the catalog and returns an error listing any that are missing.
+    def resolve_revision_group_registration(
+        self, target_model_reference: str, group_key: str,
+    ) -> dict[str, Any] | None:
+        """Resolve one exact declaration; ambiguous aliases are unavailable."""
+        registrations = self._revision_group_registrations.get(
+            (target_model_reference, group_key), []
+        )
+        if len(registrations) != 1:
+            return None
+        registration = dict(registrations[0])
+        registration["action_identities"] = dict(registration["action_identities"])
+        return registration
 
-        Parameters:
-            mod_id: The mod that owns these actions.
-            actions: List of ``{"id": str, "core": str}`` objects.
-                ``id`` is the fully-qualified action type
-                (e.g. ``"eln.table.created"``).  ``core`` is the base
-                CRUD verb (``"created"``, ``"edited"``, or ``"deleted"``).
+    def get_record_action(self, action_id: str) -> dict[str, Any] | None:
+        """Return a registered Record Action including its executable handler."""
+        action = self._record_actions.get(action_id)
+        return dict(action) if action is not None else None
 
-        Returns:
-            ``{"status": "ok"}`` on success, or
-            ``{"status": "error", "missing": [...]}`` when some action
-            IDs are not found in the catalog after upsert.
-        """
-        self._custom_actions[mod_id] = {}
+    @staticmethod
+    def _persist_action_definition(
+        identity_prefix: str,
+        identity: str,
+        label: str,
+        core_action: str,
+        target_model_reference: str | None,
+        provider_mod_id: str,
+        provider_mod_version: str,
+    ) -> None:
+        try:
+            from helix_core.models import ActionDefinition
 
-        target_model = None
-        if mod_id in self._action_models:
-            target_model = self._derive_target_model_path(
-                self._action_models[mod_id]
+            ActionDefinition.objects.update_or_create(
+                identity=f"{identity_prefix}:{identity}",
+                defaults={
+                    "label": label,
+                    "core_action": core_action,
+                    "target_model_reference": target_model_reference or "unknown",
+                    "provider_mod_id": provider_mod_id,
+                    "provider_mod_version": provider_mod_version,
+                },
             )
-
-        for action in actions:
-            action_id = action["id"]
-            core = action.get("core", "edited")
-
-            if core not in CORE_ACTION_VERBS:
-                core = "edited"
-
-            label = self._derive_label(action_id)
-
-            self._custom_actions[mod_id][action_id] = {
-                "id": action_id,
-                "label": label,
-                "action_type": core,
-                "target_model": target_model,
-            }
-
-        # Validate: every provided action must exist in the catalog.
-        catalog = self.get_action_catalog(mod_id)
-        catalog_ids = {entry["id"] for entry in catalog}
-        missing = [a["id"] for a in actions if a["id"] not in catalog_ids]
-
-        if missing:
-            return {"status": "error", "missing": missing}
-
-        return {"status": "ok"}
+        except Exception:
+            # Registration also runs during migration discovery, before tables exist.
+            pass
 
     @staticmethod
     def _derive_label(action_id: str) -> str:
@@ -453,9 +841,6 @@ class BackendModRegistry:
         Returns an empty list when no action model has been registered
         for *mod_id*.
         """
-        if mod_id not in self._action_models:
-            return []
-
         result: list[dict[str, Any]] = []
 
         # Core actions first.
@@ -480,7 +865,7 @@ class BackendModRegistry:
         """
         # Core verbs: valid if any mod has registered an action model.
         if action in CORE_ACTION_VERBS:
-            return len(self._action_models) > 0
+            return bool(self._action_models or self._action_providers)
 
         # Custom actions: check exact match across all mods.
         for mod_actions in self._custom_actions.values():
@@ -545,16 +930,18 @@ class BackendModRegistry:
         if sender_mod_id is not None and sender_mod_id != mod_id:
             manifest = self._manifests.get(mod_id)
             sender_manifest = self._manifests.get(sender_mod_id)
-            if manifest is not None and sender_mod_id not in manifest.dependency_ids:
+            manifest_dependencies = [dependency.rsplit(".", 1)[-1] for dependency in (manifest.dependency_ids if manifest else [])]
+            sender_dependencies = [dependency.rsplit(".", 1)[-1] for dependency in (sender_manifest.dependency_ids if sender_manifest else [])]
+            if manifest is not None and sender_mod_id not in manifest_dependencies:
                 # Check reverse: is mod_id a dependency of the sender?
-                if sender_manifest is not None and mod_id not in sender_manifest.dependency_ids:
+                if sender_manifest is not None and mod_id not in sender_dependencies:
                     raise ValueError(
                         f"Mod '{mod_id}' cannot register a signal on "
                         f"'{sender.__name__}' from mod '{sender_mod_id}' — "
                         f"'{sender_mod_id}' is neither in '{mod_id}' depends_on "
-                        f"({manifest.dependency_ids}) nor does '{sender_mod_id}' "
+                        f"({manifest_dependencies}) nor does '{sender_mod_id}' "
                         f"depend on '{mod_id}' "
-                        f"({sender_manifest.dependency_ids})."
+                        f"({sender_dependencies})."
                     )
 
         # Wrap the handler to check dependency readiness at call time.
@@ -564,6 +951,7 @@ class BackendModRegistry:
             # Check that all declared dependencies are ready.
             if mod_id in self._manifests:
                 for dep_id in self._manifests[mod_id].dependency_ids:
+                    dep_id = dep_id.rsplit(".", 1)[-1]
                     # Try label first (e.g. "lims"), then dotted name
                     # (e.g. "bundled.lims") — Django app_configs keys
                     # are app labels, which for mods are the last
@@ -598,7 +986,7 @@ class BackendModRegistry:
         """Resolve a sender model class to its mod ID.
 
         Inspects ``sender.__module__``.  Returns the mod ID (e.g. ``"eln"``
-        for a sender in ``mods.eln.models``) or ``None`` if the sender
+        for a sender in an optional model provider) or ``None`` if the sender
         is not part of a known mod package.
         """
         module_name = getattr(sender, "__module__", "")
@@ -615,7 +1003,14 @@ class BackendModRegistry:
 
     # ── service registry ──────────────────────────────────────────────────
 
-    def register_service(self, service_id: str, handler: Callable[..., Any]) -> None:
+    def register_service(
+        self,
+        service_id: str,
+        handler: Callable[..., Any],
+        *,
+        capabilities: list[str] | None = None,
+        provider_mod_id: str | None = None,
+    ) -> None:
         """Register a callable service handler for *service_id*.
 
         Services are the mechanism for cross-mod behavioral calls.  A mod
@@ -627,6 +1022,10 @@ class BackendModRegistry:
         (last write wins).
         """
         self._services[service_id] = handler
+        self._register_capability(
+            "services", service_id, capabilities=capabilities,
+            registration_type="service", provider_mod_id=provider_mod_id,
+        )
 
     def call(self, service_id: str, *args: Any, **kwargs: Any) -> Any:
         """Invoke a registered service and return its result.
@@ -716,10 +1115,15 @@ class BackendModRegistry:
             )
         except (OperationalError, ProgrammingError):
             # DB not available (e.g. during makemigrations).
-            return {
+            unavailable_payload = {
                 "columnTypes": column_type_registry.get_registry_payload(),
                 "formulaFunctions": self.get_formula_catalog(),
             }
+            unavailable_payload.update({
+                kind: [entries[key] for key in entries]
+                for kind, entries in self._capability_registrations.items()
+            })
+            return unavailable_payload
 
         # Group schema types by workspace_id.
         grouped: dict[str, list[SchemaType]] = {}
@@ -730,6 +1134,20 @@ class BackendModRegistry:
 
         for workspace_id, st_list in sorted(grouped.items()):
             schema_type_entries: list[dict[str, Any]] = []
+
+            # Workspace identity is explicit in the wire payload.  The
+            # registration model path is the stable fallback for older rows
+            # that predate typed workspace metadata.
+            owner_mod = workspace_id
+            first_model = st_list[0].model.split(".") if st_list else []
+            if len(first_model) > 1:
+                candidate = first_model[1]
+                owner_mod = candidate
+                for manifest_id in self._manifests:
+                    if manifest_id.endswith(f".{candidate}"):
+                        owner_mod = manifest_id
+                        break
+            vendor, mod = (owner_mod.split(".", 1) if "." in owner_mod else ("helix", owner_mod))
 
             for st in st_list:
                 # Derive schema_type_id using the same convention as the
@@ -755,7 +1173,7 @@ class BackendModRegistry:
                     "displayName": st.display_name,
                     "prefix": default_schema.prefix if default_schema else "",
                     "columns": st.columns or [],
-                    "tags": st.tags or [],
+                    "capabilities": st.capabilities or [],
                     "icon": default_schema.icon if default_schema else "",
                     "color": default_schema.color if default_schema else "",
                 }
@@ -764,10 +1182,10 @@ class BackendModRegistry:
             # ── action catalog ──────────────────────────────────────────
             actions: list[dict[str, Any]] = []
             action_model = self._action_models.get(workspace_id)
-            if action_model is not None:
+            if action_model is not None or workspace_id in self._action_providers:
                 seen_ids: set[str] = set()
 
-                # 1. Core actions auto-derived by register_action_model().
+                # 1. Core actions contributed by the Platform provider.
                 core = self._core_actions.get(workspace_id, {})
                 for entry in core.values():
                     actions.append({
@@ -779,9 +1197,7 @@ class BackendModRegistry:
 
                 # 2. ACTION_CHOICES from the model class (backward compat).
                 # Entries already covered by core actions are skipped.
-                action_choices = getattr(
-                    action_model, "ACTION_CHOICES", None
-                )
+                action_choices = getattr(action_model, "ACTION_CHOICES", None)
                 if action_choices:
                     for choice_id, choice_label in action_choices:
                         if choice_id not in seen_ids:
@@ -815,6 +1231,9 @@ class BackendModRegistry:
 
             payload[workspace_id] = {
                 "workspaceId": workspace_id,
+                "vendor": vendor,
+                "mod": mod,
+                "workspace": workspace_id,
                 "schemaTypes": schema_type_entries,
                 "actions": actions,
             }
@@ -822,6 +1241,20 @@ class BackendModRegistry:
         # Insert columnTypes at the top level.
         payload["columnTypes"] = column_type_registry.get_registry_payload()
         payload["formulaFunctions"] = self.get_formula_catalog()
+        payload["recordActions"] = sorted(({
+            "id": action["action_id"],
+            "label": action["label"],
+            "contract_id": action["action_contract_id"],
+            "contract_version": action["action_contract_version"],
+            "provider_mod_id": action["provider_mod_id"],
+            "provider_mod_version": action["provider_mod_version"],
+        } for action in self._record_actions.values()), key=lambda action: (action["contract_id"], action["contract_version"], action["id"]))
+
+        # Generic registrations are hydrated as plain records.  They are
+        # intentionally separate from workspace schema types: consumers can
+        # discover any citizen without importing its provider.
+        for kind, entries in self._capability_registrations.items():
+            payload[kind] = [entries[key] for key in entries]
 
         # ── icon library ──────────────────────────────────────────────
         icon_entries: list[dict[str, Any]] = []
@@ -866,7 +1299,7 @@ class BackendModRegistry:
 
     def has_action_model(self, mod_id: str) -> bool:
         """Return ``True`` if *mod_id* has registered an action model."""
-        return mod_id in self._action_models
+        return mod_id in self._action_models or mod_id in self._action_providers
 
     def is_mod_known(self, mod_id: str) -> bool:
         """Return ``True`` if *mod_id* is in the known mod order.
@@ -887,7 +1320,6 @@ class BackendModRegistry:
         known_order: dict[str, int] = {
             mod_id: i for i, mod_id in enumerate(self._mod_order)
         }
-
         def _sort_key(item: tuple[str, list]) -> tuple[int, int, str]:
             mod_id = item[0]
             if mod_id in known_order:

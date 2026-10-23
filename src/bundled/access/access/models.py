@@ -1,26 +1,9 @@
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 
 from helix_core.core.models import Folder
-from helix_core.actions.base import AbstractBaseAction
-
-
-class AccessAction(AbstractBaseAction):
-    """Concrete action table for access-administration operations.
-
-    Every access-administration mutation — Grants, Folder Shares, Teams,
-    Projects, Organization edits — writes exactly one row here through
-    the standard action-log machinery.
-    """
-
-    class Meta:
-        db_table = "access_action"
-        verbose_name = "Access action"
-        verbose_name_plural = "Access actions"
-
-
 class OrganizationRole(models.TextChoices):
     USER = "user", "User"
     ADMIN = "admin", "Admin"
@@ -121,6 +104,13 @@ class OrganizationMembership(models.Model):
     def __str__(self):
         return f"{self.user.username} — {self.organization.name} ({self.role})"
 
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            if self.user_id:
+                from helix_core.core.models import User
+                User.objects.select_for_update().get(pk=self.user_id)
+            return super().save(*args, **kwargs)
+
     def clean(self):
         super().clean()
         if self.role == OrganizationRole.USER and self.pk is not None:
@@ -133,13 +123,17 @@ class OrganizationMembership(models.Model):
                 )
 
     def delete(self, *args, **kwargs):
-        if self.role == OrganizationRole.ADMIN and self.user.is_active:
-            if not _has_other_active_admin(excluding_user=self.user):
-                raise ValidationError(
-                    "Cannot delete the membership of the last active "
-                    "Organization Admin."
-                )
-        super().delete(*args, **kwargs)
+        with transaction.atomic():
+            if self.user_id:
+                from helix_core.core.models import User
+                User.objects.select_for_update().get(pk=self.user_id)
+            if self.role == OrganizationRole.ADMIN and self.user.is_active:
+                if not _has_other_active_admin(excluding_user=self.user):
+                    raise ValidationError(
+                        "Cannot delete the membership of the last active "
+                        "Organization Admin."
+                    )
+            return super().delete(*args, **kwargs)
 
 
 def _has_other_active_admin(excluding_user=None) -> bool:
@@ -207,6 +201,20 @@ class Grant(models.Model):
                 name="uq_grant_project_team",
             ),
         ]
+
+    def save(self, *args, **kwargs):
+        from helix_core.core.models import Project
+
+        with transaction.atomic():
+            Project.objects.select_for_update().get(pk=self.project_id)
+            return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from helix_core.core.models import Project
+
+        with transaction.atomic():
+            Project.objects.select_for_update().get(pk=self.project_id)
+            return super().delete(*args, **kwargs)
 
     def __str__(self):
         grantee = (

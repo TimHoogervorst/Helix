@@ -4,7 +4,7 @@
  * Owns: the folder list (fetched once on mount) and the selected folderId.
  */
 import { useState, useEffect } from "react";
-import { get } from "../../../shell/src/api/client";
+import { get } from "@helix/mod-api/host";
 
 export interface Folder {
   id: number;

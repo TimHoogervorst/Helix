@@ -1,14 +1,14 @@
 from django.urls import include, path
 
-from helix_core.mod_system.registry import registry
-from helix_core.schema_tags import RegistrationTable, ResultTable
+from helix_core import SignalKind
+from helix_core.capabilities import RegistrationTable, ResultTable
 
 
 def _seed_builtin_metrics():
     """Pre-seed two public ``is_me`` Views and their count Metrics.
 
-    Creates one View per workspace (eln / lims) filtered to ``author:is_me``
-    with status ``in_progress``, plus a ``Count`` Metric on each.  Uses
+    Creates a View for the LIMS workspace filtered to ``author:is_me``
+    with status ``in_progress``, plus a ``Count`` Metric.  Uses
     ``get_or_create`` so repeated calls on boot are safe.
     """
     from helix_core.core.models import User
@@ -18,18 +18,11 @@ def _seed_builtin_metrics():
     if not admin:
         return
 
-    _VIEW_DEFS = [
-        {
-            "workspace": "eln",
-            "schema_type": "eln.notebookentry",
-            "name": "Entries in progress, by me",
-        },
-        {
+    _VIEW_DEFS = [{
             "workspace": "lims",
             "schema_type": "lims.entity",
             "name": "Entities created, by me",
-        },
-    ]
+        }]
 
     for vdef in _VIEW_DEFS:
         view, _ = LimsView.objects.get_or_create(
@@ -62,39 +55,86 @@ def _seed_builtin_metrics():
         )
 
 
-def register():
+def register(mod):
     """Called by ModLoader after topological sort. Populates the backend registry."""
-    from bundled.lims.models import Action
+    from bundled.lims.actions import (
+        ACTION_CONTRACT_ID,
+        ACTION_CONTRACT_VERSION,
+        propose_registry_registration,
+    )
+    from bundled.lims.models import Entity
+    from bundled.lims.serializers import EntitySerializer
+    from bundled.lims.views import EntityViewSet
     from bundled.lims.services import cascade_source_status
+    from bundled.access.access.scoping import visible_rows_q
 
-    registry.register_action_model("lims", Action)
-    registry.register_custom_action(
-        mod_id="lims",
-        action_id="lims.entity.tags_attached",
-        label="Tags Attached",
-        core="edited",
-        target_model="bundled.lims.models.Entity",
+    def home_entity_count(user):
+        """Return the public seeded entity aggregate for the Home surface."""
+        from bundled.lims.models import Metric
+        from helix_core.query_builder import build_metric_aggregation
+
+        metric = Metric.objects.filter(
+            view__is_public=True,
+            aggregate_function="count",
+        ).select_related("view").order_by("pk").first()
+        if metric is None:
+            return {"value": 0}
+        return build_metric_aggregation(
+            metric.view,
+            metric.aggregate_function,
+            metric.column or None,
+            user=user,
+        )
+
+    entity = mod.register_model("entity", Entity)
+    mod.register_record_action(
+        "registry-register",
+        label="Register saved Registry Table rows",
+        action_contract_id=ACTION_CONTRACT_ID,
+        action_contract_version=ACTION_CONTRACT_VERSION,
+        handler=propose_registry_registration,
     )
-    registry.register_custom_action(
-        mod_id="lims",
-        action_id="lims.entity.tag_detached",
-        label="Tag Detached",
-        core="edited",
-        target_model="bundled.lims.models.Entity",
+    result_entity = mod.register_model("result-entity", "bundled.lims.models.ResultEntity")
+    mod.register_source_kind(
+        "entity",
+        entity,
+        visibility_query=lambda request, queryset: queryset.filter(
+            visible_rows_q(request.user)
+        ),
+        serializer=EntitySerializer,
+        hub_visible=True,
+        display_metadata={
+            "label": "Entity",
+            "workspace_id": "lims",
+            "icon": "flask-conical",
+            "color": "success",
+        },
+        mutation_handlers={
+            "create": EntityViewSet.perform_create,
+            "edit": EntityViewSet.perform_update,
+        },
     )
-    registry.register_urls(
-        "lims", [path("api/lims/", include("bundled.lims.urls"))]
+    mod.register_custom_action("lims.entity.tags_attached", "Tags Attached", "edited", entity)
+    mod.register_custom_action("lims.entity.tag_detached", "Tag Detached", "edited", entity)
+    mod.register_urls([path("api/lims/", include("bundled.lims.urls"))])
+    mod.register_service("lims.cascadeSourceStatus", cascade_source_status)
+    home_metric_service = mod.register_service("lims.homeEntityCount", home_entity_count)
+    mod.register_metric_provider(
+        "home-entity-count",
+        home_metric_service,
+        label="Entities",
+        sourceKind="lims:entity",
+        aggregate="count",
     )
-    registry.register_service(
-        "lims.cascadeSourceStatus", cascade_source_status
-    )
+    from helix_core.source_status import update_status_from_source
+    mod.register_signal(SignalKind.MODEL_POST_SAVE, entity, update_status_from_source)
 
     # Register LIMS schema type identity.
-    registry.register_schema_type(
+    mod.register_schema_type(
         display_name="Entity",
         workspace_id="lims",
-        model="bundled.lims.models.Entity",
-        tags=[RegistrationTable],
+        model=entity,
+        capabilities=[RegistrationTable],
         prefix="BLOOD",
         icon="flask-conical",
         color="success",
@@ -102,14 +142,14 @@ def register():
 
     # Result schemas use the shared Entity persistence path but have their own
     # schema-type identity and table capability.
-    registry.register_schema_type(
+    mod.register_schema_type(
         display_name="Results",
         workspace_id="results",
         # Result entities share the Entity table but have their own schema
         # type identity.  Keep this registration key stable because it is
         # already persisted in SchemaType rows.
-        model="bundled.lims.models.ResultEntity",
-        tags=[ResultTable],
+        model=result_entity,
+        capabilities=[ResultTable],
         prefix="RESULT",
         icon="chart-column",
         color="muted",

@@ -3,6 +3,7 @@ const BASE_URL = "/api";
 interface RequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
   signal?: AbortSignal;
+  responseType?: "json" | "text";
 }
 
 class ApiError extends Error {
@@ -38,11 +39,12 @@ const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 // ── Request ────────────────────────────────────────────────────────────────
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, headers: customHeaders, ...rest } = options;
+  const { body, headers: customHeaders, responseType = "json", ...rest } = options;
   const method = (rest.method || "GET").toUpperCase();
 
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(customHeaders as Record<string, string>),
   };
 
@@ -59,7 +61,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     response = await fetch(`${BASE_URL}${path}`, {
       ...rest,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? (isFormData ? body as FormData : JSON.stringify(body)) : undefined,
     });
   } catch (err) {
     throw new NetworkError(
@@ -86,11 +88,17 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     return undefined as T;
   }
 
+  if (responseType === "text") return (await response.text()) as T;
   return response.json();
 }
 
 export function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   return request<T>(path, { method: "GET", signal });
+}
+
+/** Get a same-origin JSON payload as raw text when exact number tokens matter. */
+export function getText(path: string, signal?: AbortSignal): Promise<string> {
+  return request<string>(path, { method: "GET", signal, responseType: "text" });
 }
 
 export function post<T>(
@@ -105,6 +113,13 @@ export function post<T>(
     signal,
     headers: extraHeaders,
   });
+}
+
+/** Upload multipart content through the authenticated same-origin API client. */
+export function upload<T>(path: string, file: File, signal?: AbortSignal): Promise<T> {
+  const body = new FormData();
+  body.append("file", file, file.name);
+  return request<T>(path, { method: "POST", body, signal });
 }
 
 export function put<T>(

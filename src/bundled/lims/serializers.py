@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from helix_core.column_types import registry as column_type_registry
 from helix_core.abstracts import hydrate_source_path
 from helix_core.models import Schema, SchemaType
-from .models import Entity, Action, LimsView, Metric
+from .models import Entity, LimsView, Metric
 from helix_core.core.models import Project
 from bundled.labelling.tags.serializers import TagSerializer
 from bundled.access.users.serializers import UserSerializer
@@ -151,6 +151,9 @@ class EntitySerializer(serializers.ModelSerializer):
     last_editor_username = serializers.CharField(
         source="last_editor.username", read_only=True, default=None
     )
+    # Keep the portable payload available when the source mod is absent.
+    content = serializers.SerializerMethodField()
+    raw_content = serializers.SerializerMethodField()
 
     class Meta:
         model = Entity
@@ -181,6 +184,8 @@ class EntitySerializer(serializers.ModelSerializer):
             "schema_icon",
             "schema_color",
             "enabled_components",
+            "content",
+            "raw_content",
         ]
         read_only_fields = [
             "id",
@@ -207,6 +212,12 @@ class EntitySerializer(serializers.ModelSerializer):
     def get_source_path(self, obj):
         cache = self.context.setdefault("source_path_cache", {})
         return hydrate_source_path(obj.source_path, cache)
+
+    def get_content(self, obj):
+        return obj.properties or {}
+
+    def get_raw_content(self, obj):
+        return obj.properties or {}
 
     def create(self, validated_data):
         try:
@@ -318,6 +329,33 @@ class EntitySerializer(serializers.ModelSerializer):
         return data
 
 
+class PlatformEntitySerializer(EntitySerializer):
+    """Read-only projection of a Platform record onto the default entity page."""
+
+    id = serializers.UUIDField(read_only=True)
+    record_id = serializers.UUIDField(source="pk", read_only=True)
+    properties = serializers.SerializerMethodField()
+    tags = serializers.ListField(read_only=True, default=list)
+
+    class Meta(EntitySerializer.Meta):
+        from helix_core.models import PlatformRecord
+        model = PlatformRecord
+        fields = [*EntitySerializer.Meta.fields, "record_id"]
+
+    def get_properties(self, obj):
+        return {
+            column["name"]: obj.field_values[column["id"]].get("value")
+            for column in self.get_schema_columns(obj)
+            if column.get("id") in obj.field_values
+        }
+
+    def get_content(self, obj):
+        return obj.field_values
+
+    def get_raw_content(self, obj):
+        return obj.field_values
+
+
 class EntityBatchSerializer(serializers.Serializer):
     """Serializer for the batch resolve endpoint."""
     ids = serializers.ListField(
@@ -352,6 +390,20 @@ class LimsViewSerializer(serializers.ModelSerializer):
     """Serializer for saved Views (LimsView)."""
 
     owner_username = serializers.CharField(source="owner.username", read_only=True)
+    is_inert = serializers.SerializerMethodField()
+    availability = serializers.SerializerMethodField()
+
+    def get_is_inert(self, obj):
+        return self._source_available(obj) is False
+
+    def get_availability(self, obj):
+        return "available" if self._source_available(obj) else "source unavailable"
+
+    @staticmethod
+    def _source_available(obj):
+        from helix_core.mod_system.registry import registry
+
+        return registry.get_content_source(obj.source_kind) is not None
 
     class Meta:
         model = LimsView
@@ -360,8 +412,12 @@ class LimsViewSerializer(serializers.ModelSerializer):
             "owner",
             "owner_username",
             "name",
+            "source_kind",
+            "spec",
             "filter_state",
             "is_public",
+            "is_inert",
+            "availability",
             "created_at",
             "updated_at",
         ]
@@ -369,14 +425,20 @@ class LimsViewSerializer(serializers.ModelSerializer):
 
 
 class ActionSerializer(serializers.ModelSerializer):
-    entity_name = serializers.CharField(source="entity.name", read_only=True)
+    entity = serializers.CharField(source="target_object_id", read_only=True)
+    entity_name = serializers.SerializerMethodField()
     performed_by = UserSerializer(read_only=True)
     performed_by_username = serializers.CharField(
         source="performed_by.username", read_only=True
     )
 
+    def get_entity_name(self, obj):
+        entity = Entity.objects.filter(pk=obj.target_object_id).first()
+        return entity.name if entity else None
+
     class Meta:
-        model = Action
+        from helix_core.models import ActionLogEntry
+        model = ActionLogEntry
         fields = [
             "id",
             "entity",

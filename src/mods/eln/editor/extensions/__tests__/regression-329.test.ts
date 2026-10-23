@@ -20,7 +20,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { elnExtensions } from "../elnExtensions";
-import { ModRegistry } from "../../../../../shell/src/mod-system/ModRegistry";
+import { ModRegistry } from "@helix/mod-api/host";
 
 // ── Test block node ──────────────────────────────────────────────────
 

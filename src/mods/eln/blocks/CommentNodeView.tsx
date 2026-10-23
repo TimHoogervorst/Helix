@@ -12,15 +12,15 @@
  * via ``updateAttributes``.
  */
 import { useCallback, useRef, useState } from "react";
-import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
+import { createBlockAdapter } from "@helix/mod-api/host";
 import { Check, ChevronDown, ChevronRight, MessageSquare, Undo2 } from "lucide-react";
-import { useCurrentUser } from "../../../shell/src/user/CurrentUserProvider";
+import { useCurrentUser } from "@helix/mod-api/host";
 import { useCommentVisibility } from "../context/CommentVisibilityContext";
-import { relativeTime } from "../../../shell/src/shared/format";
-import { getInitials } from "../../../shell/src/shared/Avatar";
-import { Button } from "../../../shell/src/shared/primitives/Button";
-import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
-import { Textarea } from "../../../shell/src/shared/primitives/Input";
+import { relativeTime } from "@helix/mod-api/host";
+import { getInitials } from "@helix/mod-api/host";
+import { Button } from "@helix/mod-api/host";
+import { IconButton } from "@helix/mod-api/host";
+import { Textarea } from "@helix/mod-api/host";
 
 // ── Types ───────────────────────────────────────────────────────────────
 

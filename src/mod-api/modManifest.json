@@ -1,0 +1,8 @@
+{
+  "id": "helix.mod-api",
+  "displayName": "Helix Mod API",
+  "version": "0.1.0",
+  "requiresHelix": ">=1.0.0",
+  "artifacts": ["frontend"],
+  "dependsOn": []
+}

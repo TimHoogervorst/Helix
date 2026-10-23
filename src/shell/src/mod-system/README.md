@@ -6,7 +6,7 @@
 
 A **mod** is a self-contained unit of functionality that declares what it provides via `register*()` functions in its `index.ts`. Bundled and External Mods use the same registration contract.
 
-Bundled Mods live under `src/bundled/<section>/<mod-name>/` (or a flat section path such as `src/bundled/lims/`). External Mods live under `src/mods/<mod-name>/`. Both follow the same directory contract.
+Bundled Mods live under `src/bundled/<section>/<mod-name>/` (or a flat section path such as `src/bundled/lims/`). External Mods are composed as npm packages; the in-repository ELN is linked as `@helix/eln`.
 
 ## Mod Metadata Contract
 
@@ -65,8 +65,8 @@ export function register(): void {
 ```
 main.tsx → BrowserRouter → App.tsx → <ModLoader>
   1. Load Bundled Mods from explicit imports in ``src/shell/src/mod-system/bundled.ts``
-  2. Discover External Mods from ``src/mods/*/index.ts`` via import.meta.glob
-  3. Import each, read metadata from ``modManifest.json`` (preferred) or ``meta`` export — validate no duplicate IDs
+  2. Compose External Mod packages and read their exported manifests
+  3. Import each, read metadata from ``modManifest.json`` — validate no duplicate IDs
   4. Topological sort by dependsOn — detect cycles, detect missing deps
   5. Call each mod's register() in sorted order → populates ModRegistry
   6. Validate registry — all cross-references resolve

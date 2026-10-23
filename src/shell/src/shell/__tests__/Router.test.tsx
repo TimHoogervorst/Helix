@@ -269,6 +269,12 @@ describe("Router", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders an unavailable fallback for a bookmarked route from an absent mod", () => {
+    renderRouter("/removed-mod/entity/E-1");
+    expect(screen.getByTestId("unavailable")).toHaveAttribute("data-unavailable-kind", "Route");
+    expect(screen.getByText(/not installed/)).toBeInTheDocument();
+  });
+
   // ── Sidebar rendering ─────────────────────────────────────────────────
 
   it("renders the sidebar Layout with brand text", () => {

@@ -349,22 +349,23 @@ main.tsx
   → BrowserRouter
     → App.tsx
       → <ModLoader> (shows "Loading Helix…" loading screen)
-          1. Load Bundled Mods from explicit imports in bundled.ts
-             → Read manifests and collect register() functions
-          2. Glob src/mods/*/index.ts → discover External Mod register() functions
-          3. Topological sort mods by dependsOn graph
-          4. Validate: no circular deps, no missing deps, no duplicate IDs,
-             coreVersion constraints satisfied
-          5. GET /api/mod-registry/ → fetch backend-owned data:
-             workspace IDs, schema types, action catalogs
-          6. Hydrate frontend ModRegistry with backend data
-          7. Call each mod's register function in sorted order (UI only)
-          8. Validate registry: slot bindings resolve
-          9. Render <AppShell> → hubs, routes, blocks, settings, slots
-         10. App renders, mods are live
+          1. GET /api/mod-boot/ for the backend-authoritative active Mod set,
+             each active Mod's identity/artifacts/dependencies, and the
+             backend-owned registry payload
+          2. Discover explicit Bundled manifests and open External manifests
+          3. Validate that the authoritative manifests describe exactly the
+             active set, validate the complete dependency graph, and compare
+             discovered frontend manifests with backend metadata
+          4. Import only active Mods declaring a frontend artifact, then
+             register their UI contributions in the complete graph's order
+          5. Hydrate Mod Registry with backend-owned data
+          6. Validate the completed registry
+          7. Render <AppShell> and release application content
 ```
 
-**Error handling:** Fail-fast. If a mod fails to load, a dependency is missing, or the `GET /api/mod-registry/` call fails, the app shows the error and does not boot. Slot binding errors are warn-and-skip.
+**Readiness and failure:** The boot module owns the full sequence and shares one pending or settled outcome for the page load. The Shell only presents loading, ready, or terminal failure. Application content stays gated until registration, Hydration, and final validation all succeed. Backend-data, import, registration, Hydration, or validation failure remains terminal across loader remounts; a full page reload starts a new attempt. Partial registry state is never presented as a usable application. Slot binding errors are warn-and-skip.
+
+**Discovery:** Bundled Mods are enumerated by explicit imports in `bundled.ts`; External Mods are discovered from the composed package entry points in `external.ts`. The boot payload's active manifests are read from backend persisted installation records and are authoritative for every active Mod, including backend-only Mods. Backend-only nodes satisfy dependencies and influence transitive registration order without a frontend import. Every active frontend artifact must match a discovered manifest and loadable entry. An inactive External Mod is not imported or registered. Backend activation remains authoritative.
 
 **Mod metadata** is read from `modManifest.json` — there is no `meta` export in `index.ts`. `index.ts` exports a single `register` function. The manifest is the single source of truth for mod identity.
 
@@ -518,7 +519,7 @@ Every mod follows this structure:
 
 | Entry | Purpose | Required? |
 |-------|---------|-----------|
-| `modManifest.json` | Mod identity (vendor, name, displayName, version, dependsOn) — single source of truth | ✅ Required |
+| `modManifest.json` | Strict Mod identity (`id`, `displayName`, `version`, `requiresHelix`, `artifacts`, `dependsOn`) — single source of truth | ✅ Required |
 | `index.ts` | Frontend `register*()` calls — the entry point loaded during boot | ✅ Required |
 | `types.ts` | Mod's TypeScript interfaces | ✅ Required |
 | `package.json` | npm package identity (`@helix/<id>`) | ✅ Required |
@@ -542,15 +543,17 @@ Every mod follows this structure:
 
 ## Future: External Mod API
 
-External Mods may eventually live in separate repositories and be installed via npm (frontend) and pip (backend). They use the same `register*()` API and `modManifest.json` schema as Bundled Mods; repository External Mod discovery is already exercised by ELN.
+External Mods may eventually live in separate repositories and be installed via npm (frontend) and pip (backend). They use the same `register*()` API and strict `modManifest.json` schema as Bundled Mods; repository External Mod discovery is already exercised by ELN. See [External Mod Concepts](mod-concepts.md) and [External Mod Packaging](mod-packaging.md).
 
-**Future concerns (not yet designed):**
+**Future concerns (not yet implemented in this repository):**
 
 - **Discovery**: `src/mods/` is scanned and `helix.mods.json` can add explicit paths
 - **Loading**: External Mods are loaded with Bundled Mods, respecting the same dependency graph
 - **`@helix/core` npm package**: External mods will depend on `@helix/core`, which exports all registration functions and shared components
 - **`helix_core` Python package**: External backend mods will depend on `helix_core` (pip-installable), which provides `ModManifest`, `BackendModRegistry`, `AbstractBaseAction`
 - **Python entry points**: External mods declare a `helix_mod` entry point pointing to their `mod.py`
+
+The hello-world repository from [#615](https://github.com/TimHoogervorst/Helix/issues/615) is the canonical tutorial at [`src/mods/hello_world`](../src/mods/hello_world).
 
 ---
 

@@ -25,11 +25,11 @@ import type {
   SuggestionMatch,
 } from "@tiptap/suggestion";
 import { createSuggestionDropdown } from "./suggestionDropdown";
-import { ModRegistry } from "../../../../shell/src/mod-system/ModRegistry";
-import { BlockPopover } from "../../../../shell/src/workspace/TipTapRenderer/BlockPopover";
-import type { BlockBinding } from "../../../../shell/src/mod-system/types";
-import { get } from "../../../../shell/src/api/client";
-import type { SearchResult } from "../../../../shell/src/mentions/types";
+import { ModRegistry } from "@helix/mod-api/host";
+import { BlockPopover } from "@helix/mod-api/host";
+import type { BlockBinding } from "@helix/mod-api/host";
+import { get } from "@helix/mod-api/host";
+import type { SearchResult } from "@helix/mod-api/host";
 
 const UNIFIED_SUGGESTION_KEY = new PluginKey("unified-suggestion");
 

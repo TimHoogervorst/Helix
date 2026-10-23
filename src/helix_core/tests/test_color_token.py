@@ -257,20 +257,12 @@ class ColorTokenSeedIdempotencyTests(TestCase):
     """Seed migration is safe to re-run (idempotent)."""
 
     def test_duplicate_run_does_not_create_duplicates(self):
-        """Re-running the equivalent of the seed logic does not create duplicates."""
-        import importlib
+        from importlib import import_module
+        from django.apps import apps
+        from django.db import connection
 
-        mod = importlib.import_module(
-            "helix_core.migrations.0006_color_token"
-        )
-        COLORS = mod.COLORS
-
+        seed = import_module("helix_core.migrations.0001_initial").seed_defaults
         count_before = ColorToken.objects.count()
-
-        for key, label, hex_val in COLORS:
-            ColorToken.objects.get_or_create(
-                key=key,
-                defaults={"label": label, "hex": hex_val},
-            )
-
+        from types import SimpleNamespace
+        seed(apps, SimpleNamespace(connection=connection))
         self.assertEqual(ColorToken.objects.count(), count_before)

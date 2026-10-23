@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Save, Trash2, Pencil, Globe, Lock } from "lucide-react";
 import type { BlockComponentProps } from "../../../shell/src/mod-system/types";
-import type { LimsViewItem, ViewFilterState } from "../types";
+import { viewFilterState, type LimsViewItem, type ViewFilterState } from "../types";
 import {
   getMyViews,
   createView,
@@ -165,7 +165,22 @@ export function MyViewsBlock(_props: BlockComponentProps) {
     setSaving(true);
     try {
       const filterState = readFilterState(searchParams);
-      const created = await createView({ name: trimmed, filter_state: filterState });
+      const created = await createView({
+        name: trimmed,
+         source_kind: "lims:entity",
+        spec: {
+          filter: {
+            search: filterState.search,
+            schema_type: filterState.schema_type,
+            schema: filterState.schema,
+            status: filterState.status,
+            fields: filterState.fields,
+          },
+          sort: filterState.sort ? [{ field: filterState.sort }] : [],
+          columns: filterState.columns,
+        },
+        filter_state: filterState,
+      });
       setViews((prev) => [created, ...prev]);
       setIsAdding(false);
       setNewName("");
@@ -188,10 +203,12 @@ export function MyViewsBlock(_props: BlockComponentProps) {
 
   const handleSaveRename = useCallback(async () => {
     if (!editing) return;
+    const viewId = editing.viewId;
+    if (viewId === null) return;
     const trimmed = editing.name.trim();
     if (!trimmed) return;
     try {
-      const updated = await updateView(editing.viewId, { name: trimmed });
+       const updated = await updateView(viewId, { name: trimmed });
       setViews((prev) =>
         prev.map((v) => (v.id === updated.id ? updated : v)),
       );
@@ -221,9 +238,24 @@ export function MyViewsBlock(_props: BlockComponentProps) {
   const handleOverwrite = useCallback(
     async (view: LimsViewItem) => {
       setMenuViewId(null);
+      if (view.is_inert) return;
       try {
         const filterState = readFilterState(searchParams);
-        const updated = await updateView(view.id, { filter_state: filterState });
+         const updated = await updateView(view.id, {
+           source_kind: view.source_kind,
+           spec: {
+             filter: {
+               search: filterState.search,
+               schema_type: filterState.schema_type,
+               schema: filterState.schema,
+               status: filterState.status,
+               fields: filterState.fields,
+             },
+             sort: filterState.sort ? [{ field: filterState.sort }] : [],
+             columns: filterState.columns,
+           },
+           filter_state: filterState,
+         });
         setViews((prev) =>
           prev.map((v) => (v.id === updated.id ? updated : v)),
         );
@@ -252,7 +284,7 @@ export function MyViewsBlock(_props: BlockComponentProps) {
   // ── Click view → navigate ────────────────────────────────────────────
   const handleClickView = useCallback(
     (view: LimsViewItem) => {
-      navigate(buildViewURL(view.filter_state));
+       if (!view.is_inert) navigate(buildViewURL(viewFilterState(view)));
     },
     [navigate],
   );
@@ -390,10 +422,16 @@ export function MyViewsBlock(_props: BlockComponentProps) {
                   <button
                     className="entities-views-item-name"
                     type="button"
-                    onClick={() => handleClickView(view)}
+                     onClick={() => !view.is_inert && handleClickView(view)}
+                     disabled={view.is_inert}
                     title={`Load view: ${view.name}`}
                   >
                     {view.name}
+                    {view.is_inert && (
+                      <span className="entities-views-unavailable-badge">
+                        Source unavailable
+                      </span>
+                    )}
                     {view.is_public && (
                       <Globe size={11} className="entities-views-public-icon" />
                     )}

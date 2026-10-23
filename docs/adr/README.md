@@ -34,6 +34,7 @@ and onboarding reference for contributors.
 | [0027](0027-repository-tiers-and-golden-rule.md) | Repository Tiers, Golden Rule, and Deferred Enforcement | 2026-10-12 | Accepted |
 | [0028](0028-core-app-label-preservation.md) | Preserve the `core` App Label | 2026-10-12 | Accepted |
 | [0029](0029-closed-bundled-open-external-discovery.md) | Closed Bundled and Open External Discovery | 2026-10-12 | Accepted |
+| [0030](0030-test-ownership-and-external-mod-isolation.md) | Test Ownership and External Mod Isolation | 2026-10-14 | Accepted |
 
 ## Creating a New ADR
 

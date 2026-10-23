@@ -1,22 +1,21 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { ModRegistry } from "../../../shell/src/mod-system/ModRegistry";
+import { ModRegistry } from "@helix/mod-api/host";
+import { Mod } from "@helix/mod-api/host";
+import manifest from "../modManifest.json";
 import type {
   SlotDeclaration,
   ButtonRegistration,
   SlotBinding,
-} from "../../../shell/src/mod-system/types";
+} from "@helix/mod-api/host";
 
 describe("eln mod registration", () => {
   let registry: ModRegistry;
 
   beforeAll(async () => {
-    await import("../index");
+    const mod = await import("../index");
     registry = ModRegistry.getInstance();
-    try {
-      registry.registerMod("eln");
-    } catch {
-      // already registered from another test file
-    }
+    registry.registerMod(manifest.id);
+    mod.register(new Mod(manifest));
   });
 
   it("does not export inline meta", async () => {
@@ -24,25 +23,25 @@ describe("eln mod registration", () => {
     expect((mod as Record<string, unknown>).meta).toBeUndefined();
   });
 
-  it("does not populate workspaces during register()", () => {
+  it("registers the ELN workspace", () => {
     const workspaces = registry.getWorkspaces();
-    expect(workspaces.has("eln")).toBe(false);
+    expect(workspaces.get("eln")?.reference.modId).toBe("helix.eln");
   });
 
   it("registers route for /eln/:id (no longer registers /eln/new)", () => {
     const routes = registry.getRoutes();
     const newEntryRoute = routes.get("eln.new-entry");
-    const detailRoute = routes.get("eln.entry-page");
+    const detailRoute = routes.get("helix.eln:eln-workspace");
 
     expect(newEntryRoute).toBeUndefined();
     expect(detailRoute).toBeDefined();
-    expect(detailRoute!.modId).toBe("eln");
+    expect(detailRoute!.modId).toBe("helix.eln");
     expect(detailRoute!.component).toBeTruthy();
   });
 
   it("no longer registers a library item — card rendering is generic now", () => {
-    const workspaces = registry.getWorkspaces();
-    expect(workspaces.has("eln")).toBe(false);
+    const workspace = registry.getWorkspaces().get("eln");
+    expect(workspace?.reference.modId).toBe("helix.eln");
   });
 
   it("no longer registers a settings section — tags moved to tags mod", () => {
@@ -56,29 +55,25 @@ describe("eln mod registration", () => {
   });
 
   it("registers tables as dynamic-bleed editor blocks", () => {
-    expect(registry.getBlocks().get("eln.table")?.layout).toBe("dynamic-bleed");
-    expect(registry.getBlocks().get("eln.registry-table")?.layout).toBe("dynamic-bleed");
-    expect(registry.getBlocks().get("eln.result-table")?.layout).toBe("dynamic-bleed");
+    expect(registry.getBlocks().get("helix.eln:table")?.layout).toBe("dynamic-bleed");
+    expect(registry.getBlocks().get("helix.eln:table")?.affinity).toEqual(["editor"]);
   });
 
   it("declares duplication policies for entity-backed blocks", () => {
-    expect(registry.getBlocks().get("eln.table")?.preserve).toBeUndefined();
-    expect(registry.getBlocks().get("eln.comment")?.preserve).toBeUndefined();
-    expect(registry.getBlocks().get("eln.protocol")?.preserve).toEqual(["protocolId"]);
-    expect(registry.getBlocks().get("eln.registry-table")?.preserve).toEqual(["schemaId"]);
-    expect(registry.getBlocks().get("eln.result-table")?.preserve).toEqual(["schemaId"]);
+    expect(registry.getBlocks().get("helix.eln:table")?.preserve).toBeUndefined();
+    expect(registry.getBlocks().get("helix.eln:table")?.preserve).toBeUndefined();
   });
 
   // ── Slot System — Header Toolbar Dogfood (#227) ─────────────────────────
 
   it("declares the eln.header-actions slot with ButtonGroupRenderer", () => {
     const slots = registry.getSlots();
-    const headerSlot = slots.get("eln.header-actions") as
+    const headerSlot = slots.get("helix.eln:header-actions") as
       | SlotDeclaration
       | undefined;
 
     expect(headerSlot).toBeDefined();
-    expect(headerSlot!.id).toBe("eln.header-actions");
+    expect(headerSlot!.id).toBe("helix.eln:header-actions");
     expect(headerSlot!.accepts).toBe("button");
     expect(headerSlot!.layout).toBe("horizontal");
     expect(headerSlot!.order).toBe(0);

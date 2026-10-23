@@ -3,7 +3,6 @@ import { get } from "../../../shell/src/api/client";
 import { IconBadge } from "../../../shell/src/shared/components/IconBadge";
 import { Table, TableCell, TableHead, TableHeaderCell, TableRow } from "../../../shell/src/shared/primitives/Table";
 import type { SchemaComponentProps } from "../../../shell/src/mod-system/types";
-import type { EntityListItem } from "../types";
 
 interface ResultColumn {
   name: string;
@@ -29,7 +28,7 @@ interface ResultGroup {
 
 export default function ResultsTab({ entity }: SchemaComponentProps) {
   const [groups, setGroups] = useState<ResultGroup[]>([]);
-  const displayId = (entity as EntityListItem).display_id;
+  const displayId = String(entity.record_id ?? entity.display_id);
 
   useEffect(() => {
     let cancelled = false;

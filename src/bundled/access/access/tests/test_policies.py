@@ -1,6 +1,6 @@
 """Tests for Core Action authorization policies and the policy API."""
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -115,9 +115,13 @@ class CanFunctionTests(TestCase):
     def test_custom_action_resolves_mapped_core_verb(self):
         """Custom Actions inherit their mapped Core Action policy."""
         from helix_core.mod_system.registry import registry
-        from mods.eln.models import ElnAction
+        from helix_core.tests.fixtures.external_mod.models import ConcreteTestEntity
 
         saved_models = dict(registry._action_models)
+        saved_core = {
+            mod: dict(actions)
+            for mod, actions in registry._core_actions.items()
+        }
         saved_custom = {
             mod: dict(actions)
             for mod, actions in registry._custom_actions.items()
@@ -125,18 +129,20 @@ class CanFunctionTests(TestCase):
         try:
             registry._action_models.clear()
             registry._custom_actions.clear()
-            registry.register_action_model("eln", ElnAction)
+            registry.register_action_model("fixture", ConcreteTestEntity)
             registry.register_custom_action(
-                mod_id="eln",
-                action_id="eln.entry.registered",
-                label="Entry Registered",
+                mod_id="fixture",
+                action_id="fixture.entity.registered",
+                label="Fixture Entity Registered",
                 core="created",
-                target_model="mods.eln.models.NotebookEntry",
+                target_model="helix_core.tests.fixtures.external_mod.models.ConcreteTestEntity",
             )
-            self.assertTrue(can(self.user, "eln.entry.registered"))
+            self.assertTrue(can(self.user, "fixture.entity.registered"))
         finally:
             registry._action_models.clear()
             registry._action_models.update(saved_models)
+            registry._core_actions.clear()
+            registry._core_actions.update(saved_core)
             registry._custom_actions.clear()
             for mod, actions in saved_custom.items():
                 registry._custom_actions[mod] = dict(actions)
@@ -216,6 +222,7 @@ class GetPolicyMatrixTests(TestCase):
         self.assertIn("deleted", core_actions)
 
 
+@override_settings(ROOT_URLCONF="bundled.access.access.tests.urls")
 class PolicyApiTests(TestCase):
     """Tests for GET /api/access/policies/."""
 

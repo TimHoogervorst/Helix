@@ -1,18 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
 import { FlaskConical, Trash2, X } from "lucide-react";
-import { get, post, put, del } from "../../../shell/src/api/client";
+import { get, post, put, del } from "@helix/mod-api/host";
 import type { Protocol, ProtocolItem } from "../types";
-import { Button } from "../../../shell/src/shared/primitives/Button";
-import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
-import { Input } from "../../../shell/src/shared/primitives/Input";
-import { Textarea } from "../../../shell/src/shared/primitives/Input";
-import { SettingsPageLayout } from "../../../shell/src/shared/components/SettingsPageLayout";
-import { SettingsHeroHeader } from "../../../shell/src/shared/components/SettingsHeroHeader";
-import { SettingsSectionCard } from "../../../shell/src/shared/components/SettingsSectionCard";
+import { Button } from "@helix/mod-api/host";
+import { IconButton } from "@helix/mod-api/host";
+import { Input } from "@helix/mod-api/host";
+import { Textarea } from "@helix/mod-api/host";
+import { SettingsPageLayout } from "@helix/mod-api/host";
+import { SettingsHeroHeader } from "@helix/mod-api/host";
+import { SettingsSectionCard } from "@helix/mod-api/host";
 import {
   SettingsMasterList,
   type MasterListRow,
-} from "../../../shell/src/shared/components/SettingsMasterList";
+} from "@helix/mod-api/host";
 
 type ProtocolMutator = (protocol: Protocol) => Protocol;
 

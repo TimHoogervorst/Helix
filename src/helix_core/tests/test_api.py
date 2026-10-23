@@ -1,7 +1,6 @@
 """
 Tests for the Schema and SchemaType API endpoints.
 """
-from importlib import import_module
 
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -103,7 +102,7 @@ class SchemaTypeApiTests(TestCase):
         SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
             model="bundled.lims.models.Entity",
-            tags=["RegistrationTable"],
+            capabilities=["RegistrationTable"],
         )
         SchemaType.objects.create(
             display_name="ELN Entry", workspace_id="eln",
@@ -119,37 +118,8 @@ class SchemaTypeApiTests(TestCase):
         self.assertIn("Entity", names)
         self.assertNotIn("ELN Entry", names)
         entity = next(st for st in response.data if st["display_name"] == "Entity")
-        self.assertEqual(entity["tags"], ["RegistrationTable"])
+        self.assertEqual(entity["capabilities"], ["RegistrationTable"])
 
-    def test_migration_seeds_schema_type_tags(self):
-        """The data migration assigns table capability tags by model identity."""
-        lims = SchemaType.objects.create(
-            display_name="Entity",
-            workspace_id="lims",
-            model="bundled.lims.models.Entity",
-        )
-        eln = SchemaType.objects.create(
-            display_name="ELN Entry",
-            workspace_id="eln",
-            model="mods.eln.models.NotebookEntry",
-            tags=["RegistrationTable"],
-        )
-
-        class Apps:
-            @staticmethod
-            def get_model(app_label, model_name):
-                assert app_label == "helix_core"
-                assert model_name == "SchemaType"
-                return SchemaType
-
-        import_module(
-            "helix_core.migrations.0011_schema_type_tags"
-        ).seed_schema_type_tags(Apps(), None)
-
-        lims.refresh_from_db()
-        eln.refresh_from_db()
-        self.assertEqual(lims.tags, ["RegistrationTable"])
-        self.assertEqual(eln.tags, [])
 
 
 class SchemaCrudTests(TestCase):
@@ -163,7 +133,7 @@ class SchemaCrudTests(TestCase):
         self.schema_type = SchemaType.objects.create(
             display_name="Entity", workspace_id="lims",
             model="bundled.lims.models.Entity",
-            tags=["RegistrationTable"],
+            capabilities=["RegistrationTable"],
         )
 
     def test_create_schema(self):
@@ -186,7 +156,7 @@ class SchemaCrudTests(TestCase):
         self.assertEqual(response.data["prefix"], "BLOOD")
         self.assertEqual(response.data["schema_type"], self.schema_type.id)
         self.assertEqual(response.data["schema_type_display"], "Entity")
-        self.assertEqual(response.data["tags"], ["RegistrationTable"])
+        self.assertEqual(response.data["capabilities"], ["RegistrationTable"])
         self.assertEqual(len(response.data["columns"]), 2)
         self.assertTrue(response.data["is_active"])
         self.assertFalse(response.data["is_default"])

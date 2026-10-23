@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://helix.example.com/schemas/mod-registry-response.json",
   "title": "Mod Registry Response",
-"description": "Response shape for GET /api/mod-registry/. Includes top-level columnTypes, iconLibrary, and colorPalette keys plus per-workspace entries keyed by mod/workspace ID. Each workspace entry carries workspaceId, schemaTypes (array of {id, displayName, prefix, columns, tags, icon, color}), and actions (array of {id, label, action_type}).",
+"description": "Response shape for GET /api/mod-registry/. Includes top-level columnTypes, iconLibrary, and colorPalette keys plus per-workspace entries keyed by mod/workspace ID. Each workspace entry carries workspaceId, schemaTypes (array of {id, displayName, prefix, columns, capabilities, icon, color}), and actions (array of {id, label, action_type}).",
   "type": "object",
   "properties": {
     "columnTypes": {
@@ -106,16 +106,90 @@
         },
         "required": ["id", "argumentKinds", "resultKind", "description", "clientImplemented"]
       }
+    },
+    "recordActions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "contract_id": { "type": "string" },
+          "contract_version": { "type": "string" },
+          "provider_mod_id": { "type": "string" },
+          "provider_mod_version": { "type": "string" }
+        },
+        "required": ["id", "label", "contract_id", "contract_version", "provider_mod_id", "provider_mod_version"],
+        "additionalProperties": false
+      }
+    },
+    "services": {
+      "type": "array",
+      "description": "Registered cross-mod services and content sources.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "capabilities": { "type": "array", "items": { "type": "string" } },
+          "registration_type": { "type": "string" },
+          "provider_mod_id": { "type": ["string", "null"] }
+        },
+        "required": ["id", "capabilities"]
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "description": "Registered content blocks and their capabilities.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "capabilities": { "type": "array", "items": { "type": "string" } },
+          "provider_mod_id": { "type": ["string", "null"] }
+        },
+        "required": ["id", "capabilities"]
+      }
+    },
+    "slots": {
+      "type": "array",
+      "description": "Registered extension slots and accepted capabilities.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "capabilities": { "type": "array", "items": { "type": "string" } },
+          "accepts": { "type": "array", "items": { "type": "string" } },
+          "provider_mod_id": { "type": ["string", "null"] }
+        },
+        "required": ["id", "capabilities", "accepts"]
+      }
+    },
+    "metricProviders": {
+      "type": "array",
+      "description": "Registered metric providers backed by services.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "capabilities": { "type": "array", "items": { "type": "string" } },
+          "service": { "type": "string" },
+          "provider_mod_id": { "type": ["string", "null"] }
+        },
+        "required": ["id", "capabilities", "service"]
+      }
     }
   },
   "patternProperties": {
-    "^[a-z][a-z0-9_-]*$": {
+    "^(?!columnTypes$|iconLibrary$|colorPalette$|formulaFunctions$|services$|blocks$|slots$|metricProviders$|recordActions$)[a-z][a-z0-9_-]*$": {
       "type": "object",
       "properties": {
         "workspaceId": {
           "type": "string",
           "description": "The workspace identifier, e.g. 'lims' or 'eln'."
         },
+        "vendor": { "type": "string" },
+        "mod": { "type": "string" },
+        "workspace": { "type": "string" },
         "schemaTypes": {
           "type": "array",
           "items": {
@@ -137,10 +211,10 @@
                 "type": "array",
                 "description": "Column definitions for this schema type."
               },
-              "tags": {
+              "capabilities": {
                 "type": "array",
                 "items": { "type": "string" },
-                "description": "Capability tags declared by the owning mod."
+                "description": "Capability capabilities declared by the owning mod."
               },
               "icon": {
                 "type": "string",
@@ -151,7 +225,7 @@
                 "description": "Color key from the default schema, e.g. 'muted' or 'success'."
               }
             },
-            "required": ["id", "displayName", "prefix", "columns", "tags", "icon", "color"]
+            "required": ["id", "displayName", "prefix", "columns", "capabilities", "icon", "color"]
           }
         },
         "actions": {
@@ -167,7 +241,7 @@
           }
         }
       },
-      "required": ["workspaceId", "schemaTypes", "actions"]
+      "required": ["workspaceId", "vendor", "mod", "workspace", "schemaTypes", "actions"]
     }
   },
   "additionalProperties": false

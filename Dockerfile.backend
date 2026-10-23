@@ -17,11 +17,20 @@ RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 # Only Django project configuration is copied into /app. Platform and mod
 # packages are copied separately so their repository tiers remain visible.
 COPY src/server/ .
+# Copy Platform and installed Mod distributions into separate build roots.
+COPY src/pyproject.toml /app/pyproject.toml
 COPY src/helix_core/ /app/helix_core/
-COPY src/mods/ /mods/
+COPY src/mods/ /build/mods/
 COPY src/bundled/ /bundled/
 
-RUN chmod +x /app/entrypoint.sh
+# Install every External Mod distribution present in this deployment checkout.
+RUN pip install --no-cache-dir --no-deps -e /app && \
+    for project in /build/mods/*/pyproject.toml; do \
+        [ -f "$project" ] || continue; \
+        pip install --no-cache-dir --no-deps -e "$(dirname "$project")"; \
+    done
+
+RUN chmod +x /app/entrypoint.sh /app/acceptance-entrypoint.sh
 
 EXPOSE 8000
 

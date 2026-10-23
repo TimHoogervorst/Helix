@@ -1,0 +1,28 @@
+{
+  "formatVersion": 1,
+  "kind": "data",
+  "id": "helix.eln.block",
+  "version": "1.0.0",
+  "description": "A portable ELN document node, including registered and opaque content.",
+  "definition": {
+    "type": {
+      "type": "object",
+      "fields": {
+        "type": { "type": "string", "minLength": 1 }
+      },
+      "optionalFields": {
+        "attrs": { "type": "json" },
+        "content": {
+          "type": "array",
+          "items": { "type": "contract", "kind": "data", "id": "helix.eln.block", "version": "1.0.0" }
+        },
+        "text": { "type": "string" },
+        "marks": {
+          "type": "array",
+          "items": { "type": "contract", "kind": "data", "id": "helix.eln.mark", "version": "1.0.0" }
+        }
+      },
+      "additionalValues": { "type": "json" }
+    }
+  }
+}

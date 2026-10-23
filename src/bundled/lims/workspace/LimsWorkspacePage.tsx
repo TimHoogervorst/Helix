@@ -15,6 +15,7 @@ import { SidebarSection } from "../../../shell/src/shared/components/Sidebar/Sid
 import { SidebarProvider } from "../../../shell/src/workspace/SidebarContext";
 import type { EntityListItem, SourcePathSegment } from "../types";
 import LimsWorkspace from "./LimsWorkspace";
+import PlatformEntityActivity from "./PlatformEntityActivity";
 
 function CopyButton({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -35,11 +36,11 @@ function EntityActivitySidebar({ entity }: { entity: EntityListItem }) {
     <SidebarProvider>
       <CollapsibleSidebar side="right" variant="full-hide">
         <SidebarSection id="activity" label="Activity" icon={History}>
-          <ActivityFeedBlock
+          {entity.record_id ? <PlatformEntityActivity key={entity.record_id} recordId={entity.record_id} /> : <ActivityFeedBlock
             context={{ workspaceId: "lims", user: null, viewMode: "view", entityId: String(entity.id), displayId: entity.display_id }}
             instance={{ id: "lims.activity", blockId: "lims.activity-feed", slotId: "lims.entity-workspace", attrs: {}, updateAttrs: () => undefined }}
             overrides={{}}
-          />
+          />}
         </SidebarSection>
       </CollapsibleSidebar>
     </SidebarProvider>
@@ -48,6 +49,16 @@ function EntityActivitySidebar({ entity }: { entity: EntityListItem }) {
 
 function statusLabel(status: string): string {
   return status.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function exportEntity(entity: EntityListItem) {
+  const payload = JSON.stringify(entity, null, 2);
+  const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${entity.display_id}.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 function LimsWorkspacePage() {
@@ -85,7 +96,7 @@ function LimsWorkspacePage() {
   const projectSegment = sourceSegments.find((segment) => segment.kind === "project");
   const projectUid = projectSegment?.uid || entity.project_uid;
   const libraryRoot = projectUid ? `/library?project=${encodeURIComponent(projectUid)}` : "/library";
-  const share = () => navigator.clipboard.writeText(`${window.location.origin}/lims/${entity.display_id}`).then(() => {
+  const share = () => navigator.clipboard.writeText(`${window.location.origin}/lims/${entity.record_id ?? entity.display_id}`).then(() => {
     setShared(true); window.setTimeout(() => setShared(false), 2000);
   }).catch(() => undefined);
 
@@ -113,7 +124,7 @@ function LimsWorkspacePage() {
           </div>
           <div className="flex items-center gap-1">
             <IconButton aria-label="Star" title="Star"><Star className="h-4 w-4" /></IconButton>
-            <IconButton aria-label="Export" title="Export"><Download className="h-4 w-4" /></IconButton>
+             <IconButton aria-label="Export" title="Export" onClick={() => exportEntity(entity)}><Download className="h-4 w-4" /></IconButton>
             <IconButton variant="primary" aria-label={shared ? "Copied!" : "Share"} title="Copy link" onClick={share}>{shared ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}</IconButton>
           </div>
         </div>
@@ -135,7 +146,7 @@ function LimsWorkspacePage() {
                       <span>Modified {new Date(entity.updated_at).toLocaleString()}</span>
                     </div>
                     <div className="-mt-2">
-                      <TagSection tags={taggableItems.tags} onAddTag={entity.effective_role === "edit" ? taggableItems.addTag : undefined} onRemoveTag={entity.effective_role === "edit" ? taggableItems.removeTag : undefined} />
+                      <TagSection tags={taggableItems.tags} onAddTag={!entity.record_id && entity.effective_role === "edit" ? taggableItems.addTag : undefined} onRemoveTag={!entity.record_id && entity.effective_role === "edit" ? taggableItems.removeTag : undefined} />
                     </div>
                   </div>
                 </div>

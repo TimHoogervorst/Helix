@@ -5,14 +5,16 @@ All tests exercise the API through HTTP calls using DRF's APIClient.
 """
 from unittest.mock import patch
 from django.contrib.contenttypes.models import ContentType
+from django.db import connection
 
 from rest_framework.test import APIClient
 
-from helix_core.core.tests.base import BaseTestCase
-from helix_core.core.tests.factories import EMPTY_DOC, make_doc_with_ref
-from helix_core.mentions.models import Mention
-from helix_core.core.models import Folder, Project, User
-from mods.eln.models import NotebookEntry, ElnAction, EntryLock
+from .support import BaseTestCase
+from .support import EMPTY_DOC, make_doc_with_ref
+from helix_core.public import Mention
+from helix_core.public import Folder, Project, User
+from helix_core.public import ActionLogEntry
+from mods.eln.models import NotebookEntry, EntryLock
 from mods.eln.tests.factories import get_or_create_default_eln_schema
 
 
@@ -21,7 +23,7 @@ def folder_source(folder):
         "source_type": ContentType.objects.get_for_model(folder).pk,
         "source_id": folder.id,
     }
-from bundled.access.access.models import (
+from helix_core.public import (
     FolderShare,
     Grant,
     Organization,
@@ -228,7 +230,7 @@ class MentionSyncOnSaveTests(BaseTestCase):
                 schema=self.schema
         )
         # Manually sync since the creation through ORM doesn't go through the view.
-        from helix_core.mentions.sync import sync_mentions
+        from helix_core.public import sync_mentions
         sync_mentions(entry, doc_with_ref)
         self.assertEqual(Mention.objects.count(), 1)
 
@@ -242,14 +244,12 @@ class MentionSyncOnSaveTests(BaseTestCase):
         self.assertEqual(Mention.objects.count(), 0)
 
 
-MIXIN_LOG_ACTION_PATH = "helix_core.actions.mixins.log_action"
-
-
-def _log_kwargs(mock):
-    """Return the keyword-args dict from the *first* call to *mock*."""
-    if mock.call_count == 0:
-        return {}
-    return mock.call_args[1]
+def _entry_action(action, target_id):
+    return ActionLogEntry.objects.filter(
+        action=action,
+        target_model_reference="eln.entry",
+        target_object_id=str(target_id),
+    ).first()
 
 
 class EntryActionLoggingTests(BaseTestCase):
@@ -264,11 +264,6 @@ class EntryActionLoggingTests(BaseTestCase):
         super().setUp()
         self.schema = get_or_create_default_eln_schema()
         self.client.force_authenticate(user=self.user)
-        self._patcher = patch(MIXIN_LOG_ACTION_PATH)
-        self.mock_log = self._patcher.start()
-
-    def tearDown(self):
-        self._patcher.stop()
 
     def test_create_entry_logs_action(self):
         """POST calls log_action with action_type='eln.entry.created'."""
@@ -278,12 +273,9 @@ class EntryActionLoggingTests(BaseTestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 201)
-        self.mock_log.assert_called_once()
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action"], "eln.entry.created")
-        self.assertEqual(kwargs["target_type"], "eln.entry")
-        self.assertEqual(kwargs["target_id"], response.data["id"])
-        self.assertEqual(kwargs["user"], self.user)
+        action = _entry_action("eln.entry.created", response.data["id"])
+        self.assertIsNotNone(action)
+        self.assertEqual(action.performed_by, self.user)
 
     def test_update_entry_logs_action(self):
         """PUT calls log_action with action_type='eln.entry.edited'."""
@@ -297,12 +289,9 @@ class EntryActionLoggingTests(BaseTestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 200)
-        self.mock_log.assert_called_once()
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action"], "eln.entry.edited")
-        self.assertEqual(kwargs["target_type"], "eln.entry")
-        self.assertEqual(kwargs["target_id"], entry.id)
-        self.assertEqual(kwargs["user"], self.user)
+        action = _entry_action("eln.entry.edited", entry.id)
+        self.assertIsNotNone(action)
+        self.assertEqual(action.performed_by, self.user)
 
     def test_destroy_entry_logs_action(self):
         """DELETE calls log_action with action_type='eln.entry.deleted'."""
@@ -312,12 +301,9 @@ class EntryActionLoggingTests(BaseTestCase):
         )
         response = self.client.delete(f"/api/eln/entries/{entry.display_id}/")
         self.assertEqual(response.status_code, 204)
-        self.mock_log.assert_called_once()
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action"], "eln.entry.deleted")
-        self.assertEqual(kwargs["target_type"], "eln.entry")
-        self.assertEqual(kwargs["target_id"], entry.id)
-        self.assertEqual(kwargs["user"], self.user)
+        action = _entry_action("eln.entry.deleted", entry.id)
+        self.assertIsNotNone(action)
+        self.assertEqual(action.performed_by, self.user)
 
     def test_create_entry_unauthenticated_returns_403(self):
         """When no user is authenticated, POST returns 403."""
@@ -329,7 +315,7 @@ class EntryActionLoggingTests(BaseTestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 403)
-        self.mock_log.assert_not_called()
+        self.assertFalse(ActionLogEntry.objects.filter(action="eln.entry.created").exists())
         self.assertEqual(NotebookEntry.objects.count(), 0)
 
     def test_update_entry_unauthenticated_returns_403(self):
@@ -346,7 +332,7 @@ class EntryActionLoggingTests(BaseTestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 403)
-        self.mock_log.assert_not_called()
+        self.assertFalse(ActionLogEntry.objects.filter(action="eln.entry.edited").exists())
 
 
 class EntryActionsEndpointTests(BaseTestCase):
@@ -362,7 +348,7 @@ class EntryActionsEndpointTests(BaseTestCase):
                 schema=self.schema
         )
         # Create several actions via the logger so they exist before tests
-        from helix_core.actions.logger import log_action
+        from helix_core.public import log_action
         self.a1 = log_action(
             user=self.user, action="eln.entry.created",
             target_type="eln.entry", target_id=self.entry.id,
@@ -467,7 +453,7 @@ class EntryActionsEndpointTests(BaseTestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(ElnAction.objects.count(), 3)
+        self.assertEqual(ActionLogEntry.objects.count(), 3)
         self.assertEqual(response.data["action"], "eln.entry.commented")
         self.assertEqual(response.data["action_type"], "commented")
         self.assertEqual(response.data["metadata"], {"text": "Great work!"})
@@ -510,14 +496,9 @@ class EntryTagActionsLoggingTests(BaseTestCase):
             name="Tag Test Entry", content=TEXT_DOC, source=self.folder, author=self.user,
                 schema=self.schema
         )
-        from bundled.labelling.tags.models import Tag
+        from helix_core.public import Tag
         self.tag1 = Tag.objects.create(name="Important", color="enzyme", icon="dna")
         self.tag2 = Tag.objects.create(name="Urgent", color="warn", icon="circle")
-        self._patcher = patch(MIXIN_LOG_ACTION_PATH)
-        self.mock_log = self._patcher.start()
-
-    def tearDown(self):
-        self._patcher.stop()
 
     def test_attach_tags_logs_action(self):
         response = self.client.post(
@@ -526,12 +507,9 @@ class EntryTagActionsLoggingTests(BaseTestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 200)
-        self.mock_log.assert_called_once()
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action"], "eln.entry.tags_attached")
-        self.assertEqual(kwargs["target_type"], "eln.entry")
-        self.assertEqual(kwargs["target_id"], self.entry.id)
-        self.assertEqual(kwargs["metadata"], {"tag_ids": [self.tag1.id, self.tag2.id]})
+        action = _entry_action("eln.entry.tags_attached", self.entry.id)
+        self.assertIsNotNone(action)
+        self.assertEqual(action.metadata, {"tag_ids": [self.tag1.id, self.tag2.id]})
 
     def test_read_only_user_cannot_attach_tags(self):
         reader = User.objects.create_user(username="tag-reader", password="pass")
@@ -583,7 +561,7 @@ class EntryTagActionsLoggingTests(BaseTestCase):
 
     def test_team_derived_editor_can_attach_tags(self):
         from django.contrib.auth.models import Group
-        from bundled.access.access.models import Team
+        from helix_core.public import Team
 
         team_user = User.objects.create_user(username="tag-team-user", password="pass")
         organization = Organization.objects.create(name="Tag Team Organization")
@@ -646,19 +624,16 @@ class EntryTagActionsLoggingTests(BaseTestCase):
             f"/api/eln/entries/{self.entry.display_id}/tags/{self.tag1.id}/"
         )
         self.assertEqual(response.status_code, 200)
-        self.mock_log.assert_called_once()
-        kwargs = _log_kwargs(self.mock_log)
-        self.assertEqual(kwargs["action"], "eln.entry.tag_detached")
-        self.assertEqual(kwargs["target_type"], "eln.entry")
-        self.assertEqual(kwargs["target_id"], self.entry.id)
-        self.assertEqual(kwargs["metadata"], {"tag_id": self.tag1.id})
+        action = _entry_action("eln.entry.tag_detached", self.entry.id)
+        self.assertIsNotNone(action)
+        self.assertEqual(action.metadata, {"tag_id": self.tag1.id})
 
     def test_detach_nonexistent_tag_does_not_log(self):
         response = self.client.delete(
             f"/api/eln/entries/{self.entry.display_id}/tags/99999/"
         )
         self.assertEqual(response.status_code, 404)
-        self.mock_log.assert_not_called()
+        self.assertFalse(ActionLogEntry.objects.filter(action="eln.entry.tag_detached").exists())
 
 
 # ── Entry create access enforcement tests ─────────────────────────────────────
@@ -733,7 +708,7 @@ class EntryCreateAccessTests(BaseTestCase):
 
     def test_team_derived_edit_can_create(self):
         from django.contrib.auth.models import Group
-        from bundled.access.access.models import Team
+        from helix_core.public import Team
 
         team_user = User.objects.create_user(username="create_team", password="pass")
         OrganizationMembership.objects.update_or_create(
@@ -770,6 +745,11 @@ class EntryCreateAccessTests(BaseTestCase):
         self.assertEqual(self._create(client, self.folder).status_code, 403)
 
     def test_read_write_sharee_can_create_inside_subtree(self):
+        if connection.vendor == "sqlite":
+            self.skipTest(
+                "SQLite does not implement the JSON contains lookup used by shared-folder visibility; "
+                "this regression is exercised on PostgreSQL (docs/agents/testing.md)."
+            )
         client = APIClient()
         client.force_authenticate(user=self.sharee)
         self.assertEqual(self._create(client, self.shared_child).status_code, 201)
@@ -913,7 +893,7 @@ class EntryPatchAccessTests(BaseTestCase):
 
     def test_team_derived_edit_can_patch(self):
         from django.contrib.auth.models import Group
-        from bundled.access.access.models import Team
+        from helix_core.public import Team
 
         team_user = User.objects.create_user(username="team_editor", password="pass")
         group = Group.objects.create(name="Test Team")
@@ -1070,7 +1050,7 @@ class EntryDeleteAccessTests(BaseTestCase):
 
     def test_team_derived_edit_can_delete(self):
         from django.contrib.auth.models import Group
-        from bundled.access.access.models import Team
+        from helix_core.public import Team
 
         team_user = User.objects.create_user(username="team_del_e", password="pass")
         OrganizationMembership.objects.update_or_create(user=team_user, defaults={"organization": self.org, "role": OrganizationRole.USER})

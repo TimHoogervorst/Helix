@@ -8,22 +8,27 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 
 from django.utils.dateparse import parse_datetime
 from django.http import Http404
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException, PermissionDenied, ValidationError as DRFValidationError
 from rest_framework.response import Response
 
-from helix_core.actions.logger import bulk_log_actions, log_action
-from helix_core.actions.mixins import ActionLoggingMixin, logs_action
-from helix_core.source_deletion import delete_source_descendants
+from helix_core.public import bulk_log_actions, log_action
+from helix_core.public import VersionTarget
+from helix_core.public import ActionLoggingMixin, logs_action
+from helix_core.public import delete_source_descendants
 
-from bundled.labelling.tags.models import Tag
-from bundled.access.access.permissions import IsOrganizationAdmin, IsOrganizationAdminForWrites
-from bundled.access.access.scoping import visible_rows_q
+from helix_core.public import Tag
+from helix_core.public import IsOrganizationAdmin, IsOrganizationAdminForWrites
+from helix_core.public import visible_rows_q
 
-from helix_core.models import Schema
+from helix_core.public import ActionLogEntry, Schema
 
-from .models import NotebookEntry, ContentVersion, ElnAction, EntryLock, Protocol
+from .models import NotebookEntry, EntryLock, HistoricalRendition, Protocol
+from .config import CONTENT_VERSION_REFERENCE, ENTRY_MODEL_REFERENCE
 from .serializers import (
     NotebookEntrySerializer,
     NotebookEntryCreateSerializer,
@@ -33,11 +38,12 @@ from .serializers import (
     ProtocolSerializer,
 )
 from .sync import sync_entry_content
+from .renditions import (
+    PRESENTATION_PROVIDER, PRESENTATION_VERSION, embedded_resource_count,
+    render_document_pdf,
+)
 
 eln_logger = logging.getLogger(__name__)
-
-
-DEFAULT_SAVE_MODE = "manual"
 
 
 class LockedException(APIException):
@@ -46,6 +52,12 @@ class LockedException(APIException):
     status_code = 423
     default_detail = "This entry is currently being edited by another user."
     default_code = "locked"
+
+
+class ReviewCaptureUnavailable(APIException):
+    status_code = 503
+    default_detail = "The ELN review rendition could not be captured."
+    default_code = "rendition_capture_failed"
 
 
 class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
@@ -117,7 +129,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         not having been created yet — e.g. after a fresh migration where
         the mod registration hasn't run.
         """
-        from helix_core.models import SchemaType
+        from helix_core.public import SchemaType
 
         schema_type, _ = SchemaType.objects.get_or_create(
             model="mods.eln.models.NotebookEntry",
@@ -136,8 +148,67 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         )
         return schema
 
+    @staticmethod
+    def _create_document_record(entry, actor, request_id=None):
+        """Create the Platform record and its initial portable document Revision."""
+        from helix_core.public import create_record, save_revision_group
+
+        record = create_record(
+            actor=actor,
+            project=entry.project,
+            schema=entry.schema,
+            name=entry.name,
+            field_values={},
+            request_id=request_id or uuid.uuid4(),
+        )
+        saved = save_revision_group(
+            actor=actor,
+            record_id=record["id"],
+            group_key="document",
+            state_token=record["state_token"],
+            request_id=uuid.uuid4(),
+            snapshot={
+                "contract": {"kind": "data", "id": "helix.eln.document", "version": "1.0.0"},
+                "document": entry.content,
+            },
+            target_model_reference="eln.entry",
+            target_object_id=str(entry.pk),
+            action_type="created",
+        )
+        entry.platform_record_id = record["id"]
+        entry.save(update_fields=["platform_record"])
+        return saved
+
+    @staticmethod
+    def _save_entry_document(entry, actor, document, *, state_token, request_id, name=None):
+        from helix_core.public import save_revision_group
+
+        group = entry.platform_record.revision_groups.filter(
+            group_key="document"
+        ).select_related("current_revision").first()
+        if document is None and group and group.current_revision:
+            snapshot = group.current_revision.snapshot
+        else:
+            snapshot = {
+                "contract": {"kind": "data", "id": "helix.eln.document", "version": "1.0.0"},
+                "document": document,
+            }
+        return save_revision_group(
+            actor=actor,
+            record_id=entry.platform_record_id,
+            group_key="document",
+            state_token=state_token,
+            request_id=request_id or uuid.uuid4(),
+            snapshot=snapshot,
+            target_model_reference="eln.entry",
+            target_object_id=str(entry.pk),
+            action_type="edited",
+            record_name=name,
+        )
+
+    @transaction.atomic
     def perform_create(self, serializer):
-        from bundled.access.access.policies import effective_role, role
+        from helix_core.public import effective_role, role
         from rest_framework.exceptions import PermissionDenied
 
         project = serializer.validated_data["project"]
@@ -157,9 +228,15 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             )
         author = self.request.user if self.request.user.is_authenticated else None
         schema = self._get_default_schema()
+        request_id = serializer.validated_data.pop("request_id", None)
         instance = serializer.save(author=author, schema=schema, project=project)
         sync_entry_content(instance)
-        self._maybe_log("create", instance=instance, validated_data=serializer.validated_data)
+        document_result = self._create_document_record(
+            instance,
+            actor=self.request.user,
+            request_id=request_id,
+        )
+        instance._document_save_metadata = document_result
 
     def _can_edit_entry(self, instance):
         """Check whether request.user can edit *instance*.
@@ -168,7 +245,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         Organization Admin override, or a Read + Write share evaluated via the
         target Project.
         """
-        from bundled.access.access.policies import effective_role
+        from helix_core.public import effective_role
 
         return effective_role(self.request.user, instance) == "edit"
 
@@ -178,26 +255,217 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 "You do not have permission to delete this entry."
             )
         with transaction.atomic():
-            delete_source_descendants(instance)
+            delete_source_descendants(instance, actor=self.request.user)
+            if instance.platform_record_id:
+                from helix_core.public import delete_platform_record
+
+                delete_platform_record(
+                    instance.platform_record,
+                    actor=self.request.user,
+                    source={
+                        "kind": "eln-entry",
+                        "type": ENTRY_MODEL_REFERENCE,
+                        "id": str(instance.pk),
+                    },
+                )
             super().perform_destroy(instance)
 
+    @action(detail=True, methods=["post"], url_path="review")
+    def review(self, request, display_id=None):
+        """Capture and retain a self-contained PDF for the selected saved Revision."""
+        from helix_core.public import effective_role
+        from helix_core.public import link_revision_attachments, upload_attachment
+        from helix_core.public import (
+            PlatformAttachment, PlatformRecord, ScientificRevision,
+        )
+        from helix_core.public import (
+            StateConflict, lock_record_revision_for_update,
+        )
+
+        entry = self.get_object()
+        if effective_role(request.user, entry) != "edit":
+            raise PermissionDenied("You do not have permission to review this entry.")
+        record = entry.platform_record
+        if record is None:
+            raise StateConflict("Save the document before reviewing it.")
+
+        state_token = request.data.get("state_token")
+        revision_id = request.data.get("revision_id")
+        if not state_token or not revision_id:
+            raise DRFValidationError({"review": "state_token and revision_id are required."})
+        group = record.revision_groups.filter(group_key="document").select_related(
+            "current_revision"
+        ).first()
+        revision = group.current_revision if group else None
+        if (
+            revision is None
+            or str(revision.pk) != str(revision_id)
+            or str(record.state_token) != str(state_token)
+        ):
+            raise StateConflict("Review requires the exact current saved document Revision.")
+        if not isinstance(revision.snapshot, dict) or revision.snapshot.get("document") != entry.content:
+            raise StateConflict("The ELN document and its current Platform Revision disagree.")
+
+        source_snapshot = revision.snapshot
+        source_hash = revision.content_hash
+        captured_at = timezone.now()
+        try:
+            pdf_bytes = render_document_pdf(
+                entry_name=entry.name,
+                revision_snapshot=source_snapshot,
+                project_id=record.project_id,
+            )
+            pdf_upload = ContentFile(
+                pdf_bytes,
+                name=f"{entry.display_id}-revision-{revision.sequence}-review.pdf",
+            )
+            pdf_upload.content_type = "application/pdf"
+            uploaded = upload_attachment(
+                project=record.project,
+                actor=request.user,
+                uploaded_file=pdf_upload,
+            )
+        except Exception as exc:
+            if isinstance(exc, (DRFValidationError, PermissionDenied, StateConflict)):
+                raise
+            eln_logger.exception("Failed to render ELN review rendition")
+            raise ReviewCaptureUnavailable() from exc
+
+        try:
+            with transaction.atomic():
+                locked_record, locked_group = lock_record_revision_for_update(
+                    actor=request.user,
+                    record_id=record.pk,
+                    group_key="document",
+                    state_token=state_token,
+                    revision_id=revision.pk,
+                )
+                locked_entry = NotebookEntry.objects.select_for_update().get(pk=entry.pk)
+                active_lock = EntryLock.objects.select_for_update().filter(entry=locked_entry).first()
+                if active_lock and not active_lock.is_stale() and active_lock.held_by_id != request.user.pk:
+                    raise LockedException()
+                if effective_role(request.user, locked_record) != "edit":
+                    raise PermissionDenied("You do not have permission to review this entry.")
+                if (
+                    str(locked_group.pk) != str(group.pk)
+                    or str(locked_record.state_token) != str(state_token)
+                    or str(locked_group.current_revision_id) != str(revision.pk)
+                ):
+                    raise StateConflict("The document changed while its review rendition was being captured.")
+                locked_revision = ScientificRevision.objects.get(
+                    pk=revision.pk, group=locked_group,
+                )
+                if (
+                    locked_revision.content_hash != source_hash
+                    or locked_revision.snapshot != source_snapshot
+                    or locked_entry.platform_record_id != locked_record.pk
+                ):
+                    raise StateConflict("The document changed while its review rendition was being captured.")
+
+                link_revision_attachments(
+                    project_id=locked_record.project_id,
+                    values={"type": "attachmentReference", "value": {"id": str(uploaded.pk)}},
+                    revision=locked_revision,
+                )
+                presentation_context = {
+                    "format": "pdf",
+                    "renderingMode": "saved-document-generic",
+                    "embeddedSource": "source-document.json",
+                    "embeddedResourceCount": embedded_resource_count(source_snapshot),
+                }
+                from helix_core.public import VersionTarget, log_action, retain_rendition
+
+                rendition = retain_rendition(
+                    record_id=locked_record.pk,
+                    group_id=locked_group.pk,
+                    revision_id=locked_revision.pk,
+                    attachment_id=uploaded.pk,
+                    source_hash=source_hash,
+                    actor=request.user,
+                    captured_at=captured_at,
+                    presentation_provider=PRESENTATION_PROVIDER,
+                    presentation_version=PRESENTATION_VERSION,
+                    presentation_context=presentation_context,
+                )
+
+                log_action(
+                    user=request.user,
+                    action="eln.entry.reviewed",
+                    target_type="eln.entry",
+                    target_id=locked_entry.pk,
+                    action_type="reviewed",
+                    request_id=uuid.uuid4(),
+                    version_target=VersionTarget(
+                        reference="helix.record.revision",
+                        object_id=str(locked_revision.pk),
+                        label=str(locked_revision.sequence),
+                        content_hash=source_hash,
+                    ),
+                    metadata={
+                        "record_id": str(locked_record.pk),
+                        "group_id": str(locked_group.pk),
+                        "group_key": "document",
+                        "revision_id": str(locked_revision.pk),
+                        "source_hash": source_hash,
+                        "rendition_id": str(rendition.pk),
+                        "attachment_id": str(uploaded.pk),
+                        "captured_at": captured_at.isoformat(),
+                        "presentation_provider": PRESENTATION_PROVIDER,
+                        "presentation_version": PRESENTATION_VERSION,
+                    },
+                )
+            return Response({
+                "id": str(rendition.pk),
+                "revision_id": str(revision.pk),
+                "source_hash": source_hash,
+                "attachment_id": str(uploaded.pk),
+                "download_url": f"/api/records/{record.pk}/attachments/{uploaded.pk}/content/?revision_id={revision.pk}",
+                "captured_at": captured_at.isoformat(),
+                "presentation_provider": PRESENTATION_PROVIDER,
+                "presentation_version": PRESENTATION_VERSION,
+                "presentation_context": presentation_context,
+            }, status=status.HTTP_201_CREATED)
+        except Exception:
+            # Database rollback leaves the attachment as an unreferenced stage.
+            # Remove both staged bytes and the stage row, so no dangling file
+            # remains after a failed review or audit write.
+            default_storage.delete(uploaded.storage_key)
+            PlatformAttachment.objects.filter(pk=uploaded.pk, status="staged").delete()
+            raise
+
+    @action(detail=True, methods=["get"], url_path="renditions")
+    def renditions(self, request, display_id=None):
+        """List immutable captures while applying the entry's current access policy."""
+        from helix_core.public import effective_role
+
+        entry = self.get_object()
+        if effective_role(request.user, entry) not in {"read", "edit"}:
+            raise PermissionDenied("You do not have permission to read this entry's history.")
+        results = []
+        from helix_core.public import list_renditions
+        results = list_renditions(record_id=entry.platform_record_id)
+        return Response({"results": results})
+
+    @transaction.atomic
     def perform_update(self, serializer):
-        """Save an entry update with content versioning and hash-based no-op.
+        """Save an entry update through the Platform Revision boundary.
 
         Flow:
         0. Check lock — reject 423 if another user holds a non-stale lock.
         1. Enforce access — reject 403 for Read viewers, cross-subtree moves.
         2. Validate same-project move — reject cross-Project folder changes.
-        3. Hash incoming content, compare with latest ContentVersion.
+        3. Compare incoming content with the current Platform document Revision.
            If hash matches AND no other fields changed → return early (no-op).
         4. Save the entry via the serializer.
         5. Run the sync pipeline.
-        6. Create a ContentVersion only if content actually changed.
+        6. Save a new Platform document Revision only if content changed.
         7. Log an "edited" action with version metadata (if content changed).
         """
         instance = serializer.instance
         validated_data = serializer.validated_data
         content = validated_data.get("content")
+        expected_state_token = validated_data.pop("state_token", None)
+        request_id = validated_data.pop("request_id", None) or uuid.uuid4()
 
         # ── Lock enforcement ───────────────────────────────────────────────
         lock: EntryLock | None = None
@@ -217,11 +485,11 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         # ── Cross-Project move rejection ───────────────────────────────────
         if "source_type" in validated_data or "source_id" in validated_data:
-            from bundled.access.access.policies import effective_role
-            from helix_core.core.models import Project
+            from helix_core.public import effective_role
+            from helix_core.public import Project
 
             if validated_data.get("source_type") is None:
-                from helix_core.core.models import Folder
+                from helix_core.public import Folder
                 new_source = instance.project if validated_data.get("source_id") is None else Folder.objects.get(pk=validated_data["source_id"])
             else:
                 new_source = instance.resolve_source(
@@ -241,21 +509,20 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 )
             instance.set_source(new_source)
 
-        # Determine save_mode from request header.
-        valid_modes = {choice[0] for choice in ContentVersion.SAVE_MODE_CHOICES}
-        save_mode = self.request.headers.get("X-Save-Mode", DEFAULT_SAVE_MODE)
-        if save_mode not in valid_modes:
-            save_mode = DEFAULT_SAVE_MODE
+        # Resolve the authoritative document from its Platform Revision Group.
+        old_content = instance.content
+        current_document = old_content
+        if instance.platform_record_id:
+            document_group = instance.platform_record.revision_groups.filter(
+                group_key="document"
+            ).select_related("current_revision").first()
+            if document_group and document_group.current_revision:
+                current_document = document_group.current_revision.snapshot.get(
+                    "document", old_content
+                )
 
         # ── Determine whether content actually changed ──────────────────
-        content_changed = False
-        if content is not None:
-            incoming_hash = ContentVersion.hash_content(content)
-            latest_version = ContentVersion.latest_for(instance)
-            if latest_version is None:
-                content_changed = True
-            elif latest_version.content_hash != incoming_hash:
-                content_changed = True
+        content_changed = content is not None and content != current_document
             # else: hash matches → content unchanged
 
         # ── Hash-based no-op short-circuit ──────────────────────────────
@@ -281,39 +548,38 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 return  # true no-op — nothing changed
 
         # ── Save & sync ─────────────────────────────────────────────────
-        # Capture pre-save content for fingerprint comparison.
-        # serializer.instance is the DB object before save() mutates it.
-        old_content = serializer.instance.content
+        document_result = None
+        name_changed = validated_data.get("name", instance.name) != instance.name
+        if instance.platform_record_id and (content_changed or name_changed):
+            document_result = self._save_entry_document(
+                instance,
+                self.request.user,
+                content if content_changed else None,
+                state_token=expected_state_token or instance.platform_record.state_token,
+                request_id=request_id,
+                name=validated_data.get("name") if name_changed else None,
+            )
         try:
             instance = serializer.save()
         except DjangoValidationError as exc:
             raise DRFValidationError(exc.message_dict) from exc
-        sync_entry_content(instance, old_content=old_content)
-
-        # ── Create ContentVersion (content changes only) ────────────────
-        version_metadata: dict = {}
+        if document_result:
+            instance.platform_record.refresh_from_db()
         if content_changed:
-            version_number = ContentVersion.next_version_number(instance)
-            cv = ContentVersion.objects.create(
-                entry=instance,
-                content=instance.content,
-                content_hash=ContentVersion.hash_content(instance.content),
-                version_number=version_number,
-                created_by=self.request.user,
-                save_mode=save_mode,
-            )
-            version_metadata = {
-                "version_id": cv.id,
-                "version_number": version_number,
-                "save_mode": save_mode,
-            }
+            sync_entry_content(instance, old_content=old_content)
+
+        version_metadata = {
+            "revision_id": document_result["revision_id"],
+            "group_id": document_result["group_id"],
+        } if document_result else {}
 
         # ── Log action (delegated to ActionLoggingMixin) ────────────────
         # Suppress eln.entry.edited when the frontend signals that block-level
         # actions exist for this save cycle (X-Block-Actions header). Block
         # actions are the canonical audit record for content changes.
         instance._version_metadata = version_metadata
-        if not self.request.headers.get("X-Block-Actions"):
+        instance._document_save_metadata = version_metadata
+        if not document_result:
             self._maybe_log(
                 self.action,
                 instance=instance,
@@ -336,7 +602,19 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             for entry in list(NotebookEntry.objects.all()):
                 if not NotebookEntry.objects.filter(pk=entry.pk).exists():
                     continue
-                delete_source_descendants(entry)
+                delete_source_descendants(entry, actor=request.user)
+                if entry.platform_record_id:
+                    from helix_core.public import delete_platform_record
+
+                    delete_platform_record(
+                        entry.platform_record,
+                        actor=request.user,
+                        source={
+                            "kind": "eln-entry",
+                            "type": ENTRY_MODEL_REFERENCE,
+                            "id": str(entry.pk),
+                        },
+                    )
                 entry.delete()
                 count += 1
         return Response({"deleted": count})
@@ -408,9 +686,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     def _list_actions(self, request, display_id):
         entry = self.get_object()
-        qs = ElnAction.objects.filter(
-            target_type="eln.entry",
-            target_id=entry.id,
+        qs = ActionLogEntry.objects.filter(
+            target_model_reference="eln.entry",
+            target_object_id=str(entry.id),
         ).select_related("performed_by").order_by("-created_at")
 
         # Filter by action_type (e.g. "edited", "created")
@@ -557,7 +835,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             423 — another user holds an active lock.
             403 — the requester cannot Edit this entry.
         """
-        from bundled.access.access.policies import effective_role
+        from helix_core.public import effective_role
         from rest_framework.exceptions import PermissionDenied
 
         entry = self.get_object()
@@ -651,7 +929,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             204 — lock released, didn't exist, or held by another user.
             403 — the requester cannot Edit this entry.
         """
-        from bundled.access.access.policies import effective_role
+        from helix_core.public import effective_role
         from rest_framework.exceptions import PermissionDenied
 
         entry = self.get_object()
@@ -685,7 +963,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             acquired_at: str | None  (ISO 8601)
             last_activity_at: str | None  (ISO 8601)
         """
-        from bundled.access.access.policies import effective_role
+        from helix_core.public import effective_role
 
         entry = self.get_object()
 

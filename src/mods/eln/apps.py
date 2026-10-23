@@ -1,6 +1,9 @@
-from django.apps import AppConfig
+from helix_core.public import load_entry_point_manifest
+from helix_core.public import make_app_config
 
 
-class ElnConfig(AppConfig):
-    default_auto_field = "django.db.models.BigAutoField"
-    name = "mods.eln"
+ModAppConfig = make_app_config(
+    __package__,
+    load_entry_point_manifest("helix.eln", __package__),
+    "eln",
+)

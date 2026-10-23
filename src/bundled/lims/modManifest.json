@@ -1,7 +1,9 @@
 {
-  "vendor": "helix",
-  "name": "lims",
+  "id": "helix.lims",
   "displayName": "LIMS",
   "version": "0.1.0",
-  "dependsOn": []
+  "requiresHelix": ">=1.0.0",
+  "artifacts": ["frontend", "backend"],
+  "dependsOn": [],
+  "contracts": ["contracts/register-rows.json"]
 }

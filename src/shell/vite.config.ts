@@ -4,6 +4,8 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { parseCatalog } from "./src/mod-system/catalog";
 
 const repoRoot = path.resolve(import.meta.dirname, "../..");
 const nodeModules = path.resolve(repoRoot, "node_modules");
@@ -89,9 +91,56 @@ function modResolutionPlugin() {
   };
 }
 
+/** Reject a catalog produced for a different installed package set. */
+function modCatalogPlugin() {
+  return {
+    name: "validate-mod-catalog",
+    configResolved() {
+      const catalogPath = process.env.HELIX_MOD_CATALOG;
+      if (!catalogPath) return;
+      const installedFingerprint =
+        process.env.HELIX_INSTALLATION_FINGERPRINT;
+      if (!installedFingerprint) {
+        throw new Error(
+          "HELIX_INSTALLATION_FINGERPRINT is required with HELIX_MOD_CATALOG.",
+        );
+      }
+      const catalog = JSON.parse(readFileSync(catalogPath, "utf-8"));
+      parseCatalog(catalog, installedFingerprint);
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [tailwindcss(), react(), useSyncExternalStorePlugin(), modResolutionPlugin()],
+  plugins: [
+    tailwindcss(),
+    react(),
+    useSyncExternalStorePlugin(),
+    modResolutionPlugin(),
+    modCatalogPlugin(),
+  ],
   resolve: {
+    // Match public entry points exactly so the root alias cannot swallow subpaths.
+    alias: [
+      { find: /^@helix\/mod-api$/, replacement: path.resolve(repoRoot, "src/mod-api/src/index.ts") },
+      ...Object.entries({
+        Mod: "src/Mod.ts",
+        editor: "src/editor.ts",
+        blocks: "src/blocks.ts",
+        "portable-blocks": "src/portableBlocks.tsx",
+        api: "src/api.ts",
+        contracts: "src/contracts.ts",
+        records: "src/records.tsx",
+        theme: "src/theme.ts",
+        host: "src/elnHost.ts",
+        manifest: "modManifest.json",
+        "style.css": "style.css",
+        "theme.css": "style.css",
+      }).map(([subpath, source]) => ({
+        find: new RegExp(`^@helix/mod-api/${subpath.replace(/\./g, "\\.")}$`),
+        replacement: path.resolve(repoRoot, "src/mod-api", source),
+      })),
+    ],
     // Prevent duplicate instances when modules are resolved via
     // different paths.  React dedupe avoids double React trees;
     // prosemirror dedupe prevents multiple copies of DecorationSet /
@@ -136,7 +185,7 @@ export default defineConfig({
     css: true,
     include: [
       "src/**/*.{test,spec}.?(c|m)[jt]s?(x)",
-      "../mods/**/*.{test,spec}.?(c|m)[jt]s?(x)",
+      "../mod-api/**/*.{test,spec}.?(c|m)[jt]s?(x)",
       "../bundled/**/*.{test,spec}.?(c|m)[jt]s?(x)",
     ],
     exclude: ["e2e/**", "node_modules/**"],

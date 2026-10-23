@@ -11,13 +11,13 @@
  *    notes without checkboxes, visually distinct.
  */
 import { useCallback, useState } from "react";
-import { createBlockAdapter } from "../../../shell/src/mod-system/createBlockAdapter";
+import { createBlockAdapter } from "@helix/mod-api/host";
 import { Circle, CheckCircle, Plus, Loader } from "lucide-react";
-import { get } from "../../../shell/src/api/client";
+import { get } from "@helix/mod-api/host";
 import type { Protocol, ProtocolItem } from "../types";
-import { usePickerPortal } from "../../../shell/src/shared/hooks/usePickerPortal";
-import { PickerPortal } from "../../../shell/src/shared/components/PickerPortal";
-import { IconButton } from "../../../shell/src/shared/primitives/IconButton";
+import { usePickerPortal } from "@helix/mod-api/host";
+import { PickerPortal } from "@helix/mod-api/host";
+import { IconButton } from "@helix/mod-api/host";
 
 // ── Types ───────────────────────────────────────────────────────────────
 

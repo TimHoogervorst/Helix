@@ -1,12 +1,12 @@
 """Tests for the Metric Card API endpoints in the home mod."""
 
 from helix_core.core.models import User
-from helix_core.core.tests.base import BaseTestCase
+from helix_core.core.tests.base import BundledApiTestCase
 from bundled.shared.home.models import Card
 from bundled.lims.models import LimsView, Metric
 
 
-class CardApiTests(BaseTestCase):
+class CardApiTests(BundledApiTestCase):
     """Card CRUD, list, fork, and global card protection."""
 
     @classmethod
@@ -346,7 +346,7 @@ class CardApiTests(BaseTestCase):
         self.assertFalse(response.data["is_global"])
 
 
-class CardSeedTests(BaseTestCase):
+class CardSeedTests(BundledApiTestCase):
     """Tests for the boot-seeded global cards."""
 
     @classmethod

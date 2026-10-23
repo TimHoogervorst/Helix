@@ -96,8 +96,9 @@ class UnifiedActionEndpointTests(TestCase):
                     },
                 )
                 self.assertEqual(
-                    set(response.data[0]["performed_by"]), {"id", "username"}
+                    set(response.data[0]["performed_by"]), {"id", "username", "displayName"}
                 )
+                self.assertEqual(response.data[0]["performed_by"]["displayName"], self.user.username)
                 row = ActionLogEntry.objects.get(action=verb)
                 self.assertEqual(row.performed_by, self.user)
                 self.assertEqual(row.initiating_mod_id, "external")

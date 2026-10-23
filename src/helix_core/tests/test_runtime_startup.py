@@ -10,10 +10,13 @@ import pytest
 
 @pytest.mark.parametrize("without_external_mods", ["1", "0"])
 def test_server_registers_bundled_routes_after_separate_migration(tmp_path, without_external_mods):
+    import config
+
     src = Path(__file__).resolve().parents[2]
+    server = Path(config.__file__).resolve().parent.parent
     env = {
         **os.environ,
-        "PYTHONPATH": os.pathsep.join((str(src), str(src / "server"))),
+        "PYTHONPATH": os.pathsep.join((str(src), str(server))),
         "DJANGO_SETTINGS_MODULE": "config.settings",
         "DATABASE_URL": "sqlite://startup.sqlite3",
         "HELIX_NO_EXTERNAL_MODS": without_external_mods,
@@ -26,8 +29,8 @@ def test_server_registers_bundled_routes_after_separate_migration(tmp_path, with
         )
         assert result.returncode == 0, result.stdout + result.stderr
 
-    run(str(src / "server" / "manage.py"), "check")
-    run(str(src / "server" / "manage.py"), "migrate", "--noinput")
+    run(str(server / "manage.py"), "check")
+    run(str(server / "manage.py"), "migrate", "--noinput")
     run("-c", """
 import django
 django.setup()

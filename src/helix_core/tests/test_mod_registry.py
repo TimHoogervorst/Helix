@@ -16,7 +16,7 @@ SCHEMA_PATH = Path(__file__).parent / "schemas" / "mod-registry-response.json"
 MOD_REGISTRY_RESPONSE_SCHEMA = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 TOP_LEVEL_NON_WORKSPACE = {
     "columnTypes", "iconLibrary", "colorPalette", "formulaFunctions",
-    "services", "blocks", "slots", "metricProviders",
+    "services", "blocks", "slots", "metricProviders", "recordActions",
 }
 
 
@@ -43,9 +43,22 @@ class ModRegistryContractTests(TestCase):
 
     def test_response_matches_json_schema(self):
         from jsonschema import validate
+        from unittest.mock import patch
+        from helix_core.mod_system.registry import BackendModRegistry
+        from helix_core.public import ModRegistrar, load_entry_point_manifest
 
-        response = self.client.get("/api/mod-registry/")
+        backend_registry = BackendModRegistry()
+        registrar = ModRegistrar(load_entry_point_manifest(
+            "test.external", "helix_core.tests.fixtures.external_mod",
+        ), backend_registry)
+        action = registrar.register_record_action(
+            "edit", label="Edit fixture", action_contract_id="test.external.edit",
+            action_contract_version="1.0.0", handler=lambda context, inputs: None,
+        )
+        with patch("helix_core.mod_system.registry.registry", backend_registry):
+            response = self.client.get("/api/mod-registry/")
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["recordActions"][0]["id"], action.id)
         validate(instance=response.data, schema=MOD_REGISTRY_RESPONSE_SCHEMA)
 
     def test_formula_catalog_declares_client_implementation(self):

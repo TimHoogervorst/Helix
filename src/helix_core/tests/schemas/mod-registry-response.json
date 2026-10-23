@@ -107,6 +107,22 @@
         "required": ["id", "argumentKinds", "resultKind", "description", "clientImplemented"]
       }
     },
+    "recordActions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "contract_id": { "type": "string" },
+          "contract_version": { "type": "string" },
+          "provider_mod_id": { "type": "string" },
+          "provider_mod_version": { "type": "string" }
+        },
+        "required": ["id", "label", "contract_id", "contract_version", "provider_mod_id", "provider_mod_version"],
+        "additionalProperties": false
+      }
+    },
     "services": {
       "type": "array",
       "description": "Registered cross-mod services and content sources.",
@@ -164,7 +180,7 @@
     }
   },
   "patternProperties": {
-    "^(?!columnTypes$|iconLibrary$|colorPalette$|formulaFunctions$|services$|blocks$|slots$|metricProviders$)[a-z][a-z0-9_-]*$": {
+    "^(?!columnTypes$|iconLibrary$|colorPalette$|formulaFunctions$|services$|blocks$|slots$|metricProviders$|recordActions$)[a-z][a-z0-9_-]*$": {
       "type": "object",
       "properties": {
         "workspaceId": {

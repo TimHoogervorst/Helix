@@ -5,36 +5,12 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import override_settings
 from rest_framework.test import APIClient
 
 from helix_core.core.models import Project, User
-from helix_core.core.tests.base import BaseTestCase
+from bundled.lims.tests.base import LimsApiTestCase
 from helix_core.models import SchemaType, Schema
 from bundled.lims.models import Action as LimsAction, Entity, LimsView, Metric
-
-
-class LimsApiTestCase(BaseTestCase):
-    """Expose LIMS API routes explicitly while registration is test-isolated."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls._urlconf_override = override_settings(
-            ROOT_URLCONF="bundled.lims.tests.urls",
-        )
-        cls._urlconf_override.enable()
-        try:
-            super().setUpClass()
-        except Exception:
-            cls._urlconf_override.disable()
-            raise
-
-    @classmethod
-    def tearDownClass(cls):
-        try:
-            super().tearDownClass()
-        finally:
-            cls._urlconf_override.disable()
 
 
 def folder_source(folder):
@@ -520,8 +496,8 @@ class EntityActionLoggingTests(LimsApiTestCase):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-class LimsActionLoggingFailOpenTests(LimsApiTestCase):
-    """Test that action logging failure never breaks LIMS responses."""
+class LimsActionLoggingFailureTests(LimsApiTestCase):
+    """Record creation requires its atomic audit; legacy delete logging is separate."""
 
     @classmethod
     def setUpTestData(cls):
@@ -537,15 +513,23 @@ class LimsActionLoggingFailOpenTests(LimsApiTestCase):
             name="DNA", prefix="DNA", schema_type=self.schema_type,
         )
 
-    def test_log_exception_does_not_break_entity_create(self):
+    def test_log_exception_rolls_back_entity_create(self):
+        from helix_core.models import ActionLogEntry, PlatformRecord, ScientificRevision
+
+        before = (Entity.objects.count(), PlatformRecord.objects.count(),
+                  ScientificRevision.objects.count(), ActionLogEntry.objects.count())
         with patch(MIXIN_LOG_ACTION_PATH, side_effect=RuntimeError("DB down")):
-            response = self.client.post(
-                "/api/lims/entities/",
-                {"name": "Survivor", "schema": self.dna_schema.id, **folder_source(self.folder)},
-                format="json",
-            )
-        self.assertEqual(response.status_code, 201)
-        self.assertIn("id", response.data)
+            with self.assertRaisesRegex(RuntimeError, "DB down"):
+                self.client.post(
+                    "/api/lims/entities/",
+                    {"name": "Rolled back", "schema": self.dna_schema.id, **folder_source(self.folder)},
+                    format="json",
+                )
+        self.assertEqual(
+            (Entity.objects.count(), PlatformRecord.objects.count(),
+             ScientificRevision.objects.count(), ActionLogEntry.objects.count()),
+            before,
+        )
 
     def test_log_exception_does_not_break_entity_delete(self):
         entity = Entity.objects.create(

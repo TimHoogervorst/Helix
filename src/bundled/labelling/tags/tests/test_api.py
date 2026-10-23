@@ -5,7 +5,7 @@ All tests exercise the API through HTTP calls using DRF's APIClient.
 """
 from unittest.mock import patch
 
-from helix_core.core.tests.base import BaseTestCase
+from helix_core.core.tests.base import BundledApiTestCase
 from helix_core.core.models import User
 from bundled.access.access.models import Organization, OrganizationMembership, OrganizationRole
 from bundled.labelling.tags.models import Tag
@@ -20,7 +20,7 @@ def _log_kwargs(mock):
     return mock.call_args[1]
 
 
-class TagsApiTests(BaseTestCase):
+class TagsApiTests(BundledApiTestCase):
     def setUp(self):
         super().setUp()
         self.organization = Organization.objects.create(name="Tags Test Organization")
@@ -216,7 +216,7 @@ class TagsApiTests(BaseTestCase):
         self.assertTrue(Tag.objects.filter(id=tag.id).exists())
 
 
-class TagsActionLoggingTests(BaseTestCase):
+class TagsActionLoggingTests(BundledApiTestCase):
     """Test that Tag CRUD operations log actions via ActionLoggingMixin."""
 
     def setUp(self):

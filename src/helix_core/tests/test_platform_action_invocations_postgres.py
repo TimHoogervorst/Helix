@@ -2,6 +2,7 @@
 
 import threading
 from unittest import skipUnless
+from unittest.mock import patch
 from uuid import uuid4
 
 from django.db import close_old_connections, connection, connections, transaction
@@ -437,6 +438,21 @@ class RevisionGroupPostgresRaceTests(TransactionTestCase):
     """Real concurrent calls through the public Mod-owned save interface."""
 
     def setUp(self):
+        self.registry = BackendModRegistry()
+        self.enterContext(patch("helix_core.mod_system.registry.registry", self.registry))
+        registrar = ModRegistrar(ModManifest(
+            id="fixture.revisionrace", display_name="Revision Race Fixture",
+            version="1.0.0", requires_helix=">=1.0.0", artifacts=("backend",),
+            depends_on=(),
+        ), self.registry)
+        document = registrar.register_model(
+            "document", "helix_core.tests.fixtures.document.Document",
+        )
+        registrar.register_revision_group(
+            "document", document,
+            target_model_reference="fixture.revision-race.document",
+            action_identities={"edited": "fixture.revisionrace.document.edited"},
+        )
         self.user = User.objects.create_user(username="revision_racer", password="pass")
         self.project = Project.objects.create(name="Revision Race")
         Grant.objects.create(project=self.project, user=self.user, role=ProjectRole.EDIT)
@@ -511,14 +527,16 @@ class RevisionGroupPostgresRaceTests(TransactionTestCase):
         ]
         for thread in threads:
             thread.start()
-        start.wait(timeout=10)
-        if gate_first_action:
-            self.assertTrue(entered.wait(timeout=10))
+        try:
+            start.wait(timeout=10)
+            if gate_first_action:
+                self.assertTrue(entered.wait(timeout=10), results)
+        finally:
             release.set()
-        for thread in threads:
-            thread.join(timeout=15)
-        if write_patch is not None:
-            write_patch.stop()
+            for thread in threads:
+                thread.join(timeout=15)
+            if write_patch is not None:
+                write_patch.stop()
         self.assertTrue(all(not thread.is_alive() for thread in threads))
         self.assertEqual(len(set(connection_ids)), len(snapshots))
         return results

@@ -7,7 +7,7 @@ DELETE /api/core/tabs/{id}/  — delete a pin
 """
 from unittest.mock import patch
 
-from helix_core.core.tests.base import BaseTestCase
+from helix_core.core.tests.base import BundledApiTestCase
 
 MIXIN_LOG_ACTION_PATH = "helix_core.actions.mixins.log_action"
 
@@ -19,7 +19,7 @@ def _log_kwargs(mock):
     return mock.call_args[1]
 
 
-class PinnedWorkspaceApiTests(BaseTestCase):
+class PinnedWorkspaceApiTests(BundledApiTestCase):
     """CRUD tests for the tabs API, scoped to the authenticated user."""
 
     def setUp(self):
@@ -157,7 +157,7 @@ class PinnedWorkspaceApiTests(BaseTestCase):
         self.assertEqual(response.data["url"], "/w/helix/lims/workspace/BLOOD1")
 
 
-class TabsActionLoggingTests(BaseTestCase):
+class TabsActionLoggingTests(BundledApiTestCase):
     """Test that tab/untab operations log actions via ActionLoggingMixin."""
 
     def setUp(self):
@@ -232,7 +232,7 @@ class TabsActionLoggingTests(BaseTestCase):
         self.mock_log.assert_not_called()
 
 
-class TabFoldersAndLayoutApiTests(BaseTestCase):
+class TabFoldersAndLayoutApiTests(BundledApiTestCase):
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)
@@ -313,7 +313,7 @@ class TabFoldersAndLayoutApiTests(BaseTestCase):
         self.assertIsNone(tabs[second["id"]]["folder"])
 
 
-class TabFolderActionLoggingTests(BaseTestCase):
+class TabFolderActionLoggingTests(BundledApiTestCase):
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(user=self.user)

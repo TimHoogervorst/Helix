@@ -41,6 +41,22 @@ Run it from `src/` (not `src/server/`): the `testpaths` in `src/pytest.ini` only
 
 Do **not** use `python manage.py test` — the Django runner needs pytest installed anyway (several `helix_core` tests import it) and it is not the canonical path.
 
+### Endpoint fixtures and startup coverage
+
+Pytest startup deliberately leaves database-backed Mod activation disabled.
+Endpoint integration suites that need Bundled routes use `BundledApiTestCase`,
+whose explicit URLConf includes the endpoints without seeding production data.
+LIMS API and access suites extend `LimsApiTestCase`, which installs its content
+source in scoped registry stores and restores them after each test. Do not turn
+on `HELIX_ACTIVATE_MODS_IN_TESTS` globally: production schema seeding can collide
+with test-owned schemas and change metric filtering.
+
+`test_runtime_startup.py` independently checks real activation across check,
+migrate, and server processes. It resolves the Django project from its imported
+package so it works in both the source and Docker layouts. ELN's shipped
+contract-artifact check lives in `mods/eln/tests/test_contract_artifacts.py`;
+the Platform suite retains generic recursive-contract validation.
+
 ### Target a run while implementing
 
 The full suite is the slow path. When you're iterating on one area, target just the tree, mod, file, or a keyword so you don't pay for everything:

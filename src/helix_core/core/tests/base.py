@@ -3,7 +3,7 @@ Shared base test classes for backend tests.
 
 Import from here instead of copy-pasting setUp boilerplate into every test file.
 """
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from helix_core.core.models import Folder, Project, User
@@ -65,3 +65,8 @@ class BaseServiceTestCase(TestCase):
             parent=None,
             project=self.project,
         )
+
+
+@override_settings(ROOT_URLCONF="helix_core.tests.bundled_urls")
+class BundledApiTestCase(BaseTestCase):
+    """Exercise bundled endpoints without activating or seeding every Mod."""

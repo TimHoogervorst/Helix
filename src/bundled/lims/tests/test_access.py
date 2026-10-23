@@ -12,7 +12,7 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APIClient
 
 from helix_core.core.models import Folder, Project, User
-from helix_core.core.tests.base import BaseTestCase
+from bundled.lims.tests.base import LimsApiTestCase
 from helix_core.models import Schema, SchemaType
 from bundled.access.access.models import (
     FolderShare,
@@ -126,7 +126,7 @@ class _LimsAccessMixin:
 # ── Entity create ─────────────────────────────────────────────────────────────
 
 
-class EntityCreateAccessTests(_LimsAccessMixin, BaseTestCase):
+class EntityCreateAccessTests(_LimsAccessMixin, LimsApiTestCase):
     """Entity creation requires Edit on the destination folder's Project."""
 
     def setUp(self):
@@ -185,7 +185,7 @@ class EntityCreateAccessTests(_LimsAccessMixin, BaseTestCase):
 # ── Entity update ─────────────────────────────────────────────────────────────
 
 
-class EntityUpdateAccessTests(_LimsAccessMixin, BaseTestCase):
+class EntityUpdateAccessTests(_LimsAccessMixin, LimsApiTestCase):
     """Entity updates require Edit; folder moves clamp to the shared subtree."""
 
     def setUp(self):
@@ -255,7 +255,7 @@ class EntityUpdateAccessTests(_LimsAccessMixin, BaseTestCase):
 # ── Entity delete ─────────────────────────────────────────────────────────────
 
 
-class EntityDeleteAccessTests(_LimsAccessMixin, BaseTestCase):
+class EntityDeleteAccessTests(_LimsAccessMixin, LimsApiTestCase):
     """Entity deletion requires Edit."""
 
     def setUp(self):
@@ -310,7 +310,7 @@ class EntityDeleteAccessTests(_LimsAccessMixin, BaseTestCase):
 # ── Batch resolution ──────────────────────────────────────────────────────────
 
 
-class EntityBatchAccessTests(_LimsAccessMixin, BaseTestCase):
+class EntityBatchAccessTests(_LimsAccessMixin, LimsApiTestCase):
     """Batch resolution requires Edit on every resolved entity."""
 
     def setUp(self):
@@ -358,7 +358,7 @@ class EntityBatchAccessTests(_LimsAccessMixin, BaseTestCase):
 # ── Batch registration ────────────────────────────────────────────────────────
 
 
-class BatchRegisterAccessTests(_LimsAccessMixin, BaseTestCase):
+class BatchRegisterAccessTests(_LimsAccessMixin, LimsApiTestCase):
     """Batch registration enforces the same Edit rule as single mutations."""
 
     def setUp(self):

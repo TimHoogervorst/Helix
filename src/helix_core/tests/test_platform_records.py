@@ -29,6 +29,7 @@ from helix_core.models import (
     PlatformRendition,
     AttachmentRevisionLink,
     ActionExecutionReceipt,
+    ActionInvocationReceipt,
     RetainedContract,
     Schema,
     SchemaType,
@@ -1016,14 +1017,63 @@ class PlatformRecordApiTests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["field_values"]["field-concentration"]["value"], 5.5)
         self.assertEqual(response.data["revision"]["sequence"], 2)
+        self.assertTrue(ActionInvocationReceipt.objects.filter(
+            actor=self.user, invocation_id=legacy_request["request_id"]
+        ).exists())
+        self.assertFalse(ActionExecutionReceipt.objects.filter(
+            actor=self.user, request_id=legacy_request["request_id"]
+        ).exists())
         action = ActionLogEntry.objects.order_by("-pk").first()
         self.assertEqual(action.action, "fixture.science:edit-record")
         self.assertEqual(action.initiating_mod_id, "fixture.science")
-        self.backend_registry._record_actions.pop("fixture.science:edit-record")
+        removed_provider = self.backend_registry._record_actions.pop("fixture.science:edit-record")
         retry = self.client.post("/api/actions/execute/", legacy_request, format="json")
         self.assertEqual(retry.status_code, 200, retry.data)
         self.assertEqual(retry.data, response.data)
         self.assertEqual(ActionLogEntry.objects.count(), 2)
+        self.backend_registry._record_actions["fixture.science:edit-record"] = removed_provider
+
+        # Action Invocation IDs and older record-edit request IDs remain
+        # distinct namespaces, even when the same external ID is reused.
+        form_edit = self.client.post(f"/api/records/{created.data['id']}/form/", {
+            "state_token": response.data["state_token"],
+            "request_id": legacy_request["request_id"],
+            "field_values": {"field-concentration": {"type": "number", "value": 6.5}},
+        }, format="json")
+        self.assertEqual(form_edit.status_code, 200, form_edit.data)
+        self.assertTrue(ActionExecutionReceipt.objects.filter(
+            actor=self.user, request_id=legacy_request["request_id"]
+        ).exists())
+        removed_provider_for_deleted_recovery = self.backend_registry._record_actions.pop("fixture.science:edit-record")
+        deleted_legacy_target = self.client.delete(f"/api/records/{created.data['id']}/")
+        self.assertEqual(deleted_legacy_target.status_code, 204, deleted_legacy_target.data)
+        missing_legacy_replay = self.client.post("/api/actions/execute/", legacy_request, format="json")
+        self.assertEqual(missing_legacy_replay.status_code, 200, missing_legacy_replay.data)
+        self.assertEqual(missing_legacy_replay.data, {"targetUnavailable": True, "replayed": True})
+        self.backend_registry._record_actions["fixture.science:edit-record"] = removed_provider_for_deleted_recovery
+
+        rollback_response = self.client.post("/api/records/", self.create_payload(name="Receipt rollback"), format="json")
+        self.assertEqual(rollback_response.status_code, 201, rollback_response.data)
+        rollback_request = {
+            **legacy_request,
+            "record_id": rollback_response.data["id"],
+            "state_token": rollback_response.data["state_token"],
+            "request_id": str(uuid4()),
+            "inputs": {"concentration": 7.5},
+        }
+        actions_before_failure = ActionLogEntry.objects.count()
+        with patch.object(ActionInvocationReceipt.objects, "create", side_effect=RuntimeError("receipt failed")):
+            failed = self.client.post("/api/actions/execute/", rollback_request, format="json")
+        self.assertEqual(failed.status_code, 500)
+        rollback_instance = PlatformRecord.objects.get(pk=rollback_response.data["id"])
+        self.assertEqual(rollback_instance.state_token, UUID(rollback_response.data["state_token"]))
+        self.assertEqual(ActionLogEntry.objects.count(), actions_before_failure)
+        self.assertFalse(ActionInvocationReceipt.objects.filter(
+            actor=self.user, invocation_id=rollback_request["request_id"]
+        ).exists())
+        retried = self.client.post("/api/actions/execute/", rollback_request, format="json")
+        self.assertEqual(retried.status_code, 200, retried.data)
+        self.assertEqual(retried.data["field_values"]["field-concentration"]["value"], 7.5)
 
     def test_action_invocation_returns_actor_scoped_recoverable_outcome(self):
         created = self.client.post("/api/records/", self.create_payload(), format="json")
@@ -1086,6 +1136,7 @@ class PlatformRecordApiTests(TestCase):
         self.assertFalse(first.data["replayed"])
         self.assertEqual(first.data["participants"][0]["after"]["sequence"], 2)
         self.assertEqual(first.data["outputs"]["concentration"]["value"], 5.5)
+        self.assertFalse(ActionExecutionReceipt.objects.filter(actor=self.user).exists())
 
         # A retained receipt works without loading an executable provider.
         self.backend_registry._record_actions.pop("fixture.science:edit-record")
@@ -1110,9 +1161,25 @@ class PlatformRecordApiTests(TestCase):
         Grant.objects.filter(project=self.project, user=self.user).delete()
         denied_recovery = self.client.get("/api/action-invocations/lab-run-2026-17/")
         self.assertEqual(denied_recovery.status_code, 403)
+        Grant.objects.create(project=self.project, user=self.user, role=ProjectRole.READ)
+        read_only_recovery = self.client.get("/api/action-invocations/lab-run-2026-17/")
+        self.assertEqual(read_only_recovery.status_code, 200, read_only_recovery.data)
+        self.assertTrue(read_only_recovery.data["replayed"])
+        Grant.objects.filter(project=self.project, user=self.user).delete()
         Grant.objects.create(project=self.project, user=self.user, role=ProjectRole.EDIT)
         deleted = self.client.delete(f"/api/records/{created.data['id']}/")
         self.assertEqual(deleted.status_code, 204, deleted.data)
+        receipt = ActionInvocationReceipt.objects.get(
+            actor=self.user, invocation_id="lab-run-2026-17"
+        )
+        retained_project_id = receipt.target_ids.pop("project")
+        retained_participant_projects = receipt.target_ids.pop("participant_projects")
+        receipt.save(update_fields=["target_ids"])
+        denied_missing_context = self.client.get("/api/action-invocations/lab-run-2026-17/")
+        self.assertEqual(denied_missing_context.status_code, 403)
+        receipt.target_ids["project"] = retained_project_id
+        receipt.target_ids["participant_projects"] = retained_participant_projects
+        receipt.save(update_fields=["target_ids"])
         missing_recovery = self.client.get("/api/action-invocations/lab-run-2026-17/")
         self.assertEqual(missing_recovery.status_code, 200, missing_recovery.data)
         self.assertTrue(missing_recovery.data["participants"][0]["targetUnavailable"])
@@ -1125,6 +1192,47 @@ class PlatformRecordApiTests(TestCase):
         changed = {**invocation, "inputs": {"concentration": 8.5}}
         conflict = self.client.post("/api/action-invocations/", changed, format="json")
         self.assertEqual(conflict.status_code, 409, conflict.data)
+
+    def test_action_recovery_requires_read_access_to_every_disclosed_record_participant(self):
+        main = self.client.post("/api/records/", self.create_payload(name="Visible target"), format="json")
+        private_user = User.objects.create_user(username="private_action_input", password="pass")
+        private_project = Project.objects.create(name="Private action input")
+        Grant.objects.create(project=private_project, user=private_user, role=ProjectRole.EDIT)
+        private_record = create_record(
+            actor=private_user,
+            project=private_project,
+            schema=self.schema,
+            name="Private input",
+            field_values={"field-concentration": {"type": "number", "value": 4.5}},
+        )
+        invocation_id = "participant-read-check"
+        ActionInvocationReceipt.objects.create(
+            actor=self.user,
+            actor_stable_id=str(self.user.pk),
+            invocation_id=invocation_id,
+            fingerprint="a" * 64,
+            request_fingerprint="b" * 64,
+            target_ids={
+                "record": main.data["id"],
+                "project": self.project.pk,
+                "used_records": [private_record["id"]],
+                "participant_projects": {
+                    main.data["id"]: self.project.pk,
+                    private_record["id"]: private_project.pk,
+                },
+            },
+            outcome={
+                "invocationId": invocation_id,
+                "record": {"id": main.data["id"], "field_values": {}},
+                "participants": [
+                    {"targetType": "helix.record", "targetId": main.data["id"], "role": "subject"},
+                    {"targetRole": "recordInput", "targetType": "helix.record", "targetId": private_record["id"], "role": "used"},
+                ],
+            },
+        )
+
+        denied = self.client.get(f"/api/action-invocations/{invocation_id}/")
+        self.assertEqual(denied.status_code, 403)
 
     def test_action_invocation_commits_created_records_and_document_revision_as_one_action(self):
         source = self.client.post("/api/records/", self.create_payload(name="Saved table"), format="json")

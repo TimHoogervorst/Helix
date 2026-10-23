@@ -38,12 +38,52 @@ def _get_receipt(actor, request_id, fingerprint):
     return receipt
 
 
+def execute_mutation_lifecycle(
+    *,
+    lock_identity: Callable[[], None],
+    find_receipt: Callable[[], Any],
+    receipt_fingerprint: Callable[[Any], str],
+    request_fingerprint: str,
+    recover: Callable[[Any], Any],
+    execute: Callable[[], Any],
+    conflict_message: str = "This request identity was already used for a different proposal.",
+):
+    """Own identity serialization, receipt replay, and atomic mutation execution.
+
+    Adapters supply their receipt namespace and recovery policy. The enclosing
+    transaction makes provider effects, audit writes, and the adapter's receipt
+    one commit, while preserving each public receipt format.
+    """
+    from helix_core.record_persistence import StateConflict
+
+    with transaction.atomic():
+        lock_identity()
+        receipt = find_receipt()
+        if receipt is not None:
+            if receipt_fingerprint(receipt) != request_fingerprint:
+                raise StateConflict(conflict_message)
+            return recover(receipt)
+        return execute()
+
+
+def recover_committed_mutation(*, lock_identity, find_receipt, recover, missing):
+    """Read and authorize a committed outcome under the same identity lock."""
+    with transaction.atomic():
+        lock_identity()
+        receipt = find_receipt()
+        if receipt is None:
+            return missing()
+        return recover(receipt)
+
+
 def recover_record_edit(actor, request_id, fingerprint):
     """Return an authorized receipt outcome, or ``None`` when no edit committed."""
-    with transaction.atomic():
-        lock_request_identity(actor.pk, request_id)
-        receipt = _get_receipt(actor, request_id, fingerprint)
-        return None if receipt is None else authorize_record_edit_recovery(actor, receipt)
+    return recover_committed_mutation(
+        lock_identity=lambda: lock_request_identity(actor.pk, request_id),
+        find_receipt=lambda: _get_receipt(actor, request_id, fingerprint),
+        recover=lambda receipt: authorize_record_edit_recovery(actor, receipt),
+        missing=lambda: None,
+    )
 
 
 def authorize_record_edit_recovery(actor, receipt):
@@ -75,21 +115,70 @@ def authorize_record_edit_recovery(actor, receipt):
     }
 
 
-def execute_record_edit(*, actor, request_id, fingerprint, execute: Callable[[], dict[str, Any]]):
+def execute_record_edit(
+    *, actor, request_id, fingerprint, execute: Callable[[], dict[str, Any]], persist_receipt=True,
+):
     """Run a record edit and save its response atomically under its request identity."""
-    with transaction.atomic():
-        lock_request_identity(actor.pk, request_id)
-        receipt = _get_receipt(actor, request_id, fingerprint)
-        if receipt is not None:
-            return authorize_record_edit_recovery(actor, receipt)
+    from helix_core.models import ActionExecutionReceipt
 
-        response = execute()
-        from helix_core.models import ActionExecutionReceipt
+    def find_receipt():
+        return _get_receipt(actor, request_id, fingerprint)
 
+    def persist(response):
         ActionExecutionReceipt.objects.create(
             actor=actor,
             request_id=request_id,
             request_hash=fingerprint,
             response=response,
         )
-        return response
+
+    if not persist_receipt:
+        with transaction.atomic():
+            return execute()
+
+    return execute_mutation_lifecycle(
+        lock_identity=lambda: lock_request_identity(actor.pk, request_id),
+        find_receipt=lambda: find_receipt(),
+        receipt_fingerprint=lambda receipt: receipt.request_hash,
+        request_fingerprint=fingerprint,
+        recover=lambda receipt: authorize_record_edit_recovery(actor, receipt),
+        execute=lambda: _execute_and_persist(execute, persist),
+    )
+
+
+def _execute_and_persist(execute, persist):
+    response = execute()
+    persist(response)
+    return response
+
+
+def recover_action_invocation(actor, invocation_id):
+    """Recover a committed invocation through the shared receipt lifecycle."""
+    from helix_core.models import ActionInvocationReceipt
+    from helix_core.record_persistence import _authorize_invocation_replay, mark_unavailable_action_targets
+    from django.contrib.auth import get_user_model
+
+    def missing():
+        from rest_framework.exceptions import NotFound
+
+        raise NotFound("Action invocation not found.")
+
+    return recover_committed_mutation(
+        lock_identity=lambda: get_user_model()._default_manager.select_for_update().get(pk=actor.pk),
+        find_receipt=lambda: ActionInvocationReceipt.objects.select_for_update().filter(
+            actor_stable_id=str(actor.pk), invocation_id=invocation_id
+        ).first(),
+        recover=lambda receipt: _recover_action_invocation_outcome(actor, receipt),
+        missing=missing,
+    )
+
+
+def _recover_action_invocation_outcome(actor, receipt):
+    from helix_core.record_persistence import _authorize_invocation_replay, mark_unavailable_action_targets
+
+    unavailable_target_ids = _authorize_invocation_replay(actor, receipt)
+    outcome = dict(receipt.outcome)
+    mark_unavailable_action_targets(outcome, unavailable_target_ids)
+    outcome.pop("record", None)
+    outcome["replayed"] = True
+    return outcome

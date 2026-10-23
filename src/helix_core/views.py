@@ -666,7 +666,9 @@ class RecordActionExecuteView(APIView):
             }},
             providers={"action": values["action"]},
         )
-        return Response(result["record"])
+        # Preserve the legacy Record response on normal execution/replay while
+        # withholding a saved payload after authorized deleted-target recovery.
+        return Response(result.get("record", {"targetUnavailable": True, "replayed": True}))
 
 
 class ActionInvocationSerializer(serializers.Serializer):
@@ -743,21 +745,9 @@ class ActionInvocationDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, invocation_id):
-        from helix_core.models import ActionInvocationReceipt
-        from helix_core.record_persistence import _authorize_invocation_replay
+        from helix_core.record_mutations import recover_action_invocation
 
-        receipt = ActionInvocationReceipt.objects.filter(
-            actor_stable_id=str(request.user.pk), invocation_id=invocation_id
-        ).first()
-        if receipt is None:
-            from rest_framework.exceptions import NotFound
-            raise NotFound("Action invocation not found.")
-        target_available = _authorize_invocation_replay(request.user, receipt)
-        outcome = dict(receipt.outcome)
-        from helix_core.record_persistence import mark_unavailable_action_targets
-        mark_unavailable_action_targets(outcome, target_available)
-        outcome.pop("record", None)
-        outcome["replayed"] = True
+        outcome = recover_action_invocation(request.user, invocation_id)
         return Response(outcome)
 
 

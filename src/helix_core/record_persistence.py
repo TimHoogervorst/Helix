@@ -353,6 +353,7 @@ def edit_record(
     *, actor, record_id, state_token, request_id, field_values=None, metadata=None,
     action_identity=None, provider_mod_id="helix", provider_mod_version="1",
     action_contract=None, additional_action_metadata=None, request_hash=None,
+    persist_receipt=True,
 ):
     request_payload = {
         "record_id": str(record_id),
@@ -446,6 +447,7 @@ def edit_record(
         request_id=request_id,
         fingerprint=fingerprint,
         execute=execute,
+        persist_receipt=persist_receipt,
     )
 
 
@@ -848,26 +850,15 @@ def _resolve_record_source(actor, source, type_node, where):
     return value, {"record": target, "group": group, "revision": revision}
 
 
-@transaction.atomic
 def execute_action_invocation(
     *, actor, invocation_id, sequence_fingerprint, inputs, parameters,
     targets, expected_state, providers, steps=None, sequence_declaration=None,
 ):
-    """Execute one registered synchronous Action and persist its replay receipt."""
-    from helix_core.mod_system.contracts import parse_contract_json
-    from helix_core.mod_system.registry import registry
-    from helix_core.models import (
-        ActionInvocationReceipt, PlatformRecord, RetainedContract, Schema,
-    )
-
-    # The actor row is the portable transaction lock for the actor-scoped ID
-    # namespace. It serializes competing first uses even before a receipt row
-    # exists, and keeps the receipt check ahead of all mutable-state checks.
-    # Session authentication wraps request.user in SimpleLazyObject; its
-    # Python type is not the configured Django user model.
+    """Execute through the shared actor-scoped mutation and recovery lifecycle."""
     from django.contrib.auth import get_user_model
+    from helix_core.models import ActionInvocationReceipt
+    from helix_core.record_mutations import execute_mutation_lifecycle
 
-    actor = get_user_model()._default_manager.select_for_update().get(pk=actor.pk)
     requested = {
         "sequenceFingerprint": sequence_fingerprint,
         "inputs": inputs,
@@ -879,18 +870,67 @@ def execute_action_invocation(
         "sequenceDeclaration": sequence_declaration,
     }
     request_fingerprint = _digest({"actor": str(actor.pk), **requested})
-    receipt = ActionInvocationReceipt.objects.filter(
-        actor_stable_id=str(actor.pk), invocation_id=invocation_id
-    ).first()
-    if receipt is not None:
-        if receipt.request_fingerprint != request_fingerprint:
-            raise StateConflict("This invocation ID was already used for a different request.")
-        target_available = _authorize_invocation_replay(actor, receipt)
+
+    def lock_identity():
+        # Session auth may expose request.user as a SimpleLazyObject.
+        get_user_model()._default_manager.select_for_update().get(pk=actor.pk)
+
+    def find_receipt():
+        return ActionInvocationReceipt.objects.select_for_update().filter(
+            actor_stable_id=str(actor.pk), invocation_id=invocation_id
+        ).first()
+
+    def recover(receipt):
+        unavailable_target_ids = _authorize_invocation_replay(actor, receipt)
         outcome = dict(receipt.outcome)
-        mark_unavailable_action_targets(outcome, target_available)
+        mark_unavailable_action_targets(outcome, unavailable_target_ids)
         outcome["replayed"] = True
         return outcome
 
+    return execute_mutation_lifecycle(
+        lock_identity=lock_identity,
+        find_receipt=find_receipt,
+        receipt_fingerprint=lambda receipt: receipt.request_fingerprint,
+        request_fingerprint=request_fingerprint,
+        recover=recover,
+        conflict_message="This invocation ID was already used for a different request.",
+        execute=lambda: _execute_action_invocation_body(
+            actor=actor,
+            invocation_id=invocation_id,
+            sequence_fingerprint=sequence_fingerprint,
+            inputs=inputs,
+            parameters=parameters,
+            targets=targets,
+            expected_state=expected_state,
+            providers=providers,
+            steps=steps,
+            sequence_declaration=sequence_declaration,
+            request_fingerprint=request_fingerprint,
+        ),
+    )
+
+
+def _execute_action_invocation_body(
+    *, actor, invocation_id, sequence_fingerprint, inputs, parameters,
+    targets, expected_state, providers, steps, sequence_declaration, request_fingerprint,
+):
+    """Validate providers and apply their effects inside the shared lifecycle."""
+    from helix_core.mod_system.contracts import parse_contract_json
+    from helix_core.mod_system.registry import registry
+    from helix_core.models import (
+        ActionInvocationReceipt, PlatformRecord, RetainedContract, Schema,
+    )
+
+    requested = {
+        "sequenceFingerprint": sequence_fingerprint,
+        "inputs": inputs,
+        "parameters": parameters,
+        "targets": targets,
+        "expectedState": expected_state,
+        "providers": providers,
+        "steps": steps,
+        "sequenceDeclaration": sequence_declaration,
+    }
     if not isinstance(targets, dict) or set(targets) != {"record"}:
         raise ValidationError({"targets": "A single Action must name exactly one record target."})
     if not isinstance(expected_state, dict) or set(expected_state) != {"record"}:
@@ -1210,6 +1250,7 @@ def execute_action_invocation(
                 }} if source_document_group is not None else None
             ),
             request_hash=server_fingerprint,
+            persist_receipt=False,
         )
     except ValidationError as exc:
         raise ActionValidationError(exc.detail)
@@ -1262,7 +1303,11 @@ def execute_action_invocation(
         invocation_id=invocation_id,
         fingerprint=server_fingerprint,
         request_fingerprint=request_fingerprint,
-        target_ids={"record": str(record.pk), "project": record.project_id},
+        target_ids={
+            "record": str(record.pk),
+            "project": record.project_id,
+            "participant_projects": {str(record.pk): record.project_id},
+        },
         outcome=outcome,
     )
     return outcome
@@ -1756,6 +1801,14 @@ def _commit_created_record_effects(
             "record": str(record.pk), "project": record.project_id,
             "created_records": [str(item.pk) for _key, item, _revision in created],
             "used_records": [str(reference["record"].pk) for reference in (used_record_references or [])],
+            "participant_projects": {
+                str(record.pk): record.project_id,
+                **{str(item.pk): item.project_id for _key, item, _revision in created},
+                **{
+                    str(reference["record"].pk): reference["record"].project_id
+                    for reference in (used_record_references or [])
+                },
+            },
         },
         outcome=outcome,
     )
@@ -1935,129 +1988,57 @@ def lock_record_revision_for_update(
 
 
 def _authorize_invocation_replay(actor, receipt):
+    """Authorize every disclosed Record participant and retain deleted-target context."""
     from helix_core.models import PlatformRecord
     from helix_core.core.models import Project
     from bundled.access.access.policies import role
 
-    record_id = receipt.target_ids.get("record")
-    try:
-        record = PlatformRecord.objects.select_related("project").get(pk=record_id)
-    except (PlatformRecord.DoesNotExist, ValueError, TypeError):
-        project_id = receipt.target_ids.get("project")
+    target_ids = receipt.target_ids if isinstance(receipt.target_ids, dict) else {}
+    participant_projects = target_ids.get("participant_projects", {})
+    if not isinstance(participant_projects, dict):
+        participant_projects = {}
+    record_ids = [target_ids.get("record"), *(target_ids.get("used_records") or []), *(target_ids.get("created_records") or [])]
+    unavailable = set()
+    for record_id in dict.fromkeys(str(value) for value in record_ids if value is not None):
         try:
-            project = Project.objects.get(pk=project_id)
-        except (Project.DoesNotExist, ValueError, TypeError):
-            raise NotFound("The Action target is no longer available.")
-        if role(actor, project) not in {"read", "edit"}:
-            raise PermissionDenied("You no longer have permission to access this Action outcome.")
-        return False
-    _require_current_read_access(actor, record)
-    for used_record_id in receipt.target_ids.get("used_records", []):
-        try:
-            used_record = PlatformRecord.objects.get(pk=used_record_id)
+            record = PlatformRecord.objects.select_related("project").get(pk=record_id)
         except (PlatformRecord.DoesNotExist, ValueError, TypeError):
-            raise PermissionDenied("You no longer have permission to access this Action outcome.")
-        _require_current_read_access(actor, used_record)
-    return True
+            project_id = participant_projects.get(record_id)
+            if record_id == str(target_ids.get("record")):
+                project_id = project_id or target_ids.get("project")
+            try:
+                project = Project.objects.get(pk=project_id)
+            except (Project.DoesNotExist, ValueError, TypeError):
+                raise PermissionDenied("The Action outcome lacks authorization context for a deleted participant.")
+            if role(actor, project) not in {"read", "edit"}:
+                raise PermissionDenied("You no longer have permission to access this Action outcome.")
+            unavailable.add(record_id)
+            continue
+        _require_current_read_access(actor, record)
+    return unavailable
 
 
-def mark_unavailable_action_targets(outcome, target_available):
-    """Return a retained Action outcome without presenting deleted records as live."""
-    if target_available:
+def mark_unavailable_action_targets(outcome, unavailable_target_ids):
+    """Mark deleted Record participants and omit their saved record payloads."""
+    unavailable_target_ids = {str(target_id) for target_id in unavailable_target_ids}
+    if not unavailable_target_ids:
         return outcome
-    outcome.pop("record", None)
+    record = outcome.get("record")
+    if isinstance(record, dict) and str(record.get("id")) in unavailable_target_ids:
+        outcome.pop("record", None)
     for participant in outcome.get("participants", []):
-        participant["targetUnavailable"] = True
+        if (
+            participant.get("targetType") == "helix.record"
+            and str(participant.get("targetId")) in unavailable_target_ids
+        ):
+            participant["targetUnavailable"] = True
+    created_records = outcome.get("createdRecords")
+    if isinstance(created_records, dict):
+        outcome["createdRecords"] = {
+            key: value for key, value in created_records.items()
+            if str(value.get("id")) not in unavailable_target_ids
+        }
     return outcome
-
-
-@transaction.atomic
-def execute_record_action(
-    *, actor, record_id, action_id, contract_id, contract_version,
-    state_token, request_id, inputs,
-):
-    """Invoke one registered provider and persist only Platform-validated effects."""
-    from helix_core.mod_system.contracts import parse_contract_json
-    from helix_core.mod_system.registry import registry
-    from helix_core.models import ActionExecutionReceipt, PlatformRecord, RetainedContract
-    from bundled.access.access.policies import effective_role
-
-    invocation_hash = _digest({
-        "record_id": str(record_id),
-        "action_id": action_id,
-        "contract_id": contract_id,
-        "contract_version": contract_version,
-        "state_token": str(state_token),
-        "inputs": inputs,
-    })
-    receipt = ActionExecutionReceipt.objects.filter(actor=actor, request_id=request_id).first()
-    if receipt is not None:
-        if receipt.request_hash != invocation_hash:
-            raise StateConflict("This request ID was already used for a different invocation.")
-        return receipt.response
-    try:
-        record = PlatformRecord.objects.select_for_update(of=("self",)).select_related("schema__schema_type", "project").get(pk=record_id)
-    except (PlatformRecord.DoesNotExist, ValueError):
-        raise NotFound("Record not found.")
-    receipt = ActionExecutionReceipt.objects.filter(actor=actor, request_id=request_id).first()
-    if receipt is not None:
-        if receipt.request_hash != invocation_hash:
-            raise StateConflict("This request ID was already used for a different invocation.")
-        return receipt.response
-    if effective_role(actor, record) != "edit":
-        raise PermissionDenied("You do not have permission to execute an Action on this record.")
-    if str(record.state_token) != str(state_token):
-        raise StateConflict()
-
-    registration = registry.get_record_action(action_id)
-    if registration is None:
-        raise ValidationError({"action": "No executable provider is registered for this Action."})
-    if (
-        registration["action_contract_id"] != contract_id
-        or registration["action_contract_version"] != contract_version
-    ):
-        raise ValidationError({"contract": "The Action Contract must match the provider's exact declaration."})
-    retained = RetainedContract.objects.filter(
-        kind="action", contract_id=contract_id, version=contract_version
-    ).first()
-    if retained is None:
-        raise ValidationError({"contract": "The exact Action Contract definition is not retained."})
-    envelope = parse_contract_json(retained.canonical_envelope)
-    definition = envelope["definition"]
-    if definition.get("targets", {}).get("record") != "helix.record":
-        raise ValidationError({"contract": "The Action Contract does not target Platform records."})
-    if definition.get("effects", {}).get("record") != "edited":
-        raise ValidationError({"contract": "The Action Contract does not declare the record edit effect."})
-    if not isinstance(inputs, dict) or set(inputs) != set(definition.get("inputs", {})):
-        raise ValidationError({"inputs": "Inputs must match the Action Contract's declared ports."})
-    for name, value in inputs.items():
-        _validate_contract_value(definition["inputs"][name], value, name)
-    context = _freeze({
-        "actor_id": actor.pk,
-        "record_id": str(record_id),
-        "state_token": str(state_token),
-        "action_id": action_id,
-        "contract_id": contract_id,
-        "contract_version": contract_version,
-    })
-    proposed = registration["handler"](context, _freeze(inputs))
-    if not isinstance(proposed, ProposedEffects):
-        raise ValidationError({"effects": "Action providers must return ProposedEffects."})
-    if proposed.field_values is None and proposed.metadata is None:
-        raise ValidationError({"effects": "The provider proposed no declared record change."})
-    return edit_record(
-        actor=actor,
-        record_id=record_id,
-        state_token=state_token,
-        request_id=request_id,
-        field_values=dict(proposed.field_values) if proposed.field_values is not None else None,
-        metadata=dict(proposed.metadata) if proposed.metadata is not None else None,
-        action_identity=action_id,
-        provider_mod_id=registration["provider_mod_id"],
-        provider_mod_version=registration["provider_mod_version"],
-        action_contract={"id": contract_id, "version": contract_version},
-        request_hash=invocation_hash,
-    )
 
 
 def _provider_snapshot(instance) -> dict[str, Any]:

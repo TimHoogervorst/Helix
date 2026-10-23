@@ -139,6 +139,19 @@ class ActionInvocationPostgresRaceTests(TransactionTestCase):
         self.assertEqual(sorted(result[1]["replayed"] for result in results), [False, True])
         self.assertEqual(ActionLogEntry.objects.count(), 2)
 
+    def test_conflicting_same_identity_race_commits_only_the_first_request(self):
+        first = self._payload("conflicting-invocation", value=2)
+        second = self._payload("conflicting-invocation", value=3)
+        threads, results, connection_ids = self._parallel_post([first, second])
+        for thread in threads:
+            thread.join(timeout=15)
+
+        self.assertTrue(all(not thread.is_alive() for thread in threads))
+        self.assertEqual(len(set(connection_ids)), 2)
+        self.assertEqual(sorted(status for status, _ in results), [200, 409])
+        self.assertEqual(self.calls, 1)
+        self.assertEqual(ActionLogEntry.objects.count(), 2)
+
     def test_stale_target_race_commits_once_and_rejects_the_second_expected_state(self):
         payloads = [self._payload("stale-race-a", 2), self._payload("stale-race-b", 3)]
         threads, results, connection_ids = self._parallel_post(payloads)

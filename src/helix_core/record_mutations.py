@@ -146,6 +146,50 @@ def execute_record_edit(
     )
 
 
+def execute_revision_group_save(*, actor, request_id, fingerprint, execute):
+    """Run a public Revision Group save through the shared receipt lifecycle."""
+    def find_receipt():
+        return _get_receipt(actor, request_id, fingerprint)
+
+    return execute_mutation_lifecycle(
+        lock_identity=lambda: lock_request_identity(actor.pk, request_id),
+        find_receipt=find_receipt,
+        receipt_fingerprint=lambda receipt: receipt.request_hash,
+        request_fingerprint=fingerprint,
+        recover=lambda receipt: authorize_revision_group_recovery(actor, receipt),
+        conflict_message="This request ID was already used for a different document save.",
+        execute=execute,
+    )
+
+
+def authorize_revision_group_recovery(actor, receipt):
+    """Authorize a saved Revision outcome without rerunning current validation."""
+    from bundled.access.access.policies import effective_role, role
+    from helix_core.core.models import Project
+    from helix_core.models import PlatformRecord
+
+    response = receipt.response if isinstance(receipt.response, dict) else {}
+    record_id = response.get("record_id")
+    record = PlatformRecord.objects.select_for_update(of=("self",)).select_related(
+        "project"
+    ).filter(pk=record_id).first()
+    if record is not None:
+        if effective_role(actor, record) not in {"read", "edit"}:
+            raise PermissionDenied("You no longer have permission to access this Revision outcome.")
+        return {key: value for key, value in response.items() if key != "_recovery"}
+
+    recovery = response.get("_recovery")
+    project_id = recovery.get("project_id") if isinstance(recovery, dict) else None
+    project = Project.objects.filter(pk=project_id).first()
+    if project is None or role(actor, project) not in {"read", "edit"}:
+        raise PermissionDenied("The Revision outcome lacks authorization context for its deleted Record.")
+    return {
+        "record_id": str(record_id),
+        "targetUnavailable": True,
+        "replayed": True,
+    }
+
+
 def _execute_and_persist(execute, persist):
     response = execute()
     persist(response)

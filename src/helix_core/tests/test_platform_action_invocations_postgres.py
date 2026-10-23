@@ -11,11 +11,14 @@ from rest_framework.test import APIClient
 
 from bundled.access.access.models import Grant, ProjectRole, Team
 from helix_core.core.models import Project, User
-from helix_core.models import ActionLogEntry, RetainedContract, Schema, SchemaType
+from helix_core.models import (
+    ActionExecutionReceipt, ActionLogEntry, RetainedContract, Schema, SchemaType,
+    ScientificRevision,
+)
 from helix_core.mod_system.contracts import canonical_json, contract_fingerprint
 from helix_core.mod_system.manifest import ModManifest
 from helix_core.mod_system.registry import BackendModRegistry
-from helix_core.public import ModRegistrar
+from helix_core.public import ModRegistrar, create_record, save_revision_group
 from helix_core.record_persistence import ProposedEffects
 
 
@@ -427,3 +430,133 @@ class ActionInvocationPostgresRaceTests(TransactionTestCase):
             add=False, expected_status=403, invocation_id="team-member-revoke-race"
         )
         self.assertEqual(self.calls, 0)
+
+
+@skipUnless(connection.vendor == "postgresql", "requires independent PostgreSQL connections")
+class RevisionGroupPostgresRaceTests(TransactionTestCase):
+    """Real concurrent calls through the public Mod-owned save interface."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="revision_racer", password="pass")
+        self.project = Project.objects.create(name="Revision Race")
+        Grant.objects.create(project=self.project, user=self.user, role=ProjectRole.EDIT)
+        schema_type = SchemaType.objects.create(
+            display_name="Revision race", workspace_id="fixture.revision-race",
+            model="platform.record", columns=[],
+        )
+        self.schema = Schema.objects.create(
+            name="Revision race", prefix="REVRACE", schema_type=schema_type,
+        )
+        self.record = create_record(
+            actor=self.user, project=self.project, schema=self.schema,
+            name="Revision race", field_values={}, request_id=uuid4(),
+        )
+
+    def _parallel_save(self, request_id, snapshots, *, gate_first_action=False):
+        start = threading.Barrier(len(snapshots) + 1)
+        results = [None] * len(snapshots)
+        connection_ids = [None] * len(snapshots)
+
+        def run(index, snapshot):
+            close_old_connections()
+            try:
+                actor = User.objects.get(pk=self.user.pk)
+                start.wait(timeout=10)
+                result = save_revision_group(
+                    actor=actor,
+                    record_id=self.record["id"],
+                    group_key="document",
+                    state_token=self.record["state_token"],
+                    request_id=request_id,
+                    snapshot=snapshot,
+                    target_model_reference="fixture.revision-race.document",
+                    target_object_id="doc-1",
+                )
+                results[index] = result
+                connection_ids[index] = connections["default"].connection.get_backend_pid()
+            except Exception as exc:  # surfaced in the parent assertion
+                results[index] = exc
+                connection_ids[index] = connections["default"].connection.get_backend_pid()
+            finally:
+                connections.close_all()
+
+        entered, release = threading.Event(), threading.Event()
+        if gate_first_action:
+            from unittest.mock import patch
+            original_write_action = __import__(
+                "helix_core.record_persistence", fromlist=["_write_action"]
+            )._write_action
+            calls = 0
+            calls_lock = threading.Lock()
+
+            def gated_write_action(*args, **kwargs):
+                nonlocal calls
+                with calls_lock:
+                    calls += 1
+                    first_call = calls == 1
+                if first_call:
+                    entered.set()
+                    if not release.wait(timeout=10):
+                        raise TimeoutError("test did not release Revision Action write")
+                return original_write_action(*args, **kwargs)
+
+            write_patch = patch("helix_core.record_persistence._write_action", side_effect=gated_write_action)
+            write_patch.start()
+        else:
+            write_patch = None
+
+        threads = [
+            threading.Thread(target=run, args=(index, snapshot))
+            for index, snapshot in enumerate(snapshots)
+        ]
+        for thread in threads:
+            thread.start()
+        start.wait(timeout=10)
+        if gate_first_action:
+            self.assertTrue(entered.wait(timeout=10))
+            release.set()
+        for thread in threads:
+            thread.join(timeout=15)
+        if write_patch is not None:
+            write_patch.stop()
+        self.assertTrue(all(not thread.is_alive() for thread in threads))
+        self.assertEqual(len(set(connection_ids)), len(snapshots))
+        return results
+
+    def test_identical_concurrent_saves_commit_one_revision_action_and_receipt(self):
+        request_id = uuid4()
+        snapshot = {"document": {"type": "doc", "content": [{"type": "paragraph"}]}}
+
+        results = self._parallel_save(request_id, [snapshot, snapshot], gate_first_action=True)
+
+        self.assertTrue(all(isinstance(result, dict) for result in results), results)
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(ActionLogEntry.objects.count(), 2)
+        self.assertEqual(ActionExecutionReceipt.objects.filter(
+            actor=self.user, request_id=request_id,
+        ).count(), 1)
+        self.assertEqual(ScientificRevision.objects.filter(
+            group__record_id=self.record["id"], group__group_key="document",
+        ).count(), 1)
+
+    def test_conflicting_concurrent_saves_reusing_identity_commit_only_one_proposal(self):
+        request_id = uuid4()
+        snapshots = [
+            {"document": {"type": "doc", "content": [{"type": "paragraph"}]}},
+            {"document": {"type": "doc", "content": [{"type": "heading"}]}},
+        ]
+
+        results = self._parallel_save(request_id, snapshots, gate_first_action=True)
+
+        self.assertEqual(sum(isinstance(result, dict) for result in results), 1, results)
+        conflicts = [result for result in results if isinstance(result, Exception)]
+        self.assertEqual(len(conflicts), 1)
+        from helix_core.record_persistence import StateConflict
+        self.assertIsInstance(conflicts[0], StateConflict)
+        self.assertEqual(ActionLogEntry.objects.count(), 2)
+        self.assertEqual(ActionExecutionReceipt.objects.filter(
+            actor=self.user, request_id=request_id,
+        ).count(), 1)
+        self.assertEqual(ScientificRevision.objects.filter(
+            group__record_id=self.record["id"], group__group_key="document",
+        ).count(), 1)

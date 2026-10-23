@@ -451,7 +451,6 @@ def edit_record(
     )
 
 
-@transaction.atomic
 def save_revision_group(
     *, actor, record_id, group_key, state_token, request_id, snapshot,
     target_model_reference=None, target_object_id=None, action_type="edited",
@@ -462,23 +461,9 @@ def save_revision_group(
     Revision groups let a Mod own portable document history while the
     Platform remains the sole owner of revision and Action persistence.
     """
-    from bundled.access.access.policies import effective_role
-    from helix_core.models import (
-        ActionExecutionReceipt, PlatformRecord, RecordRevisionGroup,
-        ScientificRevision,
-    )
+    from helix_core.models import ActionExecutionReceipt
+    from helix_core.record_mutations import execute_revision_group_save
 
-    if not isinstance(group_key, str) or not group_key or group_key == "record":
-        raise ValidationError({"group_key": "A non-empty Mod-owned group key is required."})
-    if not isinstance(snapshot, dict):
-        raise ValidationError({"snapshot": "Expected a JSON object."})
-    contract_ref = snapshot.get("contract")
-    if contract_ref is not None:
-        if not isinstance(contract_ref, dict) or set(contract_ref) != {"kind", "id", "version"}:
-            raise ValidationError({"snapshot": "A portable snapshot requires an exact contract identity."})
-        if "document" not in snapshot:
-            raise ValidationError({"snapshot": "A portable document snapshot requires document content."})
-        _validate_contract_value({"type": "contract", **contract_ref}, snapshot["document"], "document")
     request_payload = {
         "record_id": str(record_id), "group_key": group_key,
         "state_token": str(state_token), "snapshot": snapshot,
@@ -488,87 +473,109 @@ def save_revision_group(
         "record_name": record_name,
     }
     request_hash = _digest(request_payload)
-    receipt = ActionExecutionReceipt.objects.filter(actor=actor, request_id=request_id).first()
-    if receipt:
-        if receipt.request_hash != request_hash:
-            raise StateConflict("This request ID was already used for a different document save.")
-        return receipt.response
-    try:
-        record = PlatformRecord.objects.select_for_update(of=("self",)).select_related("project").get(pk=record_id)
-    except (PlatformRecord.DoesNotExist, ValueError):
-        raise NotFound("Record not found.")
-    if effective_role(actor, record) != "edit":
-        raise PermissionDenied("You do not have permission to edit this record.")
-    if str(record.state_token) != str(state_token):
-        raise StateConflict()
 
-    group, created = RecordRevisionGroup.objects.select_for_update().get_or_create(
-        record=record,
-        group_key=group_key,
-        defaults={
-            "target_model_reference": target_model_reference or "helix.record",
-            "target_object_id": str(target_object_id if target_object_id is not None else record.pk),
-        },
-    )
-    if not created and target_model_reference and (
-        group.target_model_reference != target_model_reference
-        or group.target_object_id != str(target_object_id)
-    ):
-        raise ValidationError({"group_key": "This Revision Group belongs to another target."})
-    current = group.current_revision
-    revision = current
-    changed = current is None or current.snapshot != snapshot
-    name_changed = record_name is not None and record.name != record_name
-    if changed:
-        revision = ScientificRevision.objects.create(
-            group=group,
-            sequence=group.revisions.count() + 1,
-            snapshot=snapshot,
-            content_hash=_digest(snapshot),
-            created_by=actor,
-        )
-        group.current_revision = revision
-        group.save(update_fields=["current_revision"])
-        from helix_core.attachments import link_revision_attachments
+    def execute():
+        from bundled.access.access.policies import effective_role
+        from helix_core.models import PlatformRecord, RecordRevisionGroup, ScientificRevision
 
-        link_revision_attachments(
-            project_id=record.project_id, values=snapshot, revision=revision,
+        if not isinstance(group_key, str) or not group_key or group_key == "record":
+            raise ValidationError({"group_key": "A non-empty Mod-owned group key is required."})
+        if not isinstance(snapshot, dict):
+            raise ValidationError({"snapshot": "Expected a JSON object."})
+        contract_ref = snapshot.get("contract")
+        if contract_ref is not None:
+            if not isinstance(contract_ref, dict) or set(contract_ref) != {"kind", "id", "version"}:
+                raise ValidationError({"snapshot": "A portable snapshot requires an exact contract identity."})
+            if "document" not in snapshot:
+                raise ValidationError({"snapshot": "A portable document snapshot requires document content."})
+            _validate_contract_value({"type": "contract", **contract_ref}, snapshot["document"], "document")
+        try:
+            record = PlatformRecord.objects.select_for_update(of=("self",)).select_related("project").get(pk=record_id)
+        except (PlatformRecord.DoesNotExist, ValueError):
+            raise NotFound("Record not found.")
+        if effective_role(actor, record) != "edit":
+            raise PermissionDenied("You do not have permission to edit this record.")
+        if str(record.state_token) != str(state_token):
+            raise StateConflict()
+
+        group, created = RecordRevisionGroup.objects.select_for_update().get_or_create(
+            record=record,
+            group_key=group_key,
+            defaults={
+                "target_model_reference": target_model_reference or "helix.record",
+                "target_object_id": str(target_object_id if target_object_id is not None else record.pk),
+            },
         )
-    if changed or name_changed:
-        record.last_editor = actor
-        record.state_token = uuid4()
-        update_fields = ["last_editor", "state_token", "updated_at"]
-        if name_changed:
-            record.name = record_name
-            update_fields.append("name")
-        record.save(update_fields=update_fields)
-    target_ref = target_model_reference or "helix.record"
-    target_id = target_object_id if target_object_id is not None else record.pk
-    action_metadata = {
-        "revision_id": str(revision.pk), "group_id": str(group.pk),
-        "group_key": group_key, "revision_changed": changed,
-    }
-    if target_ref == "eln.entry":
-        action_metadata["record_id"] = str(record.pk)
-    action = _write_action(
-        record, actor, action_type, request_id,
-        action_metadata,
-        action_identity="eln.entry.created" if action_type == "created" else "eln.entry.edited",
-        provider_mod_id="helix.eln", provider_mod_version="0.1.0",
-        target_model_reference=target_ref, target_object_id=target_id,
+        if not created and target_model_reference and (
+            group.target_model_reference != target_model_reference
+            or group.target_object_id != str(target_object_id)
+        ):
+            raise ValidationError({"group_key": "This Revision Group belongs to another target."})
+        current = group.current_revision
+        revision = current
+        changed = current is None or current.snapshot != snapshot
+        name_changed = record_name is not None and record.name != record_name
+        if changed:
+            revision = ScientificRevision.objects.create(
+                group=group,
+                sequence=group.revisions.count() + 1,
+                snapshot=snapshot,
+                content_hash=_digest(snapshot),
+                created_by=actor,
+            )
+            group.current_revision = revision
+            group.save(update_fields=["current_revision"])
+            from helix_core.attachments import link_revision_attachments
+
+            link_revision_attachments(
+                project_id=record.project_id, values=snapshot, revision=revision,
+            )
+        if changed or name_changed:
+            record.last_editor = actor
+            record.state_token = uuid4()
+            update_fields = ["last_editor", "state_token", "updated_at"]
+            if name_changed:
+                record.name = record_name
+                update_fields.append("name")
+            record.save(update_fields=update_fields)
+        target_ref = target_model_reference or "helix.record"
+        target_id = target_object_id if target_object_id is not None else record.pk
+        action_metadata = {
+            "revision_id": str(revision.pk), "group_id": str(group.pk),
+            "group_key": group_key, "revision_changed": changed,
+        }
+        if target_ref == "eln.entry":
+            action_metadata["record_id"] = str(record.pk)
+        action = _write_action(
+            record, actor, action_type, request_id,
+            action_metadata,
+            action_identity="eln.entry.created" if action_type == "created" else "eln.entry.edited",
+            provider_mod_id="helix.eln", provider_mod_version="0.1.0",
+            target_model_reference=target_ref, target_object_id=target_id,
+        )
+        response = {
+            "record_id": str(record.pk), "state_token": str(record.state_token),
+            "group_id": str(group.pk), "group_key": group.group_key,
+            "revision_id": str(revision.pk), "sequence": revision.sequence,
+            "content_hash": revision.content_hash, "revision_changed": changed,
+            "action": {"id": action.pk, "identity": action.action},
+        }
+        persisted_response = {
+            **response,
+            "_recovery": {"project_id": record.project_id},
+        }
+        ActionExecutionReceipt.objects.create(
+            actor=actor, request_id=request_id, request_hash=request_hash,
+            response=persisted_response,
+        )
+        return response
+
+    return execute_revision_group_save(
+        actor=actor,
+        request_id=request_id,
+        fingerprint=request_hash,
+        execute=execute,
     )
-    response = {
-        "record_id": str(record.pk), "state_token": str(record.state_token),
-        "group_id": str(group.pk), "group_key": group.group_key,
-        "revision_id": str(revision.pk), "sequence": revision.sequence,
-        "content_hash": revision.content_hash, "revision_changed": changed,
-        "action": {"id": action.pk, "identity": action.action},
-    }
-    ActionExecutionReceipt.objects.create(
-        actor=actor, request_id=request_id, request_hash=request_hash,
-        response=response,
-    )
-    return response
 
 
 def _freeze(value):

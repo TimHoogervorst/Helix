@@ -136,6 +136,19 @@ class PlatformRecordApiTests(TestCase):
         self.assertEqual(action.metadata["group_id"], first["group_id"])
         self.assertEqual(action.metadata["revision_id"], first["revision_id"])
 
+        unchanged = save_revision_group(
+            actor=self.user, record_id=created["id"], group_key="document",
+            state_token=first["state_token"], request_id=uuid4(),
+            snapshot={"document": document},
+            target_model_reference="eln.entry", target_object_id="42",
+            record_name="ELN document",
+        )
+        self.assertFalse(unchanged["revision_changed"])
+        self.assertEqual(unchanged["revision_id"], first["revision_id"])
+        self.assertEqual(unchanged["state_token"], first["state_token"])
+        self.assertNotEqual(unchanged["action"]["id"], first["action"]["id"])
+        self.assertEqual(group.revisions.count(), 1)
+
         renamed = save_revision_group(
             actor=self.user, record_id=created["id"], group_key="document",
             state_token=first["state_token"], request_id=uuid4(),
@@ -156,6 +169,201 @@ class PlatformRecordApiTests(TestCase):
                 snapshot={"document": {"type": "doc", "content": []}},
                 target_model_reference="eln.entry", target_object_id="42",
             )
+
+    def test_revision_group_recovery_precedes_current_contract_validation_and_allows_read_access(self):
+        from helix_core.models import RetainedContract
+
+        created = create_record(
+            actor=self.user, project=self.project, schema=self.schema,
+            name="Contract document", field_values={}, request_id=uuid4(),
+        )
+        envelope = {
+            "formatVersion": 1, "kind": "data", "id": "fixture.document",
+            "version": "1.0.0", "description": "Fixture document",
+            "definition": {"type": {"type": "json"}},
+        }
+        RetainedContract.objects.create(
+            kind="data", contract_id="fixture.document", version="1.0.0",
+            fingerprint=contract_fingerprint(envelope),
+            canonical_envelope=canonical_json(envelope).decode("utf-8"),
+        )
+        snapshot = {
+            "contract": {"kind": "data", "id": "fixture.document", "version": "1.0.0"},
+            "document": {"type": "doc", "content": []},
+        }
+        request_id = uuid4()
+        first = save_revision_group(
+            actor=self.user, record_id=created["id"], group_key="document",
+            state_token=created["state_token"], request_id=request_id,
+            snapshot=snapshot, target_model_reference="fixture.document", target_object_id="doc-1",
+        )
+        self.assertNotIn("_recovery", first)
+        receipt = ActionExecutionReceipt.objects.get(actor=self.user, request_id=request_id)
+        self.assertEqual(receipt.response["_recovery"]["project_id"], self.project.pk)
+        RetainedContract.objects.all().delete()
+        Grant.objects.filter(project=self.project, user=self.user).update(role=ProjectRole.READ)
+
+        replay = save_revision_group(
+            actor=self.user, record_id=created["id"], group_key="document",
+            state_token=created["state_token"], request_id=request_id,
+            snapshot=snapshot, target_model_reference="fixture.document", target_object_id="doc-1",
+        )
+
+        self.assertEqual(replay, first)
+        self.assertNotIn("_recovery", replay)
+        self.assertEqual(ActionLogEntry.objects.count(), 2)
+        Grant.objects.filter(project=self.project, user=self.user).delete()
+        from rest_framework.exceptions import PermissionDenied
+        with self.assertRaises(PermissionDenied):
+            save_revision_group(
+                actor=self.user, record_id=created["id"], group_key="document",
+                state_token=created["state_token"], request_id=request_id,
+                snapshot=snapshot, target_model_reference="fixture.document", target_object_id="doc-1",
+            )
+
+    def test_revision_group_deleted_target_recovery_requires_retained_project_context(self):
+        created = create_record(
+            actor=self.user, project=self.project, schema=self.schema,
+            name="Deleted document", field_values={}, request_id=uuid4(),
+        )
+        request_id = uuid4()
+        snapshot = {"document": {"type": "doc", "content": []}}
+        first = save_revision_group(
+            actor=self.user, record_id=created["id"], group_key="document",
+            state_token=created["state_token"], request_id=request_id,
+            snapshot=snapshot, target_model_reference="fixture.document", target_object_id="doc-2",
+        )
+        PlatformRecord.objects.get(pk=created["id"]).delete()
+        Grant.objects.filter(project=self.project, user=self.user).update(role=ProjectRole.READ)
+
+        recovered = save_revision_group(
+            actor=self.user, record_id=created["id"], group_key="document",
+            state_token=created["state_token"], request_id=request_id,
+            snapshot=snapshot, target_model_reference="fixture.document", target_object_id="doc-2",
+        )
+
+        self.assertTrue(recovered["targetUnavailable"])
+        self.assertNotIn("revision_id", recovered)
+        self.assertNotIn("action", recovered)
+        self.assertEqual(recovered["record_id"], created["id"])
+
+    def test_revision_group_deleted_target_with_missing_project_context_fails_closed(self):
+        created = create_record(
+            actor=self.user, project=self.project, schema=self.schema,
+            name="Deleted document", field_values={}, request_id=uuid4(),
+        )
+        request_id = uuid4()
+        snapshot = {"document": {"type": "doc", "content": []}}
+        save_revision_group(
+            actor=self.user, record_id=created["id"], group_key="document",
+            state_token=created["state_token"], request_id=request_id,
+            snapshot=snapshot, target_model_reference="fixture.document", target_object_id="doc-3",
+        )
+        PlatformRecord.objects.get(pk=created["id"]).delete()
+        receipt = ActionExecutionReceipt.objects.get(actor=self.user, request_id=request_id)
+        receipt.response.pop("_recovery", None)
+        receipt.save(update_fields=["response"])
+
+        from rest_framework.exceptions import PermissionDenied
+        with self.assertRaises(PermissionDenied):
+            save_revision_group(
+                actor=self.user, record_id=created["id"], group_key="document",
+                state_token=created["state_token"], request_id=request_id,
+                snapshot=snapshot, target_model_reference="fixture.document", target_object_id="doc-3",
+            )
+
+    def test_revision_group_action_failure_rolls_back_attachment_revision_state_and_receipt(self):
+        from django.core.files.base import ContentFile
+        from helix_core.attachments import default_storage
+
+        created = create_record(
+            actor=self.user, project=self.project, schema=self.schema,
+            name="Atomic document", field_values={}, request_id=uuid4(),
+        )
+        content = b"retained document attachment"
+        storage_key = default_storage.save("platform-attachments/revision-atomic.txt", ContentFile(content))
+        attachment = PlatformAttachment.objects.create(
+            project=self.project, created_by=self.user, storage_key=storage_key,
+            filename="revision-atomic.txt", media_type="text/plain", size=len(content),
+            sha256=hashlib.sha256(content).hexdigest(), status="staged",
+        )
+        request_id = uuid4()
+        snapshot = {
+            "document": {
+                "attachment": {
+                    "type": "attachmentReference", "value": {"id": str(attachment.pk)},
+                },
+            },
+        }
+
+        with patch("helix_core.record_persistence._write_action", side_effect=RuntimeError("audit failed")):
+            with self.assertRaises(RuntimeError):
+                save_revision_group(
+                    actor=self.user, record_id=created["id"], group_key="document",
+                    state_token=created["state_token"], request_id=request_id,
+                    snapshot=snapshot, target_model_reference="fixture.document", target_object_id="doc-4",
+                    record_name="Renamed during failed save",
+                )
+
+        record = PlatformRecord.objects.get(pk=created["id"])
+        attachment.refresh_from_db()
+        self.assertEqual(record.name, "Atomic document")
+        self.assertEqual(str(record.state_token), created["state_token"])
+        self.assertFalse(record.revision_groups.filter(group_key="document").exists())
+        self.assertEqual(ScientificRevision.objects.filter(group__record=record).count(), 1)
+        self.assertEqual(attachment.status, "staged")
+        self.assertFalse(AttachmentRevisionLink.objects.filter(attachment=attachment).exists())
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
+        self.assertFalse(ActionExecutionReceipt.objects.filter(actor=self.user, request_id=request_id).exists())
+
+        saved = save_revision_group(
+            actor=self.user, record_id=created["id"], group_key="document",
+            state_token=created["state_token"], request_id=request_id,
+            snapshot=snapshot, target_model_reference="fixture.document", target_object_id="doc-4",
+            record_name="Renamed during failed save",
+        )
+
+        record.refresh_from_db()
+        attachment.refresh_from_db()
+        self.assertEqual(record.name, "Renamed during failed save")
+        self.assertNotEqual(saved["state_token"], created["state_token"])
+        self.assertEqual(str(record.state_token), saved["state_token"])
+        self.assertEqual(attachment.status, "complete")
+        self.assertEqual(AttachmentRevisionLink.objects.filter(attachment=attachment).count(), 1)
+        self.assertTrue(ActionExecutionReceipt.objects.filter(actor=self.user, request_id=request_id).exists())
+
+    def test_revision_group_receipt_failure_rolls_back_action_and_revision_and_releases_identity(self):
+        created = create_record(
+            actor=self.user, project=self.project, schema=self.schema,
+            name="Receipt failure", field_values={}, request_id=uuid4(),
+        )
+        request_id = uuid4()
+        snapshot = {"document": {"type": "doc", "content": []}}
+
+        with patch.object(ActionExecutionReceipt.objects, "create", side_effect=RuntimeError("receipt failed")):
+            with self.assertRaises(RuntimeError):
+                save_revision_group(
+                    actor=self.user, record_id=created["id"], group_key="document",
+                    state_token=created["state_token"], request_id=request_id,
+                    snapshot=snapshot, target_model_reference="fixture.document", target_object_id="doc-5",
+                )
+
+        record = PlatformRecord.objects.get(pk=created["id"])
+        self.assertFalse(record.revision_groups.filter(group_key="document").exists())
+        self.assertEqual(ScientificRevision.objects.filter(group__record=record).count(), 1)
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
+        self.assertFalse(ActionExecutionReceipt.objects.filter(actor=self.user, request_id=request_id).exists())
+
+        saved = save_revision_group(
+            actor=self.user, record_id=created["id"], group_key="document",
+            state_token=created["state_token"], request_id=request_id,
+            snapshot=snapshot, target_model_reference="fixture.document", target_object_id="doc-5",
+        )
+
+        self.assertTrue(saved["revision_changed"])
+        self.assertEqual(ScientificRevision.objects.filter(group__record=record, group__group_key="document").count(), 1)
+        self.assertEqual(ActionLogEntry.objects.count(), 2)
+        self.assertTrue(ActionExecutionReceipt.objects.filter(actor=self.user, request_id=request_id).exists())
 
     def test_platform_rendition_is_independent_of_eln_owned_tables(self):
         created = create_record(actor=self.user, project=self.project, schema=self.schema,

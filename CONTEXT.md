@@ -200,6 +200,10 @@ Saving a Mod-owned Revision Group uses validated registrations to establish owne
 
 A Mod upgrade preserves the group's stable ownership while new Actions record the executing provider version. Earlier attribution remains unchanged. An ordinary save cannot transfer a group to another owner or target.
 
+The public Revision Group save interface uses the shared actor-scoped mutation lifecycle. A retry first matches the original request identity and fingerprint, then checks current read access to the saved Record; it does not rerun the provider or current contract validation. If the Record has been deleted, recovery requires retained Project authorization context and returns only an unavailable-target marker. A new save still checks current edit access, state, snapshot validity, and target consistency. Revision, attachment links, state/name changes, Action, and receipt commit together; a failed attempt leaves the identity free to retry.
+
+Save semantics are stable: a changed snapshot creates a Revision and updates the state token; a name-only change keeps the current Revision and updates the token; a fully unchanged save keeps both the current Revision and token while still writing the required Action and receipt.
+
 ### Revision
 
 An immutable historical state of a Revision Group, with the contract versions and provenance needed to interpret that state. Revisions belong to their Durable Record and do not count as additional Entities.

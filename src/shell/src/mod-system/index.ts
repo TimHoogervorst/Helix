@@ -1,6 +1,4 @@
 export { ModLoader } from "./ModLoader";
-export { runFrontendBoot } from "./boot";
-export type { FrontendBootOperations } from "./boot";
 export { Mod } from "./Mod";
 export { BlockEvent } from "./BlockEvent";
 export {

@@ -349,22 +349,21 @@ main.tsx
   → BrowserRouter
     → App.tsx
       → <ModLoader> (shows "Loading Helix…" loading screen)
-          1. Load Bundled Mods from explicit imports in bundled.ts
-             → Read manifests and collect register() functions
-          2. Glob src/mods/*/index.ts → discover External Mod register() functions
-          3. Topological sort mods by dependsOn graph
-          4. Validate: no circular deps, no missing deps, no duplicate IDs,
-             coreVersion constraints satisfied
-          5. GET /api/mod-registry/ → fetch backend-owned data:
-             workspace IDs, schema types, action catalogs
-          6. Hydrate frontend ModRegistry with backend data
-          7. Call each mod's register function in sorted order (UI only)
-          8. Validate registry: slot bindings resolve
-          9. Render <AppShell> → hubs, routes, blocks, settings, slots
-         10. App renders, mods are live
+          1. GET /api/mod-boot/ for the backend-authoritative active Mod set
+             and backend-owned registry payload
+          2. Discover explicit Bundled manifests and open External manifests
+          3. Validate active identities and frontend artifacts; import only
+             active frontend entries
+          4. Interpret manifests, sort active frontend Mods by dependencies,
+             and register their UI contributions
+          5. Hydrate Mod Registry with backend-owned data
+          6. Validate the completed registry
+          7. Render <AppShell> and release application content
 ```
 
-**Error handling:** Fail-fast. If a mod fails to load, a dependency is missing, or the `GET /api/mod-registry/` call fails, the app shows the error and does not boot. Slot binding errors are warn-and-skip.
+**Readiness and failure:** The boot module owns the full sequence and shares one pending or settled outcome for the page load. The Shell only presents loading, ready, or terminal failure. Application content stays gated until registration, Hydration, and final validation all succeed. Backend-data, import, registration, Hydration, or validation failure remains terminal across loader remounts; a full page reload starts a new attempt. Partial registry state is never presented as a usable application. Slot binding errors are warn-and-skip.
+
+**Discovery:** Bundled Mods are enumerated by explicit imports in `bundled.ts`; External Mods are discovered from the composed package entry points in `external.ts`. An inactive External Mod is not imported or registered. Backend activation remains authoritative.
 
 **Mod metadata** is read from `modManifest.json` — there is no `meta` export in `index.ts`. `index.ts` exports a single `register` function. The manifest is the single source of truth for mod identity.
 

@@ -1,39 +1,34 @@
-import { describe, expect, it } from "vitest";
-import { runFrontendBoot, type FrontendBootOperations } from "../boot";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { resetFrontendBootForTests, startFrontendBoot } from "../boot";
+import { ModRegistry } from "../ModRegistry";
 
-function operations(events: string[]): FrontendBootOperations {
-  return {
-    readBootData: async () => {
-      events.push("boot-data");
-      return { activeMods: ["helix.example"] };
-    },
-    importActive: async () => {
-      events.push("import");
-      return { "helix.example": {} };
-    },
-    registerActive: () => events.push("register"),
-    resolveFrontend: () => events.push("resolve"),
-  };
-}
+afterEach(() => {
+  vi.unstubAllGlobals();
+  resetFrontendBootForTests();
+  ModRegistry._reset();
+});
 
-describe("frontend maintenance-window boot", () => {
-  it("imports, registers, and resolves only after boot data is available", async () => {
-    const events: string[] = [];
+describe("frontend boot lifecycle", () => {
+  it("shares the successful page-load outcome with concurrent callers", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ activeMods: [], registry: {} }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
-    await runFrontendBoot(operations(events));
+    const outcomes = await Promise.all([startFrontendBoot(), startFrontendBoot()]);
 
-    expect(events).toEqual(["boot-data", "import", "register", "resolve"]);
+    expect(outcomes).toEqual([undefined, undefined]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("does not import or register when boot data fails", async () => {
-    const events: string[] = [];
-    const boot = operations(events);
-    boot.readBootData = async () => {
-      events.push("boot-data");
-      throw new Error("backend boot failed");
-    };
+  it("retains a terminal failure for later callers", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 503 });
+    vi.stubGlobal("fetch", fetchMock);
 
-    await expect(runFrontendBoot(boot)).rejects.toThrow("backend boot failed");
-    expect(events).toEqual(["boot-data"]);
+    const attempt = startFrontendBoot();
+    await expect(attempt).rejects.toThrow("Backend boot data failed (HTTP 503)");
+    await expect(startFrontendBoot()).rejects.toThrow("Backend boot data failed (HTTP 503)");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

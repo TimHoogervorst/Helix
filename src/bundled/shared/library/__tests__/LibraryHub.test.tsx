@@ -975,6 +975,27 @@ describe("LibraryHub", () => {
       ).toBeInTheDocument();
     });
 
+    it("expands an entry to its Platform entity, opens LIMS, and collapses it", async () => {
+      const recordId = "147280e4-93b3-4f89-a42c-ccbc3d872349";
+      const entry = makeLibraryEntry({ id: 10, title: "Parent entry", children_count: 1 });
+      const entity = makeLibraryEntry({
+        type: "entity", id: recordId, record_id: recordId, workspace_id: "lims",
+        title: "Registered sample", display_id: "DNA1", children_count: 0,
+      });
+      mockGetLibraryContents.mockImplementation((sourceType: string) => Promise.resolve(
+        makeLibraryContents([], sourceType === "entry" ? [entity] : [entry]),
+      ));
+      renderLibrary("/library?project=proj-001");
+      fireEvent.click(await screen.findByRole("button", { name: "Expand entry Parent entry" }));
+      const child = await screen.findByText("Registered sample");
+      expect(child.closest(".library-tree-row")).toHaveAttribute("data-depth", "1");
+      expect(mockGetLibraryContents).toHaveBeenCalledWith("entry", 10, false, undefined);
+      fireEvent.click(child);
+      expect(mockNavigate).toHaveBeenCalledWith(`/lims/${recordId}?project=proj-001&projectId=1`);
+      fireEvent.click(screen.getByRole("button", { name: "Collapse entry Parent entry" }));
+      expect(screen.queryByText("Registered sample")).not.toBeInTheDocument();
+    });
+
     it("lazily expands arbitrary entry and entity source descendants", async () => {
       const entry = makeLibraryEntry({
         id: 10,

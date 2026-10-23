@@ -104,6 +104,83 @@ class LibraryApiTests(BaseTestCase):
         )
         self.assertTrue(all("children_count" in item for item in response.data["results"]))
 
+    def _platform_entity(self, source):
+        from django.contrib.contenttypes.models import ContentType
+        from helix_core.models import PlatformRecord
+        ContentType.objects.clear_cache()
+        return PlatformRecord.objects.create(
+            name="Registered sample", project=self.project, schema=self.schema,
+            author=self.user, source=source,
+        )
+
+    def test_platform_entity_at_project_root_is_listed_with_lims_identity(self):
+        record = self._platform_entity(self.project)
+        response = self.client.get(self._children_url())
+        self.assertEqual(response.status_code, 200)
+        row = next(row for row in response.data["results"] if row.get("record_id") == str(record.pk))
+        self.assertEqual(row["id"], str(record.pk))
+        self.assertEqual(row["type"], "entity")
+        self.assertEqual(row["workspace_id"], "lims")
+        self.assertEqual(row["title"], record.name)
+        self.assertEqual(row["children_count"], 0)
+        children = self.client.get(self._children_url("entity", str(record.pk)))
+        self.assertEqual(children.status_code, 200)
+        self.assertEqual(children.data["results"], [])
+
+    def test_platform_entity_appears_under_entry_and_in_recursive_browse(self):
+        record = self._platform_entity(self.root_entry)
+        root = self.client.get(self._children_url())
+        entry = next(row for row in root.data["results"] if row["type"] == "entry")
+        self.assertEqual(entry["children_count"], 1)
+        self.assertFalse(any(row.get("record_id") == str(record.pk) for row in root.data["results"]))
+        children = self.client.get(self._children_url("entry", self.root_entry.pk))
+        self.assertEqual(children.status_code, 200)
+        self.assertEqual([row["record_id"] for row in children.data["results"]], [str(record.pk)])
+        recursive = self.client.get(self._children_url(recursive=True))
+        self.assertEqual(recursive.status_code, 200)
+        self.assertEqual(sum(row.get("record_id") == str(record.pk) for row in recursive.data["results"]), 1)
+
+    def test_platform_entity_visibility_and_counts_follow_access(self):
+        from helix_core.core.models import User
+        record = self._platform_entity(self.root_entry)
+        outsider = User.objects.create_user(username="record-outsider")
+        self.client.force_authenticate(user=outsider)
+        self.assertEqual(self.client.get(self._children_url()).status_code, 404)
+        self.assertEqual(self.client.get(self._children_url("entry", self.root_entry.pk)).status_code, 404)
+        self.assertEqual(self.client.get(self._children_url("entity", str(record.pk))).status_code, 404)
+
+    def test_provider_backed_record_is_not_a_duplicate_library_entity(self):
+        record = self._platform_entity(self.project)
+        self.root_entry.platform_record = record
+        self.root_entry.save(update_fields=["platform_record"])
+        response = self.client.get(self._children_url())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(sum(row["type"] == "entry" for row in response.data["results"]), 1)
+        self.assertFalse(any(row.get("record_id") == str(record.pk) for row in response.data["results"]))
+
+        child = self._platform_entity(self.root_entry)
+        response = self.client.get(self._children_url("entry", self.root_entry.pk))
+        self.assertEqual([row["record_id"] for row in response.data["results"]], [str(child.pk)])
+
+    def test_custom_serializer_keeps_library_card_and_expansion_metadata(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from rest_framework import serializers
+        from bundled.shared.library.views import _serialize_source_item
+        self._platform_entity(self.root_entry)
+
+        class EntrySerializer(serializers.ModelSerializer):
+            class Meta:
+                model = ConcreteTestEntity
+                fields = ["id", "name", "display_id"]
+
+        provider = SimpleNamespace(serializer=EntrySerializer, kind="test.external:entry", display_metadata={"workspace_id": "fixture"})
+        with patch("bundled.shared.library.views._provider_for", return_value=provider):
+            row = _serialize_source_item(self.root_entry, self.user)
+        self.assertEqual(row["children_count"], 1)
+        self.assertEqual(row["title"], self.root_entry.name)
+        self.assertEqual(row["name"], self.root_entry.name)
+
     def test_children_endpoint_returns_flat_recursive_subtree_with_depth(self):
         response = self.client.get(self._children_url(recursive=True))
 

@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator as DjangoPaginator
 from django.http import Http404
@@ -10,6 +12,7 @@ from bundled.access.access.policies import role as get_role
 from bundled.access.access.policies import effective_role
 from bundled.access.access.scoping import visible_folders_q, visible_rows_q
 from helix_core.mod_system.registry import registry
+from helix_core.models import PlatformRecord
 from bundled.labelling.tags.serializers import TagSerializer
 from bundled.access.users.serializers import UserSerializer
 
@@ -309,6 +312,16 @@ def _source_model(kind):
 
 
 def _resolve_source(kind, source_id):
+    if kind.lower() == "entity":
+        try:
+            record_id = UUID(str(source_id))
+        except ValueError:
+            pass
+        else:
+            try:
+                return PlatformRecord.objects.select_related("project").get(pk=record_id)
+            except PlatformRecord.DoesNotExist:
+                raise Http404("Source not found.")
     model = _source_model(kind)
     try:
         queryset = model.objects.all()
@@ -320,6 +333,10 @@ def _resolve_source(kind, source_id):
 
 
 def _children_qs(model, parent):
+    # Source edges currently point to integer-keyed providers. Platform records
+    # can be children, but cannot yet be parents of stored Source edges.
+    if isinstance(parent.pk, UUID):
+        return model.objects.none()
     content_type = ContentType.objects.get_for_model(parent, for_concrete_model=False)
     return model.objects.filter(
         source_type=content_type,
@@ -335,15 +352,28 @@ def _source_fields(item):
     }
 
 
-def _children_count(item, user):
-    count = _children_qs(Folder, item).filter(visible_folders_q(user)).count()
+def _visible_children(parent, user):
+    """One discovery path for direct listing, recursive browsing, and counts."""
+    yield _children_qs(Folder, parent).filter(visible_folders_q(user))
+    records = _children_qs(PlatformRecord, parent).filter(visible_rows_q(user))
     for provider, model in registry.content_source_models():
-        if provider.kind.rsplit(":", 1)[-1] in {"project", "folder"}:
+        if model in {Project, Folder, PlatformRecord}:
             continue
-        queryset = _children_qs(model, item)
+        # A provider may expose the document backed by a Platform record (ELN,
+        # for example). Keep its workspace row instead of adding a duplicate.
+        for field in model._meta.fields:
+            if field.name == "platform_record" and field.is_relation and field.related_model is PlatformRecord:
+                records = records.exclude(pk__in=model.objects.filter(
+                    **{f"{field.name}__isnull": False},
+                ).values(field.attname))
+        queryset = _children_qs(model, parent)
         queryset = registry.query_content_sources(provider.kind, type("Request", (), {"user": user})(), queryset)
-        count += queryset.count()
-    return count
+        yield queryset
+    yield records.select_related("schema__schema_type", "author", "source_type")
+
+
+def _children_count(item, user):
+    return sum(queryset.count() for queryset in _visible_children(item, user))
 
 
 def _provider_for(item):
@@ -406,20 +436,32 @@ def _folder_item(folder, user, *, shared=False):
 def _serialize_source_item(item, user, *, shared=False):
     if isinstance(item, Folder):
         return _folder_item(item, user, shared=shared)
+    if isinstance(item, PlatformRecord):
+        fields = [*(item.schema.schema_type.columns or []), *(item.schema.columns or [])]
+        return {
+            **_generic_content_item(item, None, user),
+            "type": "entity", "id": str(item.pk), "record_id": str(item.pk),
+            "workspace_id": "lims",
+            "property_fields": {
+                column["name"]: item.field_values[column["id"]].get("value")
+                for column in fields if column.get("id") in item.field_values
+            },
+        }
     provider = _provider_for(item)
     if provider is None:
         return {}
     serializer = provider.serializer
+    base = _generic_content_item(item, provider, user)
     if serializer is not None:
         try:
             serialized = serializer(item).data if hasattr(serializer, "data") else serializer(item, user)
             if hasattr(serialized, "data"):
                 serialized = serialized.data
             if isinstance(serialized, dict):
-                return {"type": _provider_kind_for(item), "id": item.pk, "workspace_id": _workspace_id_for(item), **serialized}
+                return {**base, **serialized, "children_count": base["children_count"]}
         except (AttributeError, TypeError):
             pass
-    return _generic_content_item(item, provider, user)
+    return base
 
 
 def _generic_content_item(item, provider, user):
@@ -472,21 +514,11 @@ class LibraryChildrenView(APIView):
         if not isinstance(parent, Project) and effective_role(request.user, parent) is None:
             raise Http404("Source not found.")
 
-        models = [("folder", Folder, visible_folders_q(request.user))]
-        for provider, model in registry.content_source_models():
-            if provider.kind.rsplit(":", 1)[-1] in {"project", "folder"}:
-                continue
-            models.append((provider.kind, model, provider))
         recursive = request.query_params.get("recursive", "0").lower() in {"1", "true", "yes"}
         search = request.query_params.get("search", "").strip().lower()
         rows = []
         queue = []
-        for kind, model, scope in models:
-            queryset = _children_qs(model, parent)
-            if kind != "folder":
-                queryset = registry.query_content_sources(kind, request, queryset)
-            else:
-                queryset = queryset.filter(scope)
+        for queryset in _visible_children(parent, request.user):
             # Depth is one-based: direct children of the requested source
             # are depth 1, their children depth 2, and so on.
             queue.append((queryset, 1))
@@ -527,10 +559,8 @@ class LibraryChildrenView(APIView):
                 serialized["depth"] = depth
                 rows.append(serialized)
             if recursive:
-                for kind, model, scope in models:
-                    queryset = _children_qs(model, item)
-                    queryset = queryset.filter(scope) if kind == "folder" else registry.query_content_sources(kind, request, queryset)
-                    child_depth = depth + (1 if kind == "folder" else 0)
+                for queryset in _visible_children(item, request.user):
+                    child_depth = depth + (1 if queryset.model is Folder else 0)
                     pending.extend((child, child_depth) for child in queryset)
 
         type_order = {"folder": 0}

@@ -43,7 +43,7 @@ export interface LibraryFolderItem {
 /** An entry row in the Library mixed table. */
 export interface LibraryEntryItem {
   type: "entry" | "entity";
-  id: number;
+  id: number | string;
   record_id?: string;
   /** The workspace this entry belongs to, e.g. "eln". */
   workspace_id: string;

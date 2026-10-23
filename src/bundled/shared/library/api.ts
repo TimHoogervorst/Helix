@@ -66,6 +66,7 @@ export function deleteEntry(displayId: string): Promise<void> {
 /**
  * Delete an entity by its display ID.
  */
-export function deleteEntity(displayId: string): Promise<void> {
+export function deleteEntity(displayId: string, recordId?: string): Promise<void> {
+  if (recordId) return del(`/records/${encodeURIComponent(recordId)}/`);
   return del(`/lims/entities/${displayId}/`);
 }

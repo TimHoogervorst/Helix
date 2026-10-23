@@ -660,7 +660,7 @@ function LibraryHub() {
       } else {
         const message = `Delete entity "${item.title}"? This cannot be undone.`;
         if (!window.confirm(message)) return;
-        deleteEntity(item.display_id).then(() => setRefreshKey((k) => k + 1));
+        deleteEntity(item.display_id, item.record_id).then(() => setRefreshKey((k) => k + 1));
       }
     },
     [],
@@ -1071,7 +1071,7 @@ function LibraryHub() {
           onClose={() => setPropertiesItem(null)}
           entry={propertiesItem}
           projectMeta={projectMeta}
-          canEdit={isOrgAdmin || currentRole === "edit"}
+          canEdit={!propertiesItem.record_id && (isOrgAdmin || currentRole === "edit")}
           folders={folderPaths}
           projectUid={projectUid}
           onMutated={() => {

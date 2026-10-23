@@ -25,6 +25,20 @@ class PlatformDocumentSaveTests(BaseTestCase):
         self.backend_registry = BackendModRegistry()
         self.registry_context = use_backend_registry_for_integration(self.backend_registry)
         self.registry_context.__enter__()
+        eln = ModRegistrar(ModManifest(
+            id="helix.eln", display_name="Electronic Lab Notebook",
+            version="0.1.0", requires_helix=">=1.0.0",
+            artifacts=("frontend", "backend"), depends_on=(),
+        ), self.backend_registry)
+        entry_reference = eln.register_model("entry", NotebookEntry)
+        eln.register_revision_group(
+            "document", entry_reference,
+            target_model_reference="eln.entry",
+            action_identities={
+                "created": "eln.entry.created",
+                "edited": "eln.entry.edited",
+            },
+        )
         get_or_create_default_eln_schema()
         self.client.force_authenticate(user=self.user)
         package_root = Path(__file__).resolve().parents[1]
@@ -62,7 +76,14 @@ class PlatformDocumentSaveTests(BaseTestCase):
         record = PlatformRecord.objects.get(pk=entry.platform_record_id)
         group = record.revision_groups.get(group_key="document")
         self.assertEqual(group.revisions.count(), 1)
+        self.assertEqual(group.owner_mod_id, "helix.eln")
         self.assertEqual(group.current_revision.snapshot["document"], TEXT_DOC)
+        document_action = ActionLogEntry.objects.get(
+            target_model_reference="eln.entry", target_object_id=str(entry.pk),
+        )
+        self.assertEqual(document_action.action, "eln.entry.created")
+        self.assertEqual(document_action.initiating_mod_id, "helix.eln")
+        self.assertEqual(document_action.initiating_mod_version, "0.1.0")
         self.assertEqual(created["document_group_id"], str(group.pk))
         self.assertEqual(created["document_revision_id"], str(group.current_revision_id))
         self.assertEqual(created["platform_record_id"], str(record.pk))

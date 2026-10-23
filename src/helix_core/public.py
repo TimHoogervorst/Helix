@@ -388,6 +388,42 @@ class ModRegistrar:
         )
         return reference
 
+    def register_revision_group(
+        self,
+        group_key: str,
+        target: ModelReference,
+        *,
+        target_model_reference: str,
+        action_identities: dict[str, str],
+    ) -> None:
+        """Declare ownership and permitted Action attribution for a group.
+
+        ``target_model_reference`` preserves the target vocabulary used by
+        saved Actions. Canonical ownership always comes from ``target`` and
+        this owner-bound registrar, never from a save request.
+        """
+        self._owned(target)
+        if target.id not in self._registry.get_registered_models():
+            raise ValueError(f"Target model '{target}' is not registered")
+        if not isinstance(action_identities, dict):
+            raise TypeError("action_identities must map Action types to identities")
+        allowed_prefixes = (
+            f"{self.id}.", f"{self.id}:",
+            f"{self._registry_id}.", f"{self._registry_id}:",
+        )
+        if any(
+            not isinstance(identity, str) or not identity.startswith(allowed_prefixes)
+            for identity in action_identities.values()
+        ):
+            raise ValueError("Action identities must be namespaced to the registering Mod")
+        self._registry.register_revision_group(
+            group_key,
+            target_model_reference,
+            owner_mod_id=self.id,
+            provider_mod_version=self.version,
+            action_identities=action_identities,
+        )
+
     def register_urls(self, patterns: list) -> None:
         self._registry.register_urls(self._registry_id, patterns)
 

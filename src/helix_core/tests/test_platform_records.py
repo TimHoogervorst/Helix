@@ -70,6 +70,23 @@ class PlatformRecordApiTests(TestCase):
         self.backend_registry = BackendModRegistry()
         self.registry_patch = patch("helix_core.mod_system.registry.registry", self.backend_registry)
         self.registry_patch.start()
+        fixture_mod = ModRegistrar(ModManifest(
+            id="fixture.platform", display_name="Platform Save Fixture",
+            version="1.0.0", requires_helix=">=1.0.0", artifacts=("backend",),
+            depends_on=(),
+        ), self.backend_registry)
+        fixture_target = fixture_mod.register_model(
+            "document", "helix_core.tests.fixtures.document.Document",
+        )
+        for target_alias in ("fixture.document", "eln.entry"):
+            fixture_mod.register_revision_group(
+                "document", fixture_target,
+                target_model_reference=target_alias,
+                action_identities={
+                    "created": "fixture.platform.document.created",
+                    "edited": "fixture.platform.document.edited",
+                },
+            )
 
     def tearDown(self):
         self.registry_patch.stop()
@@ -128,6 +145,7 @@ class PlatformRecordApiTests(TestCase):
         self.assertEqual(replay, first)
         group = PlatformRecord.objects.get(pk=created["id"]).revision_groups.get(group_key="document")
         self.assertEqual(group.target_model_reference, "eln.entry")
+        self.assertEqual(group.owner_mod_id, "fixture.platform")
         self.assertEqual(str(group.current_revision_id), first["revision_id"])
         self.assertEqual(group.current_revision.snapshot["document"], document)
         action = ActionLogEntry.objects.get(pk=first["action"]["id"])
@@ -135,6 +153,9 @@ class PlatformRecordApiTests(TestCase):
         self.assertEqual(action.target_object_id, "42")
         self.assertEqual(action.metadata["group_id"], first["group_id"])
         self.assertEqual(action.metadata["revision_id"], first["revision_id"])
+        self.assertEqual(action.action, "fixture.platform.document.edited")
+        self.assertEqual(action.initiating_mod_id, "fixture.platform")
+        self.assertEqual(action.initiating_mod_version, "1.0.0")
 
         unchanged = save_revision_group(
             actor=self.user, record_id=created["id"], group_key="document",
@@ -170,6 +191,209 @@ class PlatformRecordApiTests(TestCase):
                 target_model_reference="eln.entry", target_object_id="42",
             )
 
+    def test_two_registered_mods_save_owned_groups_and_reject_transfer_or_target_change(self):
+        from rest_framework.exceptions import ValidationError
+
+        created = create_record(
+            actor=self.user, project=self.project, schema=self.schema,
+            name="Multi-owner record", field_values={}, request_id=uuid4(),
+        )
+        alpha = ModRegistrar(ModManifest(
+            id="fixture.mod.alpha", display_name="Alpha", version="1.0.0",
+            requires_helix=">=1.0.0", artifacts=("backend",), depends_on=(),
+        ), self.backend_registry)
+        alpha_target = alpha.register_model("document", "fixture.alpha.Document")
+        alpha.register_revision_group(
+            "alpha_document", alpha_target, target_model_reference="alpha.document",
+            action_identities={
+                "created": "fixture.mod.alpha.document.created",
+                "edited": "fixture.mod.alpha.document.edited",
+            },
+        )
+        beta = ModRegistrar(ModManifest(
+            id="fixture.mod.beta", display_name="Beta", version="1.0.0",
+            requires_helix=">=1.0.0", artifacts=("backend",), depends_on=(),
+        ), self.backend_registry)
+        beta_target = beta.register_model("document", "fixture.beta.Document")
+        beta.register_revision_group(
+            "beta_document", beta_target, target_model_reference="beta.document",
+            action_identities={
+                "created": "fixture.mod.beta.document.created",
+                "edited": "fixture.mod.beta.document.edited",
+            },
+        )
+
+        alpha_saved = save_revision_group(
+            actor=self.user, record_id=created["id"], group_key="alpha_document",
+            state_token=created["state_token"], request_id=uuid4(),
+            snapshot={"document": {"owner": "alpha", "version": 1}},
+            target_model_reference="alpha.document", target_object_id="alpha-1",
+            action_type="created",
+        )
+        beta_saved = save_revision_group(
+            actor=self.user, record_id=created["id"], group_key="beta_document",
+            state_token=alpha_saved["state_token"], request_id=uuid4(),
+            snapshot={"document": {"owner": "beta", "version": 1}},
+            target_model_reference="beta.document", target_object_id="beta-1",
+            action_type="created",
+        )
+        alpha_group = PlatformRecord.objects.get(pk=created["id"]).revision_groups.get(
+            group_key="alpha_document",
+        )
+        beta_group = PlatformRecord.objects.get(pk=created["id"]).revision_groups.get(
+            group_key="beta_document",
+        )
+        alpha_action = ActionLogEntry.objects.get(pk=alpha_saved["action"]["id"])
+        beta_action = ActionLogEntry.objects.get(pk=beta_saved["action"]["id"])
+        self.assertEqual(alpha_group.owner_mod_id, "fixture.mod.alpha")
+        self.assertEqual(beta_group.owner_mod_id, "fixture.mod.beta")
+        self.assertEqual(alpha_action.action, "fixture.mod.alpha.document.created")
+        self.assertEqual(alpha_action.initiating_mod_id, "fixture.mod.alpha")
+        self.assertEqual(alpha_action.initiating_mod_version, "1.0.0")
+        self.assertEqual(beta_action.action, "fixture.mod.beta.document.created")
+        self.assertEqual(beta_action.initiating_mod_id, "fixture.mod.beta")
+        self.assertEqual(beta_action.initiating_mod_version, "1.0.0")
+
+        with self.assertRaises(ValidationError):
+            save_revision_group(
+                actor=self.user, record_id=created["id"], group_key="alpha_document",
+                state_token=beta_saved["state_token"], request_id=uuid4(),
+                snapshot={"document": {"owner": "alpha", "version": 2}},
+                target_model_reference="alpha.document", target_object_id="taken-over",
+            )
+
+        alpha_v2 = ModRegistrar(ModManifest(
+            id="fixture.mod.alpha", display_name="Alpha", version="2.0.0",
+            requires_helix=">=1.0.0", artifacts=("backend",), depends_on=(),
+        ), self.backend_registry)
+        alpha_v2.register_revision_group(
+            "alpha_document", alpha_v2.model_reference("fixture.mod.alpha", "document"),
+            target_model_reference="alpha.document",
+            action_identities={
+                "created": "fixture.mod.alpha.document.created",
+                "edited": "fixture.mod.alpha.document.edited",
+            },
+        )
+        alpha_upgraded = save_revision_group(
+            actor=self.user, record_id=created["id"], group_key="alpha_document",
+            state_token=beta_saved["state_token"], request_id=uuid4(),
+            snapshot={"document": {"owner": "alpha", "version": 2}},
+            target_model_reference="alpha.document", target_object_id="alpha-1",
+        )
+        alpha_group.refresh_from_db()
+        upgraded_action = ActionLogEntry.objects.get(pk=alpha_upgraded["action"]["id"])
+        self.assertEqual(alpha_group.owner_mod_id, "fixture.mod.alpha")
+        self.assertEqual(alpha_group.target_object_id, "alpha-1")
+        self.assertEqual(upgraded_action.initiating_mod_version, "2.0.0")
+        self.assertEqual(alpha_action.initiating_mod_version, "1.0.0")
+
+        beta.register_revision_group(
+            "alpha_document", beta_target, target_model_reference="alpha.document",
+            action_identities={
+                "created": "fixture.mod.beta.document.created",
+                "edited": "fixture.mod.beta.document.edited",
+            },
+        )
+        with self.assertRaises(ValidationError):
+            save_revision_group(
+                actor=self.user, record_id=created["id"], group_key="alpha_document",
+                state_token=alpha_upgraded["state_token"], request_id=uuid4(),
+                snapshot={"document": {"owner": "alpha", "version": 3}},
+                target_model_reference="alpha.document", target_object_id="alpha-1",
+            )
+        alpha_group.refresh_from_db()
+        self.assertEqual(alpha_group.owner_mod_id, "fixture.mod.alpha")
+        self.assertEqual(alpha_group.revisions.count(), 2)
+
+    def test_legacy_group_ownership_migration_binds_only_unique_registrations(self):
+        from rest_framework.exceptions import ValidationError
+        from helix_core.models import RecordRevisionGroup
+        from helix_core.record_persistence import migrate_revision_group_ownership
+
+        created = create_record(
+            actor=self.user, project=self.project, schema=self.schema,
+            name="Legacy ownership", field_values={}, request_id=uuid4(),
+        )
+        legacy_request_id = uuid4()
+        saved_legacy = save_revision_group(
+            actor=self.user, record_id=created["id"], group_key="document",
+            state_token=created["state_token"], request_id=legacy_request_id,
+            snapshot={"document": {"legacy": True}},
+            target_model_reference="fixture.document", target_object_id="legacy-resolved",
+        )
+        resolved = RecordRevisionGroup.objects.get(pk=saved_legacy["group_id"])
+        resolved.owner_mod_id = ""
+        resolved.save(update_fields=["owner_mod_id"])
+        legacy_action = ActionLogEntry.objects.get(pk=saved_legacy["action"]["id"])
+        action_before = (
+            legacy_action.action, legacy_action.initiating_mod_id,
+            legacy_action.initiating_mod_version, legacy_action.target_model_reference,
+            legacy_action.target_object_id, legacy_action.metadata,
+        )
+        receipt_before = ActionExecutionReceipt.objects.get(
+            actor=self.user, request_id=legacy_request_id,
+        ).response
+        ambiguous = RecordRevisionGroup.objects.create(
+            record_id=created["id"], target_model_reference="legacy.ambiguous",
+            target_object_id="legacy-ambiguous", group_key="document",
+        )
+        unresolved = RecordRevisionGroup.objects.create(
+            record_id=created["id"], target_model_reference="legacy.missing",
+            target_object_id="legacy-missing", group_key="document",
+        )
+        left = ModRegistrar(ModManifest(
+            id="fixture.legacy.left", display_name="Legacy Left", version="1.0.0",
+            requires_helix=">=1.0.0", artifacts=("backend",), depends_on=(),
+        ), self.backend_registry)
+        left_target = left.register_model("doc", "fixture.legacy.LeftDocument")
+        right = ModRegistrar(ModManifest(
+            id="fixture.legacy.right", display_name="Legacy Right", version="1.0.0",
+            requires_helix=">=1.0.0", artifacts=("backend",), depends_on=(),
+        ), self.backend_registry)
+        right_target = right.register_model("doc", "fixture.legacy.RightDocument")
+        for mod, target, identity in (
+            (left, left_target, "fixture.legacy.left.document.edited"),
+            (right, right_target, "fixture.legacy.right.document.edited"),
+        ):
+            mod.register_revision_group(
+                "document", target, target_model_reference="legacy.ambiguous",
+                action_identities={"edited": identity},
+            )
+
+        self.assertEqual(migrate_revision_group_ownership(), 1)
+        resolved.refresh_from_db()
+        ambiguous.refresh_from_db()
+        unresolved.refresh_from_db()
+        self.assertEqual(resolved.owner_mod_id, "fixture.platform")
+        self.assertEqual(resolved.target_model_reference, "fixture.document")
+        self.assertEqual(resolved.target_object_id, "legacy-resolved")
+        legacy_action.refresh_from_db()
+        self.assertEqual((
+            legacy_action.action, legacy_action.initiating_mod_id,
+            legacy_action.initiating_mod_version, legacy_action.target_model_reference,
+            legacy_action.target_object_id, legacy_action.metadata,
+        ), action_before)
+        self.assertEqual(
+            ActionExecutionReceipt.objects.get(
+                actor=self.user, request_id=legacy_request_id,
+            ).response,
+            receipt_before,
+        )
+        self.assertEqual(ambiguous.owner_mod_id, "")
+        self.assertEqual(unresolved.owner_mod_id, "")
+        for target_reference, target_id in (
+            ("legacy.ambiguous", "legacy-ambiguous"),
+            ("legacy.missing", "legacy-missing"),
+        ):
+            with self.assertRaises(ValidationError):
+                save_revision_group(
+                    actor=self.user, record_id=created["id"], group_key="document",
+                    state_token=saved_legacy["state_token"], request_id=uuid4(),
+                    snapshot={"document": {"legacy": True}},
+                    target_model_reference=target_reference,
+                    target_object_id=target_id,
+                )
+
     def test_revision_group_recovery_precedes_current_contract_validation_and_allows_read_access(self):
         from helix_core.models import RetainedContract
 
@@ -201,6 +425,7 @@ class PlatformRecordApiTests(TestCase):
         receipt = ActionExecutionReceipt.objects.get(actor=self.user, request_id=request_id)
         self.assertEqual(receipt.response["_recovery"]["project_id"], self.project.pk)
         RetainedContract.objects.all().delete()
+        self.backend_registry._revision_group_registrations.clear()
         Grant.objects.filter(project=self.project, user=self.user).update(role=ProjectRole.READ)
 
         replay = save_revision_group(

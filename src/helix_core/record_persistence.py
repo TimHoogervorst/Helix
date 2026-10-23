@@ -477,11 +477,28 @@ def save_revision_group(
     def execute():
         from bundled.access.access.policies import effective_role
         from helix_core.models import PlatformRecord, RecordRevisionGroup, ScientificRevision
+        from helix_core.mod_system.registry import registry
 
         if not isinstance(group_key, str) or not group_key or group_key == "record":
             raise ValidationError({"group_key": "A non-empty Mod-owned group key is required."})
         if not isinstance(snapshot, dict):
             raise ValidationError({"snapshot": "Expected a JSON object."})
+        if not isinstance(target_model_reference, str) or not target_model_reference:
+            raise ValidationError({"target_model_reference": "A registered target is required."})
+        if target_object_id is None or str(target_object_id) == "":
+            raise ValidationError({"target_object_id": "A target object identity is required."})
+        registration = registry.resolve_revision_group_registration(
+            target_model_reference, group_key,
+        )
+        if registration is None:
+            raise ValidationError({
+                "group_key": "No unambiguous registered owner is available for this Revision Group."
+            })
+        action_identity = registration["action_identities"].get(action_type)
+        if action_identity is None:
+            raise ValidationError({
+                "action_type": "This Action type is not permitted by the Revision Group registration."
+            })
         contract_ref = snapshot.get("contract")
         if contract_ref is not None:
             if not isinstance(contract_ref, dict) or set(contract_ref) != {"kind", "id", "version"}:
@@ -502,15 +519,23 @@ def save_revision_group(
             record=record,
             group_key=group_key,
             defaults={
-                "target_model_reference": target_model_reference or "helix.record",
-                "target_object_id": str(target_object_id if target_object_id is not None else record.pk),
+                "target_model_reference": target_model_reference,
+                "target_object_id": str(target_object_id),
+                "owner_mod_id": registration["owner_mod_id"],
             },
         )
-        if not created and target_model_reference and (
+        if not created and (
             group.target_model_reference != target_model_reference
             or group.target_object_id != str(target_object_id)
         ):
             raise ValidationError({"group_key": "This Revision Group belongs to another target."})
+        if group.owner_mod_id and group.owner_mod_id != registration["owner_mod_id"]:
+            raise ValidationError({"group_key": "This Revision Group belongs to another Mod."})
+        if not group.owner_mod_id:
+            # Legacy rows retain their historical target identity. Bind only
+            # when the exact target/group pair has one active registration.
+            group.owner_mod_id = registration["owner_mod_id"]
+            group.save(update_fields=["owner_mod_id"])
         current = group.current_revision
         revision = current
         changed = current is None or current.snapshot != snapshot
@@ -538,8 +563,8 @@ def save_revision_group(
                 record.name = record_name
                 update_fields.append("name")
             record.save(update_fields=update_fields)
-        target_ref = target_model_reference or "helix.record"
-        target_id = target_object_id if target_object_id is not None else record.pk
+        target_ref = target_model_reference
+        target_id = target_object_id
         action_metadata = {
             "revision_id": str(revision.pk), "group_id": str(group.pk),
             "group_key": group_key, "revision_changed": changed,
@@ -549,8 +574,9 @@ def save_revision_group(
         action = _write_action(
             record, actor, action_type, request_id,
             action_metadata,
-            action_identity="eln.entry.created" if action_type == "created" else "eln.entry.edited",
-            provider_mod_id="helix.eln", provider_mod_version="0.1.0",
+            action_identity=action_identity,
+            provider_mod_id=registration["owner_mod_id"],
+            provider_mod_version=registration["provider_mod_version"],
             target_model_reference=target_ref, target_object_id=target_id,
         )
         response = {
@@ -576,6 +602,31 @@ def save_revision_group(
         fingerprint=request_hash,
         execute=execute,
     )
+
+
+def migrate_revision_group_ownership():
+    """Bind legacy groups only when active registrations resolve them exactly.
+
+    Historical target strings, revisions, Actions and receipts are left
+    untouched. Missing or ambiguous registrations leave the legacy owner blank
+    so the public save boundary will fail closed until ownership is resolved.
+    """
+    from helix_core.models import RecordRevisionGroup
+    from helix_core.mod_system.registry import registry
+
+    migrated = 0
+    with transaction.atomic():
+        groups = RecordRevisionGroup.objects.select_for_update().filter(owner_mod_id="")
+        for group in groups.iterator():
+            registration = registry.resolve_revision_group_registration(
+                group.target_model_reference, group.group_key,
+            )
+            if registration is None:
+                continue
+            group.owner_mod_id = registration["owner_mod_id"]
+            group.save(update_fields=["owner_mod_id"])
+            migrated += 1
+    return migrated
 
 
 def _freeze(value):

@@ -196,9 +196,11 @@ Every Entity supports history. Its ordinary scientific properties form a default
 
 Each group identifies its current Revision independently. A historical group state does not imply that the Entity's other fields were captured with it.
 
-Saving a Mod-owned Revision Group uses validated registrations to establish ownership and permitted Action attribution. The owning Mod and provider version are authoritative registration data, not arbitrary caller-supplied attribution; missing or inconsistent ownership prevents the save.
+Saving a Mod-owned Revision Group uses validated registrations to establish its canonical owner, permitted Action identity, and executing provider version. The persisted owner Mod ID is separate from the historical target model and object IDs. Callers cannot supply authoritative ownership or Action attribution; missing, ambiguous, or inconsistent registrations prevent the save.
 
-A Mod upgrade preserves the group's stable ownership while new Actions record the executing provider version. Earlier attribution remains unchanged. An ordinary save cannot transfer a group to another owner or target.
+A Mod upgrade preserves the group's stable ownership while new Actions record the executing registration's version. Earlier Action attribution remains unchanged. An ordinary save cannot transfer a group to another owner or target.
+
+The ownership migration adds a blank canonical owner for legacy groups, then startup reconciliation binds only exact target and group-key matches with one validated active registration. It does not rewrite historical target IDs, Actions, or mutation receipts. Groups without a unique registration remain intact with unresolved ownership and reject new saves until their owner can be established.
 
 The public Revision Group save interface uses the shared actor-scoped mutation lifecycle. A retry first matches the original request identity and fingerprint, then checks current read access to the saved Record; it does not rerun the provider or current contract validation. If the Record has been deleted, recovery requires retained Project authorization context and returns only an unavailable-target marker. A new save still checks current edit access, state, snapshot validity, and target consistency. Revision, attachment links, state/name changes, Action, and receipt commit together; a failed attempt leaves the identity free to retry.
 

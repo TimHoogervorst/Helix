@@ -58,6 +58,17 @@ def register(mod):
     mod.register_column_type(TiptapContentColumnType())
 
     entry = mod.register_model("entry", NotebookEntry)
+    mod.register_revision_group(
+        "document",
+        entry,
+        # Keep the historical target label written into Actions and group
+        # rows while canonical ownership comes from this Mod registration.
+        target_model_reference="eln.entry",
+        action_identities={
+            "created": "eln.entry.created",
+            "edited": "eln.entry.edited",
+        },
+    )
     mod.register_source_kind(
         "entry",
         entry,

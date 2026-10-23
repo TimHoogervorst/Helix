@@ -382,6 +382,10 @@ class RecordRevisionGroup(models.Model):
     target_model_reference = models.CharField(max_length=255, blank=True, default="")
     target_object_id = models.CharField(max_length=255, blank=True, default="")
     group_key = models.CharField(max_length=100, default="record")
+    # Canonical Mod ownership is distinct from the historical target strings.
+    # Blank values are retained for legacy groups whose owner cannot be
+    # established from an active registration.
+    owner_mod_id = models.CharField(max_length=255, blank=True, default="")
     current_revision = models.ForeignKey(
         "ScientificRevision", on_delete=models.PROTECT, null=True, blank=True,
         related_name="current_for_groups",

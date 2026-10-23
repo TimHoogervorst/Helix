@@ -77,6 +77,10 @@ class BackendModRegistry:
         self._action_models: dict[str, type] = {}
         self._action_providers: dict[str, tuple[str, str]] = {}
         self._record_actions: dict[str, dict[str, Any]] = {}
+        # Revision-group registrations may intentionally share a historical
+        # target alias; preserve all declarations so resolution can fail
+        # closed instead of silently choosing the last provider.
+        self._revision_group_registrations: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
         self._url_patterns: dict[str, list] = defaultdict(list)
         self._settings: dict[str, dict[str, Any]] = defaultdict(dict)
         self._signal_registrations: list[dict[str, Any]] = []
@@ -705,6 +709,59 @@ class BackendModRegistry:
             "provider_mod_id": provider_mod_id,
             "provider_mod_version": provider_mod_version,
         }
+
+    def register_revision_group(
+        self,
+        group_key: str,
+        target_model_reference: str,
+        *,
+        owner_mod_id: str,
+        provider_mod_version: str,
+        action_identities: Mapping[str, str],
+    ) -> None:
+        """Register the owner and permitted audit actions for one group."""
+        if not isinstance(group_key, str) or not group_key or group_key == "record":
+            raise ValueError("A non-empty Mod-owned group key is required")
+        if not isinstance(target_model_reference, str) or not target_model_reference:
+            raise ValueError("A target model reference is required")
+        if not isinstance(owner_mod_id, str) or not owner_mod_id:
+            raise ValueError("A canonical owner Mod ID is required")
+        if not isinstance(provider_mod_version, str) or not provider_mod_version:
+            raise ValueError("A provider Mod version is required")
+        if not action_identities or any(
+            verb not in {"created", "edited"}
+            or not isinstance(identity, str)
+            or not identity
+            for verb, identity in action_identities.items()
+        ):
+            raise ValueError("Revision groups require registered created/edited Action identities")
+        registrations = self._revision_group_registrations[(target_model_reference, group_key)]
+        value = {
+            "group_key": group_key,
+            "target_model_reference": target_model_reference,
+            "owner_mod_id": owner_mod_id,
+            "provider_mod_version": provider_mod_version,
+            "action_identities": dict(action_identities),
+        }
+        for index, current in enumerate(registrations):
+            if current["owner_mod_id"] == owner_mod_id:
+                registrations[index] = value
+                break
+        else:
+            registrations.append(value)
+
+    def resolve_revision_group_registration(
+        self, target_model_reference: str, group_key: str,
+    ) -> dict[str, Any] | None:
+        """Resolve one exact declaration; ambiguous aliases are unavailable."""
+        registrations = self._revision_group_registrations.get(
+            (target_model_reference, group_key), []
+        )
+        if len(registrations) != 1:
+            return None
+        registration = dict(registrations[0])
+        registration["action_identities"] = dict(registration["action_identities"])
+        return registration
 
     def get_record_action(self, action_id: str) -> dict[str, Any] | None:
         """Return a registered Record Action including its executable handler."""

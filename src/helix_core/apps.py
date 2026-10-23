@@ -245,6 +245,12 @@ class HelixCoreConfig(AppConfig):
         # All mods have now declared their contributions.  Only now resolve
         # cross-mod references, so registration order cannot affect outcomes.
         validate_activation(registry)
+        # The focused schema migration adds an empty canonical owner field;
+        # once validated active registrations exist, bind only exact and
+        # unambiguous legacy target/group matches.
+        from helix_core.record_persistence import migrate_revision_group_ownership
+
+        migrate_revision_group_ownership()
 
         # Root URLConf may have been imported before app registration. Refresh
         # its shared list in place so prior ``from config.urls import

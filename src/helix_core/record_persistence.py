@@ -349,107 +349,104 @@ def create_record(*, actor, project, schema, name, field_values, metadata=None, 
     return _record_response(record, revision=revision, action=action)
 
 
-@transaction.atomic
 def edit_record(
     *, actor, record_id, state_token, request_id, field_values=None, metadata=None,
     action_identity=None, provider_mod_id="helix", provider_mod_version="1",
     action_contract=None, additional_action_metadata=None, request_hash=None,
 ):
-    from helix_core.models import ActionExecutionReceipt, PlatformRecord
-    from bundled.access.access.policies import effective_role
-
     request_payload = {
         "record_id": str(record_id),
         "state_token": str(state_token),
         "field_values": field_values,
         "metadata": metadata,
     }
-    request_hash = request_hash or _digest(request_payload)
-    receipt = ActionExecutionReceipt.objects.filter(actor=actor, request_id=request_id).first()
-    if receipt is not None:
-        if receipt.request_hash != request_hash:
-            raise StateConflict("This request ID was already used for a different proposal.")
-        return receipt.response
+    from helix_core.record_mutations import execute_record_edit, request_fingerprint
 
-    try:
-        record = PlatformRecord.objects.select_for_update(of=("self",)).select_related("schema__schema_type", "project").get(pk=record_id)
-    except (PlatformRecord.DoesNotExist, ValueError):
-        raise NotFound("Record not found.")
-    receipt = ActionExecutionReceipt.objects.filter(actor=actor, request_id=request_id).first()
-    if receipt is not None:
-        if receipt.request_hash != request_hash:
-            raise StateConflict("This request ID was already used for a different proposal.")
-        return receipt.response
-    if effective_role(actor, record) != "edit":
-        raise PermissionDenied("You do not have permission to edit this record.")
-    if str(record.state_token) != str(state_token):
-        raise StateConflict()
+    fingerprint = request_hash or request_fingerprint(request_payload)
 
-    changed_values = field_values is not None
-    values = record.field_values or {}
-    if changed_values:
-        proposed = _validate_values(record.schema, field_values)
-        values = {**values, **proposed}
-    proposed_metadata = record.properties or {}
-    if metadata is not None:
-        if not isinstance(metadata, dict):
-            raise ValidationError({"metadata": "Expected an object."})
-        proposed_metadata = metadata
-    values_changed = values != (record.field_values or {})
-    metadata_changed = proposed_metadata != (record.properties or {})
+    def execute():
+        from helix_core.models import PlatformRecord
+        from bundled.access.access.policies import effective_role
 
-    record.field_values = values
-    record.properties = proposed_metadata
-    record.last_editor = actor
-    record.state_token = uuid4()
-    record.save(update_fields=["field_values", "properties", "last_editor", "state_token", "updated_at"])
+        try:
+            record = PlatformRecord.objects.select_for_update(of=("self",)).select_related(
+                "schema__schema_type", "project"
+            ).get(pk=record_id)
+        except (PlatformRecord.DoesNotExist, ValueError):
+            raise NotFound("Record not found.")
+        if effective_role(actor, record) != "edit":
+            raise PermissionDenied("You do not have permission to edit this record.")
+        if str(record.state_token) != str(state_token):
+            raise StateConflict()
 
-    group = record.revision_groups.select_for_update(of=("self",)).select_related("current_revision").get(group_key="record")
-    revision = group.current_revision
-    if values_changed:
-        from helix_core.models import ScientificRevision
+        changed_values = field_values is not None
+        values = record.field_values or {}
+        if changed_values:
+            proposed = _validate_values(record.schema, field_values)
+            values = {**values, **proposed}
+        proposed_metadata = record.properties or {}
+        if metadata is not None:
+            if not isinstance(metadata, dict):
+                raise ValidationError({"metadata": "Expected an object."})
+            proposed_metadata = metadata
+        values_changed = values != (record.field_values or {})
+        metadata_changed = proposed_metadata != (record.properties or {})
 
-        snapshot = {
-            "name": record.name,
-            "metadata": record.properties or {},
-            "schema_id": record.schema_id,
-            "field_values": record.field_values or {},
+        record.field_values = values
+        record.properties = proposed_metadata
+        record.last_editor = actor
+        record.state_token = uuid4()
+        record.save(update_fields=["field_values", "properties", "last_editor", "state_token", "updated_at"])
+
+        group = record.revision_groups.select_for_update(of=("self",)).select_related(
+            "current_revision"
+        ).get(group_key="record")
+        revision = group.current_revision
+        if values_changed:
+            from helix_core.models import ScientificRevision
+
+            snapshot = {
+                "name": record.name,
+                "metadata": record.properties or {},
+                "schema_id": record.schema_id,
+                "field_values": record.field_values or {},
+            }
+            revision = ScientificRevision.objects.create(
+                group=group,
+                sequence=group.revisions.count() + 1,
+                snapshot=snapshot,
+                content_hash=_digest(snapshot),
+                created_by=actor,
+            )
+            group.current_revision = revision
+            group.save(update_fields=["current_revision"])
+            from helix_core.attachments import link_revision_attachments
+
+            link_revision_attachments(project_id=record.project_id, values=snapshot, revision=revision)
+
+        action_metadata = {
+            "revision_id": str(revision.pk) if revision else None,
+            "values_changed": values_changed,
+            "metadata_changed": metadata_changed,
         }
-        revision = ScientificRevision.objects.create(
-            group=group,
-            sequence=group.revisions.count() + 1,
-            snapshot=snapshot,
-            content_hash=_digest(snapshot),
-            created_by=actor,
+        if action_contract:
+            action_metadata["action_contract"] = action_contract
+        if additional_action_metadata:
+            action_metadata.update(additional_action_metadata)
+        action = _write_action(
+            record, actor, "edited", request_id, action_metadata,
+            action_identity=action_identity,
+            provider_mod_id=provider_mod_id,
+            provider_mod_version=provider_mod_version,
         )
-        group.current_revision = revision
-        group.save(update_fields=["current_revision"])
-        from helix_core.attachments import link_revision_attachments
-        link_revision_attachments(project_id=record.project_id, values=snapshot, revision=revision)
+        return _record_response(record, revision=revision, action=action)
 
-    action_metadata = {
-        "revision_id": str(revision.pk) if revision else None,
-        "values_changed": values_changed,
-        "metadata_changed": metadata_changed,
-    }
-    if action_contract:
-        action_metadata["action_contract"] = action_contract
-    if additional_action_metadata:
-        action_metadata.update(additional_action_metadata)
-    action = _write_action(
-        record, actor, "edited", request_id, action_metadata,
-        action_identity=action_identity,
-        provider_mod_id=provider_mod_id,
-        provider_mod_version=provider_mod_version,
-    )
-    response = _record_response(record, revision=revision, action=action)
-    ActionExecutionReceipt.objects.create(
+    return execute_record_edit(
         actor=actor,
         request_id=request_id,
-        request_hash=request_hash,
-        response=response,
+        fingerprint=fingerprint,
+        execute=execute,
     )
-    return response
 
 
 @transaction.atomic

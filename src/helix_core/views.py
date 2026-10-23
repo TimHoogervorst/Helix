@@ -940,12 +940,24 @@ class PlatformRecordDetailView(APIView):
         return Response({"record_id": str(record.pk), "groups": revisions})
 
     def post_form(self, request, record_id):
-        record = self.get_record(request, record_id)
-        from helix_core.record_persistence import edit_record
-
         payload = PlatformRecordEditSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
         values = payload.validated_data
+        from helix_core.record_mutations import recover_record_edit, request_fingerprint
+
+        fingerprint = request_fingerprint({
+            "record_id": str(record_id),
+            "state_token": str(values["state_token"]),
+            "field_values": values.get("field_values"),
+            "metadata": values.get("metadata"),
+        })
+        recovered = recover_record_edit(request.user, values["request_id"], fingerprint)
+        if recovered is not None:
+            return Response(recovered)
+
+        record = self.get_record(request, record_id)
+        from helix_core.record_persistence import edit_record
+
         response = edit_record(
             actor=request.user,
             record_id=record.pk,
@@ -953,6 +965,7 @@ class PlatformRecordDetailView(APIView):
             request_id=values["request_id"],
             field_values=values.get("field_values"),
             metadata=values.get("metadata"),
+            request_hash=fingerprint,
         )
         return Response(response)
 

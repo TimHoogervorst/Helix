@@ -28,6 +28,7 @@ from helix_core.models import (
     PlatformAttachment,
     PlatformRendition,
     AttachmentRevisionLink,
+    ActionExecutionReceipt,
     RetainedContract,
     Schema,
     SchemaType,
@@ -676,6 +677,146 @@ class PlatformRecordApiTests(TestCase):
         self.assertEqual(first.data, retry.data)
         self.assertEqual(first.data["revision"]["sequence"], 2)
         self.assertEqual(ActionLogEntry.objects.count(), 2)
+
+    def test_form_retry_recovers_after_edit_access_is_lost_but_read_access_remains(self):
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        payload = {
+            "state_token": created.data["state_token"],
+            "request_id": "a0a0a0a0-0000-4000-8000-000000000002",
+            "field_values": {"field-concentration": {"type": "number", "value": 2.5}},
+        }
+        first = self.client.post(f"/api/records/{created.data['id']}/form/", payload, format="json")
+        Grant.objects.filter(project=self.project, user=self.user).update(role=ProjectRole.READ)
+
+        retry = self.client.post(f"/api/records/{created.data['id']}/form/", payload, format="json")
+        new_edit = self.client.post(
+            f"/api/records/{created.data['id']}/form/",
+            {**payload, "request_id": "a0a0a0a0-0000-4000-8000-000000000003"},
+            format="json",
+        )
+
+        self.assertEqual(retry.status_code, 200, retry.data)
+        self.assertEqual(retry.data, first.data)
+        self.assertEqual(new_edit.status_code, 403, new_edit.data)
+        self.assertEqual(ActionLogEntry.objects.count(), 2)
+
+    def test_form_retry_is_denied_when_current_read_access_is_lost(self):
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        payload = {
+            "state_token": created.data["state_token"],
+            "request_id": "a0a0a0a0-0000-4000-8000-000000000004",
+            "field_values": {"field-concentration": {"type": "number", "value": 2.5}},
+        }
+        first = self.client.post(f"/api/records/{created.data['id']}/form/", payload, format="json")
+        Grant.objects.filter(project=self.project, user=self.user).delete()
+
+        retry = self.client.post(f"/api/records/{created.data['id']}/form/", payload, format="json")
+
+        self.assertEqual(first.status_code, 200, first.data)
+        self.assertEqual(retry.status_code, 403, retry.data)
+        self.assertEqual(ActionLogEntry.objects.count(), 2)
+
+    def test_form_request_identity_cannot_be_reused_for_another_payload(self):
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        payload = {
+            "state_token": created.data["state_token"],
+            "request_id": "a0a0a0a0-0000-4000-8000-000000000007",
+            "field_values": {"field-concentration": {"type": "number", "value": 2.5}},
+        }
+        first = self.client.post(f"/api/records/{created.data['id']}/form/", payload, format="json")
+        changed = {
+            **payload,
+            "field_values": {"field-concentration": {"type": "number", "value": 3.5}},
+        }
+
+        conflict = self.client.post(f"/api/records/{created.data['id']}/form/", changed, format="json")
+
+        self.assertEqual(first.status_code, 200, first.data)
+        self.assertEqual(conflict.status_code, 409, conflict.data)
+        self.assertEqual(PlatformRecord.objects.get(pk=created.data["id"]).field_values[
+            "field-concentration"]["value"], 2.5)
+        self.assertEqual(ActionLogEntry.objects.count(), 2)
+
+    def test_deleted_form_target_recovers_only_an_unavailable_marker_with_project_read_access(self):
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        payload = {
+            "state_token": created.data["state_token"],
+            "request_id": "a0a0a0a0-0000-4000-8000-000000000005",
+            "field_values": {"field-concentration": {"type": "number", "value": 2.5}},
+        }
+        first = self.client.post(f"/api/records/{created.data['id']}/form/", payload, format="json")
+        self.assertEqual(first.status_code, 200, first.data)
+        deleted = self.client.delete(f"/api/records/{created.data['id']}/")
+        Grant.objects.filter(project=self.project, user=self.user).update(role=ProjectRole.READ)
+
+        retry = self.client.post(f"/api/records/{created.data['id']}/form/", payload, format="json")
+
+        self.assertEqual(deleted.status_code, 204, deleted.data)
+        self.assertEqual(retry.status_code, 200, retry.data)
+        self.assertEqual(retry.data["id"], created.data["id"])
+        self.assertTrue(retry.data["targetUnavailable"])
+        self.assertNotIn("field_values", retry.data)
+        self.assertNotIn("action", retry.data)
+        self.assertEqual(ActionExecutionReceipt.objects.count(), 1)
+
+    def test_deleted_form_target_with_receipt_missing_project_context_fails_closed(self):
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        payload = {
+            "state_token": created.data["state_token"],
+            "request_id": "a0a0a0a0-0000-4000-8000-000000000009",
+            "field_values": {"field-concentration": {"type": "number", "value": 2.5}},
+        }
+        self.client.post(f"/api/records/{created.data['id']}/form/", payload, format="json")
+        self.client.delete(f"/api/records/{created.data['id']}/")
+        receipt = ActionExecutionReceipt.objects.get()
+        receipt.response = {key: value for key, value in receipt.response.items() if key != "project_id"}
+        receipt.save(update_fields=["response"])
+
+        retry = self.client.post(f"/api/records/{created.data['id']}/form/", payload, format="json")
+
+        self.assertEqual(retry.status_code, 403, retry.data)
+        self.assertNotIn("field_values", retry.data)
+
+    def test_receipt_write_failure_rolls_back_edit_revision_and_audit(self):
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        payload = {
+            "state_token": created.data["state_token"],
+            "request_id": "a0a0a0a0-0000-4000-8000-000000000006",
+            "field_values": {"field-concentration": {"type": "number", "value": 2.5}},
+        }
+
+        with patch.object(ActionExecutionReceipt.objects, "create", side_effect=RuntimeError("receipt failed")):
+            response = self.client.post(f"/api/records/{created.data['id']}/form/", payload, format="json")
+
+        record = PlatformRecord.objects.get(pk=created.data["id"])
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(record.field_values["field-concentration"]["value"], 1.25)
+        self.assertEqual(record.revision_groups.get(group_key="record").revisions.count(), 1)
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
+        self.assertEqual(ActionExecutionReceipt.objects.count(), 0)
+
+        retry = self.client.post(f"/api/records/{created.data['id']}/form/", payload, format="json")
+        self.assertEqual(retry.status_code, 200, retry.data)
+        self.assertEqual(ActionExecutionReceipt.objects.count(), 1)
+        self.assertEqual(ActionLogEntry.objects.count(), 2)
+
+    def test_audit_write_failure_rolls_back_edit_and_receipt(self):
+        created = self.client.post("/api/records/", self.create_payload(), format="json")
+        payload = {
+            "state_token": created.data["state_token"],
+            "request_id": "a0a0a0a0-0000-4000-8000-000000000008",
+            "field_values": {"field-concentration": {"type": "number", "value": 2.5}},
+        }
+
+        with patch("helix_core.record_persistence._write_action", side_effect=RuntimeError("audit failed")):
+            response = self.client.post(f"/api/records/{created.data['id']}/form/", payload, format="json")
+
+        record = PlatformRecord.objects.get(pk=created.data["id"])
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(record.field_values["field-concentration"]["value"], 1.25)
+        self.assertEqual(record.revision_groups.get(group_key="record").revisions.count(), 1)
+        self.assertEqual(ActionLogEntry.objects.count(), 1)
+        self.assertEqual(ActionExecutionReceipt.objects.count(), 0)
 
     def test_snapshot_failure_rolls_back_record_and_action(self):
         with patch("helix_core.record_persistence.create_initial_snapshot", side_effect=RuntimeError("snapshot failed")):

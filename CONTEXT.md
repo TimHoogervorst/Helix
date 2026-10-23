@@ -165,6 +165,12 @@ Used identifies an exact scientific input Revision without implying mutation or 
 
 A composed operation does not require a separate Block-change Action for the ELN perspective: its document edit and other record effects are associations of the same Action. Full Revision snapshots provide the saved content; a content delta is not required.
 
+### Record Edit Execution and Recovery
+
+The generic record form and its persistence boundary use one actor-scoped request identity for matching, serialization, authorization, atomic completion and recovery. Concurrent first uses serialize even when they target different records. Identical requests recover the single committed record response; reusing the identity with different inputs conflicts without a second write.
+
+Execution checks current Edit access and current record state. A committed retry checks current Read access before returning the saved response and never repeats the edit. If the target was deleted, recovery discloses only that the target is unavailable when the retained Project context still grants Read access; insufficient context or lost Read access denies recovery. Record changes, required Revisions, audit and the receipt commit together, so failure to persist audit or receipt rolls back the entire edit.
+
 ### Action Invocation
 
 A particular request to perform an offered operation with specified inputs, parameters and targets. It is distinct from the reusable Action Contract and from the audit of its committed effects.

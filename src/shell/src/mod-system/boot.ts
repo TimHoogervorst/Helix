@@ -17,6 +17,69 @@ export interface ModModule {
   register: (mod: Mod) => void;
 }
 
+interface DependencyOrderingOptions<T> {
+  compareReady?: (left: T, right: T) => number;
+  missingDependencyError?: (nodeId: string, dependencyId: string) => Error;
+  cycleError?: (remaining: T[]) => Error;
+}
+
+/** Shared Kahn traversal; callers retain their own graph validation and errors. */
+function orderByDependencies<T>(
+  nodes: T[],
+  getId: (node: T) => string,
+  getDependencyIds: (node: T) => string[],
+  options: DependencyOrderingOptions<T> = {},
+): T[] {
+  const nodeById = new Map(nodes.map((node) => [getId(node), node]));
+  const inDegree = new Map(nodes.map((node) => [getId(node), 0]));
+  const dependents = new Map(nodes.map((node) => [getId(node), [] as string[]]));
+
+  for (const node of nodes) {
+    const id = getId(node);
+    for (const dependencyId of getDependencyIds(node)) {
+      if (!nodeById.has(dependencyId)) {
+        throw options.missingDependencyError?.(id, dependencyId)
+          ?? new Error(`Node '${id}' depends on unknown node '${dependencyId}'.`);
+      }
+      dependents.get(dependencyId)!.push(id);
+      inDegree.set(id, inDegree.get(id)! + 1);
+    }
+  }
+
+  const ready = [...inDegree]
+    .filter(([, degree]) => degree === 0)
+    .map(([id]) => id);
+  if (options.compareReady) {
+    ready.sort((left, right) =>
+      options.compareReady!(nodeById.get(left)!, nodeById.get(right)!),
+    );
+  }
+
+  const ordered: T[] = [];
+  while (ready.length) {
+    const id = ready.shift()!;
+    ordered.push(nodeById.get(id)!);
+    for (const dependentId of dependents.get(id)!) {
+      inDegree.set(dependentId, inDegree.get(dependentId)! - 1);
+      if (inDegree.get(dependentId) === 0) {
+        ready.push(dependentId);
+        if (options.compareReady) {
+          ready.sort((left, right) =>
+            options.compareReady!(nodeById.get(left)!, nodeById.get(right)!),
+          );
+        }
+      }
+    }
+  }
+
+  if (ordered.length !== nodes.length) {
+    const remaining = nodes.filter((node) => !ordered.includes(node));
+    throw options.cycleError?.(remaining)
+      ?? new Error(`Circular dependency detected involving node(s): ${remaining.map(getId).join(", ")}`);
+  }
+  return ordered;
+}
+
 // Bundled modules are closed and explicit. External modules are linked npm
 // workspaces (or installed packages) composed in external.ts.
 const modModules: Record<string, ModModule> = { ...bundledModModules };
@@ -278,9 +341,6 @@ function sameAuthoritativeManifest(authoritative: ModManifest, discovered: ModMa
 /** Validate and order every active node, including backend-only Mods. */
 function topologicallyOrderManifests(manifests: ModManifest[]): string[] {
   const manifestById = new Map(manifests.map((manifest) => [manifest.id, manifest]));
-  const inDegree = new Map(manifests.map((manifest) => [manifest.id, 0]));
-  const dependents = new Map(manifests.map((manifest) => [manifest.id, [] as string[]]));
-
   for (const manifest of manifests) {
     for (const dependency of manifest.dependsOn) {
       const dependencyManifest = manifestById.get(dependency.id);
@@ -290,29 +350,21 @@ function topologicallyOrderManifests(manifests: ModManifest[]): string[] {
       if (!satisfiesVersion(dependencyManifest.version, dependency.version)) {
         throw new Error(`Active Mod '${manifest.id}' requires '${dependency.id}' at '${dependency.version}', but backend metadata reports '${dependencyManifest.version}'.`);
       }
-      dependents.get(dependency.id)!.push(manifest.id);
-      inDegree.set(manifest.id, inDegree.get(manifest.id)! + 1);
     }
   }
 
-  const ready = [...inDegree].filter(([, degree]) => degree === 0).map(([id]) => id).sort();
-  const ordered: string[] = [];
-  while (ready.length) {
-    const id = ready.shift()!;
-    ordered.push(id);
-    for (const dependent of dependents.get(id)!) {
-      inDegree.set(dependent, inDegree.get(dependent)! - 1);
-      if (inDegree.get(dependent) === 0) {
-        ready.push(dependent);
-        ready.sort();
-      }
-    }
-  }
-  if (ordered.length !== manifests.length) {
-    const remaining = [...inDegree].filter(([, degree]) => degree > 0).map(([id]) => id).sort();
-    throw new Error(`Circular dependency detected involving mod(s): ${remaining.join(", ")}`);
-  }
-  return ordered;
+  return orderByDependencies(
+    manifests,
+    (manifest) => manifest.id,
+    (manifest) => manifest.dependsOn.map(({ id }) => id),
+    {
+      compareReady: (left, right) =>
+        left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
+      cycleError: (remaining) => new Error(
+        `Circular dependency detected involving mod(s): ${remaining.map(({ id }) => id).sort().join(", ")}`,
+      ),
+    },
+  ).map(({ id }) => id);
 }
 
 type ParsedVersion = [number, number, number, string[]];
@@ -572,61 +624,17 @@ function depId(entry: { id: string; version: string }): string {
  * Exported for direct unit testing.
  */
 export function topologicalSort(mods: ModModule[]): ModModule[] {
-  // Build lookup: vendor.name → module
-  const modMap = new Map(mods.map((m) => [vendorName(m.meta), m]));
-
-  // In-degree and adjacency maps
-  const inDegree = new Map<string, number>();
-  const adjacency = new Map<string, string[]>(); // vendor.name → dependents
-
-  for (const mod of mods) {
-    const id = vendorName(mod.meta);
-    inDegree.set(id, 0);
-    adjacency.set(id, []);
-  }
-
-  // Populate edges: dep → mod (dep must load before mod)
-  for (const mod of mods) {
-    const modId = vendorName(mod.meta);
-    for (const rawDep of mod.meta.dependsOn) {
-      const dep = depId(rawDep);
-      if (!modMap.has(dep)) {
-        throw new Error(
-          `Mod '${modId}' depends on '${dep}', which is not registered.`,
-        );
-      }
-      adjacency.get(dep)!.push(modId);
-      inDegree.set(modId, (inDegree.get(modId) ?? 0) + 1);
-    }
-  }
-
-  // Kahn's: start with all nodes that have no unmet dependencies
-  const queue: string[] = [];
-  for (const [id, degree] of inDegree) {
-    if (degree === 0) queue.push(id);
-  }
-
-  const result: ModModule[] = [];
-  while (queue.length > 0) {
-    const id = queue.shift()!;
-    result.push(modMap.get(id)!);
-    for (const dependent of adjacency.get(id) ?? []) {
-      const newDegree = (inDegree.get(dependent) ?? 1) - 1;
-      inDegree.set(dependent, newDegree);
-      if (newDegree === 0) queue.push(dependent);
-    }
-  }
-
-  // Cycle detection: if some nodes were never processed, a cycle exists
-  if (result.length < mods.length) {
-    const remaining = mods
-      .filter((m) => !result.includes(m))
-      .map((m) => vendorName(m.meta))
-      .join(", ");
-    throw new Error(
-      `Circular dependency detected involving mod(s): ${remaining}`,
-    );
-  }
-
-  return result;
+  return orderByDependencies(
+    mods,
+    (mod) => vendorName(mod.meta),
+    (mod) => mod.meta.dependsOn.map(depId),
+    {
+      missingDependencyError: (modId, dependencyId) => new Error(
+        `Mod '${modId}' depends on '${dependencyId}', which is not registered.`,
+      ),
+      cycleError: (remaining) => new Error(
+        `Circular dependency detected involving mod(s): ${remaining.map((mod) => vendorName(mod.meta)).join(", ")}`,
+      ),
+    },
+  );
 }

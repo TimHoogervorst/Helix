@@ -398,13 +398,16 @@ class ModRegistrar:
     ) -> None:
         """Declare ownership and permitted Action attribution for a group.
 
-        ``target_model_reference`` preserves the target vocabulary used by
-        saved Actions. Canonical ownership always comes from ``target`` and
-        this owner-bound registrar, never from a save request.
+        ``target_model_reference`` is the legacy vocabulary stored on saved
+        Actions; it may be an alias and is not the canonical model identity.
+        Ownership always comes from the registered ``target`` and this
+        owner-bound registrar, never from a save request.
         """
         self._owned(target)
         if target.id not in self._registry.get_registered_models():
             raise ValueError(f"Target model '{target}' is not registered")
+        if not isinstance(target_model_reference, str) or not target_model_reference:
+            raise ValueError("A target Action model reference is required")
         if not isinstance(action_identities, dict):
             raise TypeError("action_identities must map Action types to identities")
         allowed_prefixes = (

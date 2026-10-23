@@ -104,6 +104,45 @@ class PlatformRecordApiTests(TestCase):
         payload.update(overrides)
         return payload
 
+    def test_revision_group_requires_an_owned_registered_model_and_accepts_action_alias(self):
+        registrar = ModRegistrar(
+            ModManifest(
+                id="fixture.guard.mod", display_name="Platform Save Fixture",
+                version="1.0.0", requires_helix=">=1.0.0", artifacts=("backend",),
+                depends_on=(),
+            ),
+            self.backend_registry,
+        )
+        unregistered_target = registrar.model_reference(
+            "fixture.guard.mod", "unregistered",
+        )
+
+        with self.assertRaisesRegex(ValueError, "not registered"):
+            registrar.register_revision_group(
+                "unregistered", unregistered_target,
+                target_model_reference="fixture.document",
+                action_identities={"edited": "fixture.guard.mod.document.edited"},
+            )
+
+        owned_target = registrar.register_model("document", "fixture.Document")
+        with self.assertRaisesRegex(ValueError, "Action model reference"):
+            registrar.register_revision_group(
+                "document", owned_target,
+                target_model_reference="",
+                action_identities={"edited": "fixture.guard.mod.document.edited"},
+            )
+        registrar.register_revision_group(
+            "document", owned_target,
+            target_model_reference="legacy.document",
+            action_identities={"edited": "fixture.guard.mod.document.edited"},
+        )
+        self.assertEqual(
+            self.backend_registry.resolve_revision_group_registration(
+                "legacy.document", "document",
+            )["target_model_reference"],
+            "legacy.document",
+        )
+
     def test_create_returns_platform_identity_initial_revision_and_authoritative_action(self):
         response = self.client.post("/api/records/", self.create_payload(), format="json")
 

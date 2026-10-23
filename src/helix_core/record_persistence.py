@@ -611,8 +611,27 @@ def migrate_revision_group_ownership():
     untouched. Missing or ambiguous registrations leave the legacy owner blank
     so the public save boundary will fail closed until ownership is resolved.
     """
+    from django.db import connection
+    from django.db.utils import OperationalError, ProgrammingError
     from helix_core.models import RecordRevisionGroup
     from helix_core.mod_system.registry import registry
+
+    # ``AppConfig.ready`` also runs for commands that execute before migrations.
+    # The model state already knows about owner_mod_id then, but the physical
+    # table may still be at migration 0001. Defer in that case; post_migrate
+    # will call startup reconciliation again after the schema reaches 0002.
+    try:
+        with connection.cursor() as cursor:
+            columns = {
+                column.name
+                for column in connection.introspection.get_table_description(
+                    cursor, RecordRevisionGroup._meta.db_table
+                )
+            }
+    except (OperationalError, ProgrammingError):
+        return 0
+    if "owner_mod_id" not in columns:
+        return 0
 
     migrated = 0
     with transaction.atomic():

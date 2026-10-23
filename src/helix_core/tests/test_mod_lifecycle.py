@@ -172,6 +172,29 @@ class ModLifecycleApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["activeMods"], [])
+        self.assertEqual(response.json()["activeModManifests"], [])
+
+    def test_boot_payload_includes_authoritative_manifest_for_each_active_mod(self):
+        sync_mod_installations(
+            {
+                "acme.base": manifest("acme.base", artifacts=("backend",)),
+                "acme.app": manifest("acme.app", ["acme.base"]),
+            },
+            {"acme.base": "mods.base", "acme.app": "mods.app"},
+        )
+        ModInstallation.objects.filter(mod_id__in=["acme.base", "acme.app"]).update(
+            state=ModLifecycleState.ACTIVE
+        )
+
+        payload = APIClient().get("/api/mod-boot/").json()
+
+        self.assertEqual(payload["activeMods"], ["acme.app", "acme.base"])
+        self.assertEqual(
+            {manifest["id"] for manifest in payload["activeModManifests"]},
+            set(payload["activeMods"]),
+        )
+        app = next(item for item in payload["activeModManifests"] if item["id"] == "acme.app")
+        self.assertEqual(app["dependsOn"], [{"id": "acme.base", "version": "^1.0.0"}])
 
         registry_response = APIClient().get("/api/mod-registry/")
         self.assertEqual(registry_response.status_code, 200)

@@ -1432,12 +1432,19 @@ class ModBootView(APIView):
 
             catalog = read_catalog(catalog_path)
 
-        active = ModInstallation.objects.filter(
+        active_installations = ModInstallation.objects.filter(
             state=ModInstallation.State.ACTIVE,
-        ).values_list("mod_id", flat=True)
+        ).order_by("mod_id")
+        active = [installation.mod_id for installation in active_installations]
         return Response(
             {
-                "activeMods": sorted(active),
+                "activeMods": active,
+                # Identity, artifacts, and dependency declarations come from
+                # the backend's persisted discovery record. The frontend must
+                # never infer that an unknown active Mod is backend-only.
+                "activeModManifests": [
+                    installation.manifest for installation in active_installations
+                ],
                 "catalog": catalog,
                 "registry": registry.get_registry_payload(),
             }

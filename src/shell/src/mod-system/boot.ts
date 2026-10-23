@@ -32,6 +32,8 @@ const jsonManifestModules: Record<
 
 interface ModBootData {
   activeMods: string[];
+  activeManifests: ModManifest[];
+  orderedActiveIds: string[];
   registry: Record<string, unknown>;
 }
 
@@ -56,8 +58,8 @@ export function resetFrontendBootForTests(): void {
 
 async function runBootSequence(): Promise<void> {
   const bootData = await fetchBootData();
-  const activeModules = await loadActiveModModules(bootData.activeMods, jsonManifestModules);
-  bootModSystem(activeModules, jsonManifestModules);
+  const activeModules = await loadActiveModModules(bootData, jsonManifestModules);
+  bootModSystem(activeModules, jsonManifestModules, bootData.orderedActiveIds);
   await hydrateRegistryFromApi(activeModules, jsonManifestModules, bootData);
   ModRegistry.getInstance().validate({ strict: true });
 }
@@ -68,6 +70,7 @@ async function fetchBootData(): Promise<ModBootData> {
   }
   const payload = (await response.json()) as {
     activeMods?: unknown;
+    activeModManifests?: unknown;
     registry?: unknown;
   };
   if (!Array.isArray(payload.activeMods) || payload.activeMods.some((id) => typeof id !== "string")) {
@@ -76,29 +79,51 @@ async function fetchBootData(): Promise<ModBootData> {
   if (new Set(payload.activeMods).size !== payload.activeMods.length) {
     throw new Error("Backend boot data contains duplicate active Mod IDs.");
   }
+  if (!Array.isArray(payload.activeModManifests)) {
+    throw new Error("Backend boot data has no authoritative active Mod manifests.");
+  }
   if (!payload.registry || typeof payload.registry !== "object") {
     throw new Error("Backend boot data has no valid registry payload.");
   }
+  const activeManifests = payload.activeModManifests.map((raw, index) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      throw new Error(`Backend boot data has an invalid active Mod manifest at index ${index}.`);
+    }
+    return parseJsonManifest(raw as Record<string, unknown>, `backend active Mod ${index}`);
+  });
+  const activeIds = payload.activeMods as string[];
+  if (new Set(activeManifests.map(({ id }) => id)).size !== activeManifests.length ||
+      activeManifests.length !== activeIds.length ||
+      activeManifests.some(({ id }) => !activeIds.includes(id))) {
+    throw new Error("Backend boot data has inconsistent active Mod identities.");
+  }
   return {
-    activeMods: payload.activeMods,
+    activeMods: activeIds,
+    activeManifests,
+    orderedActiveIds: topologicallyOrderManifests(activeManifests),
     registry: payload.registry as Record<string, unknown>,
   };
 }
 
 async function loadActiveModModules(
-  activeIds: string[],
+  bootData: ModBootData,
   jsonModules: Record<string, { default: Record<string, unknown> }>,
 ): Promise<Record<string, ModModule>> {
   const modules = { ...modModules };
   const manifests = buildJsonManifestMap(jsonModules);
-  const activeSet = new Set(activeIds);
+  const activeSet = new Set(bootData.activeMods);
+  const authoritative = new Map(bootData.activeManifests.map((manifest) => [manifest.id, manifest]));
 
-  for (const activeId of activeIds) {
-    const manifest = [...manifests.values()].find((entry) => entry.manifest.id === activeId)?.manifest;
-    if (!manifest) {
-      throw new Error(`Backend activated Mod '${activeId}', but no discovered manifest declares it.`);
+  for (const activeId of bootData.activeMods) {
+    const activeManifest = authoritative.get(activeId)!;
+    const discoveredManifest = [...manifests.values()].find((entry) => entry.manifest.id === activeId)?.manifest;
+    if (activeManifest.artifacts.includes("frontend") && !discoveredManifest) {
+      throw new Error(`Active Mod '${activeId}' declares a frontend artifact, but no discovered manifest declares it.`);
     }
-    if (!manifest.artifacts.includes("frontend")) continue;
+    if (discoveredManifest && !sameAuthoritativeManifest(activeManifest, discoveredManifest)) {
+      throw new Error(`Discovered manifest for active Mod '${activeId}' conflicts with backend boot metadata.`);
+    }
+    if (!activeManifest.artifacts.includes("frontend")) continue;
 
     const bundledEntry = Object.keys(modules).some(
       (specifier) => manifestForModule(specifier, manifests)?.manifest.id === activeId,
@@ -113,14 +138,14 @@ async function loadActiveModModules(
 
   for (const [specifier, load] of Object.entries(externalModLoaders)) {
     const modId = manifestForModule(specifier, manifests)?.manifest.id;
-    if (modId && activeSet.has(modId) && manifestForModule(specifier, manifests)?.manifest.artifacts.includes("frontend")) {
+    if (modId && activeSet.has(modId) && authoritative.get(modId)?.artifacts.includes("frontend")) {
       modules[specifier] = await load();
     }
   }
   return Object.fromEntries(
     Object.entries(modules).filter(([specifier]) => {
       const modId = manifestForModule(specifier, manifests)?.manifest.id;
-      return modId ? activeSet.has(modId) : false;
+      return modId ? activeSet.has(modId) && authoritative.get(modId)?.artifacts.includes("frontend") : false;
     }),
   );
 }
@@ -164,6 +189,7 @@ function collectMods(
 function bootModSystem(
   modules: Record<string, ModModule>,
   jsonModules: Record<string, { default: Record<string, unknown> }>,
+  orderedActiveIds: string[],
 ): void {
   const registry = ModRegistry.getInstance();
 
@@ -185,8 +211,10 @@ function bootModSystem(
     seenIds.add(id);
   }
 
-  // Step 3: Topological sort by vendor.name
-  const sortedMods = topologicalSort(mods);
+  // Backend-only nodes participate in the authoritative order even though
+  // they have no frontend module to register.
+  const rank = new Map(orderedActiveIds.map((id, index) => [id, index]));
+  const sortedMods = [...mods].sort((a, b) => rank.get(a.meta.id)! - rank.get(b.meta.id)!);
 
   // Step 4: Register in sorted order (each mod calls register*() → populates registry)
   // Register both vendor.name (uniqueness anchor) and short name (backward
@@ -216,7 +244,7 @@ async function hydrateRegistryFromApi(
 
   // Key by short name for backward compatibility with the backend API
   // which returns workspace data keyed by mod name (e.g. "lims", "eln").
-  const manifests = new Map(mods.map((m) => [m.meta.id, m.meta]));
+  const manifests = new Map(bootData.activeManifests.map((manifest) => [manifest.id, manifest]));
 
   ModRegistry.getInstance().hydrateFromBackend(bootData.registry, manifests);
 }
@@ -233,6 +261,123 @@ export function manifestForModule(
     ?? manifests.get(modulePath.replace(/\/index\.ts$/, "/modManifest.json"))
     ?? manifests.get(`${packageRoot}/modManifest.json`)
     ?? manifests.get(`${modulePath}/manifest`);
+}
+
+function sameAuthoritativeManifest(authoritative: ModManifest, discovered: ModManifest): boolean {
+  const dependencies = (manifest: ModManifest) => manifest.dependsOn
+    .map(({ id, version }) => ({ id, version }))
+    .sort((a, b) => a.id.localeCompare(b.id) || a.version.localeCompare(b.version));
+  return authoritative.id === discovered.id &&
+    authoritative.displayName === discovered.displayName &&
+    authoritative.version === discovered.version &&
+    authoritative.requiresHelix === discovered.requiresHelix &&
+    [...authoritative.artifacts].sort().join(",") === [...discovered.artifacts].sort().join(",") &&
+    JSON.stringify(dependencies(authoritative)) === JSON.stringify(dependencies(discovered));
+}
+
+/** Validate and order every active node, including backend-only Mods. */
+function topologicallyOrderManifests(manifests: ModManifest[]): string[] {
+  const manifestById = new Map(manifests.map((manifest) => [manifest.id, manifest]));
+  const inDegree = new Map(manifests.map((manifest) => [manifest.id, 0]));
+  const dependents = new Map(manifests.map((manifest) => [manifest.id, [] as string[]]));
+
+  for (const manifest of manifests) {
+    for (const dependency of manifest.dependsOn) {
+      const dependencyManifest = manifestById.get(dependency.id);
+      if (!dependencyManifest) {
+        throw new Error(`Active Mod '${manifest.id}' depends on '${dependency.id}', which is not active.`);
+      }
+      if (!satisfiesVersion(dependencyManifest.version, dependency.version)) {
+        throw new Error(`Active Mod '${manifest.id}' requires '${dependency.id}' at '${dependency.version}', but backend metadata reports '${dependencyManifest.version}'.`);
+      }
+      dependents.get(dependency.id)!.push(manifest.id);
+      inDegree.set(manifest.id, inDegree.get(manifest.id)! + 1);
+    }
+  }
+
+  const ready = [...inDegree].filter(([, degree]) => degree === 0).map(([id]) => id).sort();
+  const ordered: string[] = [];
+  while (ready.length) {
+    const id = ready.shift()!;
+    ordered.push(id);
+    for (const dependent of dependents.get(id)!) {
+      inDegree.set(dependent, inDegree.get(dependent)! - 1);
+      if (inDegree.get(dependent) === 0) {
+        ready.push(dependent);
+        ready.sort();
+      }
+    }
+  }
+  if (ordered.length !== manifests.length) {
+    const remaining = [...inDegree].filter(([, degree]) => degree > 0).map(([id]) => id).sort();
+    throw new Error(`Circular dependency detected involving mod(s): ${remaining.join(", ")}`);
+  }
+  return ordered;
+}
+
+type ParsedVersion = [number, number, number, string[]];
+
+function parseVersion(value: string): ParsedVersion {
+  const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.exec(value);
+  if (!match) throw new Error(`Invalid Mod version '${value}'.`);
+  return [Number(match[1]), Number(match[2]), Number(match[3]), match[4]?.split(".") ?? []];
+}
+
+function compareVersions(left: ParsedVersion, right: ParsedVersion): number {
+  for (let index = 0; index < 3; index += 1) {
+    if (left[index] !== right[index]) return left[index] < right[index] ? -1 : 1;
+  }
+  if (!left[3].length || !right[3].length) {
+    return left[3].length === right[3].length ? 0 : left[3].length ? -1 : 1;
+  }
+  for (let index = 0; index < Math.min(left[3].length, right[3].length); index += 1) {
+    const a = left[3][index];
+    const b = right[3][index];
+    if (a === b) continue;
+    if (/^\d+$/.test(a) && /^\d+$/.test(b)) return Number(a) < Number(b) ? -1 : 1;
+    if (/^\d+$/.test(a)) return -1;
+    if (/^\d+$/.test(b)) return 1;
+    return a < b ? -1 : 1;
+  }
+  return (left[3].length > right[3].length) - (left[3].length < right[3].length);
+}
+
+function satisfiesVersion(version: string, range: string): boolean {
+  const actual = parseVersion(version);
+  return range.split("||").some((alternative) => {
+    const checks: ((candidate: ParsedVersion) => boolean)[] = [];
+    for (const rawToken of alternative.trim().split(/\s+/).filter(Boolean)) {
+      if (["*", "x", "X"].includes(rawToken)) continue;
+      const match = /^(\^|~|<=|>=|<|>|=)?(\d+)(?:\.(\d+|x|X|\*))?(?:\.(\d+|x|X|\*))?(?:-([0-9A-Za-z.-]+))?$/.exec(rawToken);
+      if (!match) return false;
+      const operator = match[1] ?? "=";
+      const parts = [match[2], match[3], match[4]].filter((part) => part !== undefined && !/[xX*]/.test(part));
+      const expected = parseVersion(`${parts.concat(["0", "0"]).slice(0, 3).join(".")}${match[5] ? `-${match[5]}` : ""}`);
+      const compare = (candidate: ParsedVersion) => compareVersions(candidate, expected);
+      if (operator === "^") {
+        const upper: ParsedVersion = expected[0] > 0 ? [expected[0] + 1, 0, 0, []]
+          : parts.length === 1 ? [1, 0, 0, []]
+            : expected[1] > 0 || parts.length === 2 ? [0, expected[1] + 1, 0, []]
+              : [0, 0, expected[2] + 1, []];
+        checks.push((candidate) => compareVersions(candidate, expected) >= 0 && compareVersions(candidate, upper) < 0);
+      } else if (operator === "~") {
+        const upper: ParsedVersion = [expected[0], expected[1] + 1, 0, []];
+        checks.push((candidate) => compareVersions(candidate, expected) >= 0 && compareVersions(candidate, upper) < 0);
+      } else if (operator === "=" && parts.length < 3) {
+        const upper: ParsedVersion = parts.length === 1 ? [expected[0] + 1, 0, 0, []] : [expected[0], expected[1] + 1, 0, []];
+        checks.push((candidate) => compareVersions(candidate, expected) >= 0 && compareVersions(candidate, upper) < 0);
+      } else {
+        checks.push((candidate) => ({
+          ">=": compare(candidate) >= 0,
+          "<=": compare(candidate) <= 0,
+          ">": compare(candidate) > 0,
+          "<": compare(candidate) < 0,
+          "=": compare(candidate) === 0,
+        }[operator]));
+      }
+    }
+    return (!actual[3].length || checks.some((check) => check(actual))) && checks.every((check) => check(actual));
+  });
 }
 
 // ── JSON manifest helpers ───────────────────────────────────────────────

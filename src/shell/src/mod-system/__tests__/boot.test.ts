@@ -12,7 +12,7 @@ describe("frontend boot lifecycle", () => {
   it("shares the successful page-load outcome with concurrent callers", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ activeMods: [], registry: {} }),
+      json: async () => ({ activeMods: [], activeModManifests: [], registry: {} }),
     });
     vi.stubGlobal("fetch", fetchMock);
 

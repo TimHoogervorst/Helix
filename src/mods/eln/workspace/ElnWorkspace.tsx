@@ -1,14 +1,15 @@
+import { decodeBlockContent, getTypedPath } from "./portableInput";
 import { useRef, useEffect, useMemo, useCallback, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { WorkspaceBus } from "@helix/mod-api/host";
 import { SlotRenderer } from "@helix/mod-api/host";
-import { SlotSidebar } from "@helix/mod-api/host";
+import { SlotSidebar } from "@helix/mod-api";
 import { ModRegistry } from "@helix/mod-api/host";
 import type { SlotContext, BlockBinding } from "@helix/mod-api/host";
 import type { ElnSidebarData } from "../blocks/sidebarData";
 import { useSendAction } from "@helix/mod-api/host";
-import { TipTapRenderer } from "@helix/mod-api/host";
+import { TipTapRenderer } from "@helix/mod-api/editor";
 import { elnExtensions } from "../editor/extensions/elnExtensions";
 import { useEntryWorkspace } from "../hooks/useEntryWorkspace";
 import { useTaggableItems } from "../tags/hooks/useTaggableItems";
@@ -83,18 +84,6 @@ function collectRecordSources(value: unknown, found = new Map<string, RecordInpu
   return found;
 }
 
-function getTypedPath(root: unknown, path: readonly string[]) {
-  let value = root;
-  for (const segment of path) {
-    if (!value || typeof value !== "object" || !Object.prototype.hasOwnProperty.call(value, segment)) return undefined;
-    value = (value as Record<string, unknown>)[segment];
-  }
-  if (!value || typeof value !== "object") return undefined;
-  const typed = value as { type?: unknown; value?: unknown };
-  return (typeof typed.type === "string" || (typeof typed.type === "object" && typed.type !== null))
-    ? { type: typed.type as ContractType, value: typed.value }
-    : undefined;
-}
 
 function collectActionReferences(value: unknown, found = new Map<string, { id: string; version: string }>()) {
   if (Array.isArray(value)) {
@@ -185,9 +174,10 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const [actionDefinitions, setActionDefinitions] = useState<Record<string, ActionContractDefinition>>({});
   const [recordActionProviders, setRecordActionProviders] = useState<RecordActionProvider[]>([]);
   const [selectedPortableProviders, setSelectedPortableProviders] = useState<Record<string, string>>({});
-  const actionReferences = useMemo(() => [...collectActionReferences(workspace.editor.content).values()], [workspace.editor.content]);
-  const portableBlocks = useMemo(() => collectPortableBlocks(workspace.editor.content), [workspace.editor.content]);
-  const recordInputSources = useMemo(() => [...collectRecordSources(workspace.editor.content).entries()], [workspace.editor.content]);
+  const discoveryDocument = useMemo(() => decodeBlockContent(workspace.editor.content), [workspace.editor.content]);
+  const actionReferences = useMemo(() => [...collectActionReferences(discoveryDocument).values()], [discoveryDocument]);
+  const portableBlocks = useMemo(() => collectPortableBlocks(discoveryDocument), [discoveryDocument]);
+  const recordInputSources = useMemo(() => [...collectRecordSources(discoveryDocument).entries()], [discoveryDocument]);
   const [recordInputValues, setRecordInputValues] = useState<Record<string, { type: ContractType; value: unknown }>>({});
 
   useEffect(() => {

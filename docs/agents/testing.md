@@ -61,7 +61,6 @@ Drop `-n auto` for targeted runs — a single file or keyword doesn't benefit fr
 parallel workers and starts faster without them.
 
 ### Database: SQLite vs Postgres
-
 The default Docker setup runs against PostgreSQL (`pgvector/pgvector:pg16`), which is what CI and the real app use. Prefer SQLite for quick local implementation and focused runs without Docker:
 
 ```bash

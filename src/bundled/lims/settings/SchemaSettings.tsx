@@ -40,10 +40,10 @@ function SettingsPage() {
   const schemaComponents = ModRegistry.getInstance().getSchemaComponents();
 
   const resultSchemaTypes = schemaTypes.filter((type) =>
-    type.tags?.includes("ResultTable"),
+    type.capabilities?.includes("ResultTable"),
   );
   const entitySchemaTypes = schemaTypes.filter((type) =>
-    type.tags?.includes("RegistrationTable"),
+    type.capabilities?.includes("RegistrationTable"),
   );
 
   const fetchSchemas = useCallback(async () => {
@@ -62,7 +62,7 @@ function SettingsPage() {
       const data = await get<SchemaTypeItem[]>("/schema-types/");
       setSchemaTypes(data);
       const allowed = data.filter((type) =>
-        type.tags?.includes("RegistrationTable"),
+        type.capabilities?.includes("RegistrationTable"),
       );
       if (allowed.length > 0 && newSchemaType === null) {
         setNewSchemaType(allowed[0].id);
@@ -232,8 +232,8 @@ function SettingsPage() {
           prefix: s.prefix,
           schema_type: s.schema_type,
           columns: s.columns,
-          icon: s.tags?.includes("ResultTable") ? "chart-column" : s.icon,
-          color: s.tags?.includes("ResultTable") ? "hazard" : s.color,
+          icon: s.capabilities?.includes("ResultTable") ? "chart-column" : s.icon,
+          color: s.capabilities?.includes("ResultTable") ? "hazard" : s.color,
           ...(s.enabled_components !== undefined
             ? { enabled_components: s.enabled_components }
             : {}),
@@ -277,8 +277,8 @@ function SettingsPage() {
     (s) =>
       !s.is_default &&
       (activeTab === "result"
-        ? s.tags?.includes("ResultTable")
-        : s.tags?.includes("RegistrationTable")),
+        ? s.capabilities?.includes("ResultTable")
+        : s.capabilities?.includes("RegistrationTable")),
   );
 
   const filteredSchemas = filterValue

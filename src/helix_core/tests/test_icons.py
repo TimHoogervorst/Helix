@@ -434,19 +434,12 @@ class IconSeedTests(TestCase):
 
 class IconSeedIdempotencyTests(TestCase):
     def test_duplicate_run_does_not_create_duplicates(self):
-        import importlib
-        mod = importlib.import_module(
-            "helix_core.migrations.0007_icon_library_entry"
-        )
-        ALL_ICONS = mod.ALL_ICONS
+        from importlib import import_module
+        from django.apps import apps
+        from django.db import connection
 
+        seed = import_module("helix_core.migrations.0001_initial").seed_defaults
         count_before = IconLibraryEntry.objects.count()
-
-        for token in ALL_ICONS:
-            label = mod._token_to_label(token)
-            IconLibraryEntry.objects.get_or_create(
-                key=token,
-                defaults={"label": label, "kind": "lucide", "token": token, "svg": ""},
-            )
-
+        from types import SimpleNamespace
+        seed(apps, SimpleNamespace(connection=connection))
         self.assertEqual(IconLibraryEntry.objects.count(), count_before)

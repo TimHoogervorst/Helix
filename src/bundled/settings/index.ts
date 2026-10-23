@@ -1,11 +1,18 @@
-import { Cog } from "lucide-react";
+import { Cog, Database } from "lucide-react";
 import type { Mod } from "@helix/mod-api";
 import SettingsPage from "./pages/SettingsPage";
 import DevToolsSettings from "./DevToolsSettings";
 import ModLifecycleSettings from "./ModLifecycleSettings";
+import PlatformRecordsPage from "../../shell/src/records/PlatformRecordsPage";
 
 // ── Route: /settings shell with sidebar-nav layout ─────────────────────
 export function register(mod: Mod) {
+  mod.registerSettingsSection("platform-records", {
+    label: "Platform Records",
+    icon: Database,
+    component: PlatformRecordsPage,
+    order: 35,
+  });
   mod.registerRoute("page", {
   path: "/settings",
   component: SettingsPage,

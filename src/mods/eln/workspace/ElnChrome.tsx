@@ -23,7 +23,7 @@ import ContentLoadingSkeleton from "../components/ContentLoadingSkeleton";
 import { TagSection } from "../tags/ui/TagSection";
 import { Button } from "@helix/mod-api/host";
 import { IconButton } from "@helix/mod-api/host";
-import NotFound from "@helix/mod-api/host";
+import { NotFound } from "@helix/mod-api/host";
 import type { EntryDetail, Tag, ElnAction, SourcePathSegment } from "../types";
 import type { HistoricalRendition } from "../api";
 import type { SaveStatus } from "../hooks/useSaveQueue";

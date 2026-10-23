@@ -36,8 +36,21 @@ function saveJson(name: string, value: unknown) {
 }
 
 export default function PlatformRecordsPage() {
-  const { recordId } = useParams<{ recordId?: string }>();
+  const { recordId: routeRecordId } = useParams<{ recordId?: string }>();
   const [searchParams] = useSearchParams();
+  const recordId = routeRecordId ?? searchParams.get("record_id") ?? undefined;
+  const section = searchParams.get("section");
+  function recordUrl(id?: string, group?: string, revision?: string) {
+    const query = new URLSearchParams();
+    if (section) {
+      query.set("section", section);
+      if (id) query.set("record_id", id);
+    }
+    if (group) query.set("group_id", group);
+    if (revision) query.set("revision_id", revision);
+    const base = section ? "/settings" : id ? `/records/${encodeURIComponent(id)}` : "/records";
+    return `${base}${query.size ? `?${query}` : ""}`;
+  }
   const groupId = searchParams.get("group_id");
   const revisionId = searchParams.get("revision_id");
   const [records, setRecords] = useState<PlatformRecord[]>([]);
@@ -129,7 +142,7 @@ export default function PlatformRecordsPage() {
         {loading ? <p role="status">Loading records…</p> : <p>{count} current records</p>}
         <ul className="divide-y divide-[var(--color-ink-border)]">
           {records.map((item) => <li key={item.id} className="py-3">
-            <Link className="font-[var(--font-body)] font-medium text-[var(--color-primary)] underline" to={`/records/${encodeURIComponent(item.id)}`}>{item.name}</Link>
+            <Link className="font-[var(--font-body)] font-medium text-[var(--color-primary)] underline" to={recordUrl(item.id)}>{item.name}</Link>
             <span className="ml-2 font-[var(--font-label)] text-meta">{item.display_id}</span>
           </li>)}
         </ul>
@@ -139,7 +152,7 @@ export default function PlatformRecordsPage() {
     );
   }
 
-  if (error) return <main className="mx-auto max-w-5xl space-y-4 p-6"><Link to="/records" className="text-[var(--color-primary)] underline">All records</Link><p role="alert">{error}</p></main>;
+  if (error) return <main className="mx-auto max-w-5xl space-y-4 p-6"><Link to={recordUrl()} className="text-[var(--color-primary)] underline">All records</Link><p role="alert">{error}</p></main>;
   if (loading || !record) return <main className="p-6" role="status">Loading retained record…</main>;
 
   const shownValues = revision?.snapshot.field_values as Record<string, unknown> | undefined;
@@ -157,7 +170,7 @@ export default function PlatformRecordsPage() {
   return (
     <main className="mx-auto w-full max-w-5xl space-y-6 p-6" aria-labelledby="record-title">
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div><Link to="/records" className="text-[length:var(--text-sm)] text-[var(--color-primary)] underline">All records</Link>
+        <div><Link to={recordUrl()} className="text-[length:var(--text-sm)] text-[var(--color-primary)] underline">All records</Link>
         <h1 id="record-title" className="mt-2 text-title font-[var(--font-label)]">{record.name}</h1>
         <p className="font-[var(--font-label)] text-meta">{record.display_id}</p></div>
         <Button onClick={() => void exportSelected()}>Export JSON</Button>
@@ -206,7 +219,7 @@ export default function PlatformRecordsPage() {
         <h2 id="record-history-title" className="text-[length:var(--text-lg)] font-semibold">Group history</h2>
         {history.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 border-b border-[var(--color-ink-hairline)] py-2">
           <span>Revision {item.sequence} · {item.id}</span>
-          <Link className="text-[var(--color-primary)] underline" to={`/records/${encodeURIComponent(record.id)}?group_id=${encodeURIComponent(groupId ?? currentGroupId)}&revision_id=${encodeURIComponent(item.id)}`}>Open exact Revision</Link>
+          <Link className="text-[var(--color-primary)] underline" to={recordUrl(record.id, groupId ?? currentGroupId, item.id)}>Open exact Revision</Link>
         </div>)}
       </section>
       <section aria-labelledby="record-operations-title" className="space-y-3">
@@ -226,7 +239,7 @@ export default function PlatformRecordsPage() {
           <p className="font-[var(--font-label)] font-medium">{item.action}</p><time className="text-meta">{item.created_at}</time>
           {item.descriptions.map((description, index) => <p key={`${item.id}.${index}`}>{description}</p>)}
           <p className="text-[length:var(--text-sm)]">Participation: {item.subject.roles.join(", ")}</p>
-          {[...item.before, ...item.after].map((exact) => <Link key={`${exact.group_id}.${exact.revision_id}`} className="mr-3 text-[var(--color-primary)] underline" to={`/records/${encodeURIComponent(record.id)}?group_id=${encodeURIComponent(exact.group_id)}&revision_id=${encodeURIComponent(exact.revision_id)}`}>Open exact Revision {exact.revision_id}</Link>)}
+          {[...item.before, ...item.after].map((exact) => <Link key={`${exact.group_id}.${exact.revision_id}`} className="mr-3 text-[var(--color-primary)] underline" to={recordUrl(record.id, exact.group_id, exact.revision_id)}>Open exact Revision {exact.revision_id}</Link>)}
         </article>)}
       </section>
     </main>

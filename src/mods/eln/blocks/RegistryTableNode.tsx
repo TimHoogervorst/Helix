@@ -24,7 +24,7 @@ import type { GridColumn } from "@helix/mod-api/host";
 import { usePickerPortal } from "@helix/mod-api/host";
 import { useComputedFields } from "@helix/mod-api/host";
 import { PickerPortal } from "@helix/mod-api/host";
-import MentionBadge from "@helix/mod-api/host";
+import { MentionBadge } from "@helix/mod-api/host";
 import MoreActions from "../components/MoreActions";
 import { ModRegistry } from "@helix/mod-api/host";
 import { getColumnTypeIcon } from "@helix/mod-api/host";
@@ -726,6 +726,8 @@ export function RegistryTableContent({
     markRefreshed,
     updateAttrs,
     emitAction,
+    registerRowsAction,
+    entryId,
   ]);
 
   // ── Placeholder state ───────────────────────────────────────────────

@@ -726,6 +726,8 @@ export function RegistryTableContent({
     markRefreshed,
     updateAttrs,
     emitAction,
+    registerRowsAction,
+    entryId,
   ]);
 
   // ── Placeholder state ───────────────────────────────────────────────

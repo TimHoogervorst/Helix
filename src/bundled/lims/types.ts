@@ -67,7 +67,7 @@ export interface Schema {
   prefix: string;
   schema_type: number;
   schema_type_display: string;
-  tags: string[];
+  capabilities: string[];
   columns: ColumnDef[];
   is_default: boolean;
   is_active: boolean;
@@ -96,7 +96,7 @@ export interface SchemaTypeItem {
   workspace_id: string;
   is_active: boolean;
   schema_type_id: string;
-  tags: string[];
+  capabilities: string[];
 }
 
 /** An entity as returned by the entity API. */

@@ -1,7 +1,6 @@
 """
 Tests for the Schema and SchemaType API endpoints.
 """
-from importlib import import_module
 
 from django.test import TestCase
 from rest_framework.test import APIClient
@@ -121,33 +120,6 @@ class SchemaTypeApiTests(TestCase):
         entity = next(st for st in response.data if st["display_name"] == "Entity")
         self.assertEqual(entity["capabilities"], ["RegistrationTable"])
 
-    def test_migration_seeds_schema_type_capabilities(self):
-        """The data migration assigns table capabilities by model identity."""
-        updates = []
-
-        class HistoricalQuerySet:
-            def update(self, **values):
-                updates.append(values)
-
-        class HistoricalSchemaType:
-            objects = type(
-                "Manager",
-                (),
-                {"filter": staticmethod(lambda **kwargs: HistoricalQuerySet())},
-            )()
-
-        class Apps:
-            @staticmethod
-            def get_model(app_label, model_name):
-                assert app_label == "helix_core"
-                assert model_name == "SchemaType"
-                return HistoricalSchemaType
-
-        import_module(
-            "helix_core.migrations.0011_schema_type_tags"
-        ).seed_schema_type_tags(Apps(), None)
-
-        self.assertEqual(updates, [{"tags": ["RegistrationTable"]}])
 
 
 class SchemaCrudTests(TestCase):

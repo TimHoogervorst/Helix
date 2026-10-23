@@ -1,5 +1,6 @@
 """Public record API contracts for Mod-independent scientific persistence."""
 
+import json
 from unittest.mock import patch
 from copy import deepcopy
 from uuid import UUID, uuid4
@@ -1059,6 +1060,99 @@ class PlatformRecordApiTests(TestCase):
         self.assertEqual(created_record.field_values["field-concentration"]["value"], 8.5)
         saved_document = PlatformRecord.objects.get(pk=source.data["id"]).revision_groups.get(group_key="document").current_revision.snapshot
         saved_row = saved_document["document"]["content"][0]["attrs"]["rows"][0]
+        self.assertEqual(saved_row["entityId"], str(created_record.pk))
+        self.assertEqual(saved_row["displayId"], created_record.display_id)
+        self.assertTrue(saved_row["isRegistered"])
+        action = ActionLogEntry.objects.get(pk=result.data["actionId"])
+        self.assertEqual(ActionParticipant.objects.filter(action=action).count(), 2)
+        self.assertTrue(ActionParticipant.objects.filter(
+            action=action, target_model_reference="eln.entry", target_object_id="entry-17",
+        ).exists())
+        self.assertEqual(result.data["participants"][1]["after"]["sequence"], 1)
+        replay = self.client.post("/api/action-invocations/", invocation, format="json")
+        self.assertEqual(replay.status_code, 200, replay.data)
+        self.assertTrue(replay.data["replayed"])
+        self.assertEqual(replay.data["actionId"], result.data["actionId"])
+        self.assertEqual(PlatformRecord.objects.count(), 2)
+
+    def test_registration_preserves_serialized_editor_block_and_created_references(self):
+        # Exercise the real session-authenticated request.user lazy wrapper.
+        self.client.force_authenticate(user=None)
+        self.client.force_login(self.user)
+        source = self.client.post("/api/records/", self.create_payload(name="Saved table"), format="json")
+        self.assertEqual(source.status_code, 201, source.data)
+        table_rows = [{
+            "displayId": "#new-1", "entityId": None, "__name": "Registered sample",
+            "values": {"Concentration": 8.5}, "isRegistered": False,
+        }]
+        document_group = save_revision_group(
+            actor=self.user,
+            record_id=source.data["id"],
+            group_key="document",
+            state_token=source.data["state_token"],
+            request_id=uuid4(),
+            snapshot={"document": {"type": "doc", "content": [{"type": "helix.lims:registry-table", "attrs": {"content": json.dumps({
+                "id": "registry-1", "schemaId": self.schema.pk,
+                "columns": [{"id": "field-concentration", "name": "Concentration", "type": "number"}],
+                "rows": table_rows,
+            })}}]}},
+            target_model_reference="eln.entry",
+            target_object_id="entry-17",
+        )
+        contract = {
+            "formatVersion": 1, "kind": "action", "id": "fixture.science.register-rows",
+            "version": "1.0.0", "description": "Register saved rows",
+            "definition": {
+                "inputs": {"rows": {"type": "json"}}, "parameters": {
+                    "schemaId": {"type": "number"}, "fieldMapping": {"type": "json"},
+                    "blockId": {"type": "string"},
+                },
+                "outputs": {"created": {"type": "json"}},
+                "targets": {"record": "helix.record"},
+                "effects": {"record": "edited", "records": "created", "document": "edited"},
+            },
+        }
+        RetainedContract.objects.create(
+            kind="action", contract_id=contract["id"], version="1.0.0",
+            fingerprint=contract_fingerprint(contract),
+            canonical_envelope=canonical_json(contract).decode("utf-8"),
+        )
+        registrar = ModRegistrar(ModManifest(
+            id="fixture.science", display_name="Fixture Science", version="1.0.0",
+            requires_helix=">=1.0.0", artifacts=("backend",), depends_on=(),
+        ), self.backend_registry)
+        from bundled.lims.actions import propose_registry_registration
+        provider = registrar.register_record_action(
+            "register-rows", label="Register saved rows",
+            action_contract_id=contract["id"], action_contract_version="1.0.0",
+            handler=propose_registry_registration,
+        )
+        invocation = {
+            "invocationId": "register-invocation-17", "sequenceFingerprint": "register-sequence-v1",
+            "inputs": {"rows": table_rows}, "parameters": {
+                "schemaId": self.schema.pk,
+                "fieldMapping": {"field-concentration": "field-concentration"},
+                "blockId": "registry-1",
+            },
+            "targets": {"record": source.data["id"]},
+            "expectedState": {"record": {
+                "stateToken": document_group["state_token"],
+                "revisionId": source.data["revision"]["id"],
+                "schemaState": source.data["schema_state"],
+                "documentGroupId": document_group["group_id"],
+                "documentRevisionId": document_group["revision_id"],
+            }},
+            "providers": {"action": provider.id},
+        }
+        before_actions = ActionLogEntry.objects.count()
+        result = self.client.post("/api/action-invocations/", invocation, format="json")
+        self.assertEqual(result.status_code, 200, result.data)
+        self.assertEqual(ActionLogEntry.objects.count(), before_actions + 1)
+        created_record = PlatformRecord.objects.exclude(pk=source.data["id"]).get()
+        self.assertEqual(created_record.name, "Registered sample")
+        self.assertEqual(created_record.field_values["field-concentration"]["value"], 8.5)
+        saved_document = PlatformRecord.objects.get(pk=source.data["id"]).revision_groups.get(group_key="document").current_revision.snapshot
+        saved_row = json.loads(saved_document["document"]["content"][0]["attrs"]["content"])["rows"][0]
         self.assertEqual(saved_row["entityId"], str(created_record.pk))
         self.assertEqual(saved_row["displayId"], created_record.display_id)
         self.assertTrue(saved_row["isRegistered"])

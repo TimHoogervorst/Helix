@@ -328,6 +328,7 @@ export function parseJsonManifest(
 ): ModManifest {
   const allowed = new Set([
     "id", "displayName", "version", "requiresHelix", "artifacts", "dependsOn", "description",
+    "contracts", "requiresContracts",
   ]);
   const unknown = Object.keys(data).find((key) => !allowed.has(key));
   if (unknown) throw new Error(`modManifest.json at '${path}' has unknown property '${unknown}'.`);
@@ -375,6 +376,39 @@ export function parseJsonManifest(
     );
   }
 
+  if ("contracts" in data) {
+    if (!Array.isArray(data.contracts) ||
+        data.contracts.some((entry) => typeof entry !== "string" || entry.length === 0) ||
+        new Set(data.contracts).size !== data.contracts.length) {
+      throw new Error(`modManifest.json at '${path}' has invalid 'contracts'.`);
+    }
+  }
+  if ("requiresContracts" in data) {
+    if (!Array.isArray(data.requiresContracts)) {
+      throw new Error(`modManifest.json at '${path}' has invalid 'requiresContracts'.`);
+    }
+    const references = new Set<string>();
+    for (const entry of data.requiresContracts) {
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+        throw new Error(`modManifest.json at '${path}' has invalid 'requiresContracts'.`);
+      }
+      const reference = entry as Record<string, unknown>;
+      if (Object.keys(reference).some((key) => !["kind", "id", "version"].includes(key)) ||
+          (reference.kind !== "data" && reference.kind !== "action") ||
+          typeof reference.id !== "string" ||
+          !/^[a-z0-9]+(?:[.-][a-z0-9]+)*\.[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(reference.id) ||
+          typeof reference.version !== "string" ||
+          !/^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(reference.version)) {
+        throw new Error(`modManifest.json at '${path}' has invalid 'requiresContracts'.`);
+      }
+      const key = JSON.stringify([reference.kind, reference.id, reference.version]);
+      if (references.has(key)) {
+        throw new Error(`modManifest.json at '${path}' has duplicate 'requiresContracts'.`);
+      }
+      references.add(key);
+    }
+  }
+
   return {
     id: data.id as string,
     displayName: data.displayName as string,
@@ -382,6 +416,8 @@ export function parseJsonManifest(
     requiresHelix: data.requiresHelix as string,
     artifacts: data.artifacts as ("frontend" | "backend")[],
     dependsOn: dependsOn as { id: string; version: string }[],
+    contracts: data.contracts as ModManifest["contracts"],
+    requiresContracts: data.requiresContracts as ModManifest["requiresContracts"],
     description:
       typeof data.description === "string" ? data.description : undefined,
   };

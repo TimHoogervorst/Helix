@@ -15,7 +15,7 @@
 | **Bundled Mod** | A mod that ships inside the Helix artifact and is always loaded. First-party. Uses the same `register*()` API as an External Mod. |
 | **External Mod** | A mod composed into a deployment at build time, not shipped inside the Helix artifact. May depend on anything inside Helix; nothing inside Helix ever names an External Mod (the **golden rule**). Uses the same `register*()` API as a Bundled Mod. |
 | **Mod Registry** | Central data structure populated at boot. Has two populations: **registrations** (synchronous `register*()` calls during mod loading — hubs, routes, blocks, slots, settings sections) and **hydrated data** (fetched from `GET /api/mod-registry/` — icon library, color token palette, column types, workspaces, action catalogs). First render is gated until both populations are loaded; no component ever reads an empty registry. The registry is a non-reactive singleton — it must not trigger re-renders. |
-| **Hydration** | The async boot phase that fetches `GET /api/mod-registry/` and populates the registry's backend-sourced stores (icon library, color palette, column types, workspaces, action catalogs). Backend Mod definitions are authoritative before hydration. Gated — children do not render until hydration resolves or fails. |
+| **Hydration** | The async boot phase that populates the Mod Registry's backend-sourced stores (icon library, color palette, column types, workspaces, action catalogs). Backend Mod definitions are authoritative before Hydration. Application content remains gated until registration, Hydration and validation succeed; a boot failure keeps it gated until a successful full reload. |
 | **Mod Manifest** | The strict 1.0.0 identity document (`modManifest.json`) at the root of every mod folder. Declares canonical `id`, `displayName`, `version`, `requiresHelix`, `artifacts`, object-form `dependsOn`, and optional `description`. Unknown properties and legacy fields are invalid. |
 | **Mod Identity** | The fields in a mod manifest that answer "who are you": `id`, `displayName`, `version`, `description`. Distinct from **mod capabilities** — what the mod provides via `register*()` calls. |
 | **Workspace** | A mod's dedicated work surface for a type of content. The `id` doubles as the URL namespace (`/{workspaceId}/{displayId}`) and as the identifier used by Mentions to build navigation targets. Workspaces are backend-declared and frontend-discovered at boot via the mod registry API. Any mod that declares a schema type is automatically discoverable by the mention system and the Tabs (bookmarks) system. Workspace pages are registered separately as frontend routes. |
@@ -171,9 +171,13 @@ A particular request to perform an offered operation with specified inputs, para
 
 Retrying the same invocation after a lost response recovers its committed outcome without repeating its writes or duplicating its audit. Different inputs or parameters cannot reuse that invocation identity; deliberately performing the operation again requires a new identity. The initial execution surface uses current values, without selecting historical inputs or requiring a rollback UI.
 
+Recovery of a committed outcome requires current read access to every surviving record disclosed by that outcome; if any is inaccessible, the whole outcome is withheld. A deleted target may be reported as unavailable, without its saved record payload, when current access to its retained Project context permits recovery. If that access cannot be established, recovery is denied. Permission to recover an outcome is distinct from permission to execute a new mutation; recovery never repeats the original writes.
+
+Recovery does not require the original provider to remain available and does not reinterpret the committed request against a newer contract. Concurrent identical requests sharing an actor and invocation identity produce one committed outcome; a different request cannot reuse that committed identity.
+
 Execution identifies the current Revisions used and verifies before committing that all scientific inputs and edit targets are still current. A concurrent change rejects the invocation without silently overwriting data or recalculating against newer inputs. Permissions and required record state must still permit the commit.
 
-A failed or rolled-back invocation produces no committed scientific changes, new Revisions, used associations or successful Action in the Activity Feed. Failure responses and operational diagnostics are distinct from the audit of committed scientific changes.
+A failed or rolled-back invocation produces no committed scientific changes, new Revisions, used associations or successful Action in the Activity Feed. Its identity remains available for a later attempt under current permissions and state. Failure responses and operational diagnostics are distinct from the audit of committed scientific changes.
 
 ### Revision Group
 
@@ -182,6 +186,10 @@ A declared field or group of fields whose historical states are preserved togeth
 Every Entity supports history. Its ordinary scientific properties form a default Revision Group; explicit declarations may select narrower groups, including an ELN document independently of unrelated metadata.
 
 Each group identifies its current Revision independently. A historical group state does not imply that the Entity's other fields were captured with it.
+
+Saving a Mod-owned Revision Group uses validated registrations to establish ownership and permitted Action attribution. The owning Mod and provider version are authoritative registration data, not arbitrary caller-supplied attribution; missing or inconsistent ownership prevents the save.
+
+A Mod upgrade preserves the group's stable ownership while new Actions record the executing provider version. Earlier attribution remains unchanged. An ordinary save cannot transfer a group to another owner or target.
 
 ### Revision
 

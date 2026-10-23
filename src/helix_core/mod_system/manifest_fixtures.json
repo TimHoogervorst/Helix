@@ -5,14 +5,395 @@
       "displayName": "Sample Mod",
       "version": "1.2.3-beta.1",
       "requiresHelix": ">=1.0.0 <2.0.0",
-      "artifacts": ["frontend", "backend"],
-      "dependsOn": [{"id": "helix.lims", "version": "^1.4.0"}]
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ]
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "contracts": [
+        "contracts/register-rows.json"
+      ],
+      "requiresContracts": [
+        {
+          "kind": "action",
+          "id": "helix.lims.register-rows",
+          "version": "1.0.0"
+        },
+        {
+          "kind": "data",
+          "id": "helix.lims.register-rows",
+          "version": "1.0.0"
+        }
+      ]
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "contracts": [],
+      "requiresContracts": []
     }
   ],
   "invalid": [
-    {"id": "Acme.sample", "displayName": "Bad", "version": "1.0.0", "requiresHelix": ">=1.0.0", "artifacts": ["frontend"], "dependsOn": []},
-    {"id": "acme.sample", "displayName": "Bad", "version": "1.0.0", "requiresHelix": ">=1.0.0", "artifacts": ["fullstack"], "dependsOn": []},
-    {"id": "acme.sample", "displayName": "Bad", "version": "1.0.0", "requiresHelix": ">=1.0.0", "artifacts": ["frontend"], "dependsOn": ["helix.lims"]},
-    {"id": "acme.sample", "displayName": "Bad", "version": "1.0.0", "requiresHelix": ">=1.0.0", "artifacts": ["frontend"], "dependsOn": [], "coreVersion": "1.0.0"}
+    {
+      "id": "Acme.sample",
+      "displayName": "Bad",
+      "version": "1.0.0",
+      "requiresHelix": ">=1.0.0",
+      "artifacts": [
+        "frontend"
+      ],
+      "dependsOn": []
+    },
+    {
+      "id": "acme.sample",
+      "displayName": "Bad",
+      "version": "1.0.0",
+      "requiresHelix": ">=1.0.0",
+      "artifacts": [
+        "fullstack"
+      ],
+      "dependsOn": []
+    },
+    {
+      "id": "acme.sample",
+      "displayName": "Bad",
+      "version": "1.0.0",
+      "requiresHelix": ">=1.0.0",
+      "artifacts": [
+        "frontend"
+      ],
+      "dependsOn": [
+        "helix.lims"
+      ]
+    },
+    {
+      "id": "acme.sample",
+      "displayName": "Bad",
+      "version": "1.0.0",
+      "requiresHelix": ">=1.0.0",
+      "artifacts": [
+        "frontend"
+      ],
+      "dependsOn": [],
+      "coreVersion": "1.0.0"
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "contracts": null
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "contracts": "contract.json"
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "contracts": [
+        1
+      ]
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "contracts": [
+        ""
+      ]
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "contracts": [
+        "a",
+        "a"
+      ]
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "requiresContracts": null
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "requiresContracts": {}
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "requiresContracts": [
+        null
+      ]
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "requiresContracts": [
+        {}
+      ]
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "requiresContracts": [
+        {
+          "kind": "other",
+          "id": "helix.lims.register-rows",
+          "version": "1.0.0"
+        }
+      ]
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "requiresContracts": [
+        {
+          "kind": "action",
+          "id": "Bad",
+          "version": "1.0.0"
+        }
+      ]
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "requiresContracts": [
+        {
+          "kind": "action",
+          "id": "helix.lims.register-rows",
+          "version": "^1.0.0"
+        }
+      ]
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "requiresContracts": [
+        {
+          "kind": "action",
+          "id": "helix.lims.register-rows",
+          "version": "1.0.0",
+          "extra": true
+        }
+      ]
+    },
+    {
+      "id": "acme.sample-mod",
+      "displayName": "Sample Mod",
+      "version": "1.2.3-beta.1",
+      "requiresHelix": ">=1.0.0 <2.0.0",
+      "artifacts": [
+        "frontend",
+        "backend"
+      ],
+      "dependsOn": [
+        {
+          "id": "helix.lims",
+          "version": "^1.4.0"
+        }
+      ],
+      "requiresContracts": [
+        {
+          "kind": "action",
+          "id": "helix.lims.register-rows",
+          "version": "1.0.0"
+        },
+        {
+          "version": "1.0.0",
+          "id": "helix.lims.register-rows",
+          "kind": "action"
+        }
+      ]
+    }
   ]
 }

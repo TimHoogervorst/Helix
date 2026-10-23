@@ -120,11 +120,27 @@ export default defineConfig({
     modCatalogPlugin(),
   ],
   resolve: {
-    alias: {
-      "@helix/mod-api": path.resolve(repoRoot, "src/mod-api/src/index.ts"),
-      "@helix/mod-api/Mod": path.resolve(repoRoot, "src/mod-api/src/Mod.ts"),
-      "@helix/mod-api/style.css": path.resolve(repoRoot, "src/mod-api/style.css"),
-    },
+    // Match public entry points exactly so the root alias cannot swallow subpaths.
+    alias: [
+      { find: /^@helix\/mod-api$/, replacement: path.resolve(repoRoot, "src/mod-api/src/index.ts") },
+      ...Object.entries({
+        Mod: "src/Mod.ts",
+        editor: "src/editor.ts",
+        blocks: "src/blocks.ts",
+        "portable-blocks": "src/portableBlocks.tsx",
+        api: "src/api.ts",
+        contracts: "src/contracts.ts",
+        records: "src/records.tsx",
+        theme: "src/theme.ts",
+        host: "src/elnHost.ts",
+        manifest: "modManifest.json",
+        "style.css": "style.css",
+        "theme.css": "style.css",
+      }).map(([subpath, source]) => ({
+        find: new RegExp(`^@helix/mod-api/${subpath.replace(/\./g, "\\.")}$`),
+        replacement: path.resolve(repoRoot, "src/mod-api", source),
+      })),
+    ],
     // Prevent duplicate instances when modules are resolved via
     // different paths.  React dedupe avoids double React trees;
     // prosemirror dedupe prevents multiple copies of DecorationSet /

@@ -19,7 +19,7 @@ class HelixCoreConfig(AppConfig):
         from helix_core.mod_system.registry import registry
 
         # Pure in-memory Platform capabilities are available during app
-        # discovery; database-backed Mod activation waits for post_migrate.
+        # discovery; database-backed Mod activation requires a migrated database.
         for column_type in get_builtin_column_types():
             if column_types.get_column_type(column_type.id) is None:
                 column_types.register_column_type(column_type)
@@ -59,6 +59,17 @@ class HelixCoreConfig(AppConfig):
             dispatch_uid="helix_core.finish_startup_after_migrations",
             weak=False,
         )
+
+        # Migration commands run before the schema is usable. Other processes
+        # must build their own registry: post_migrate runs only in the process
+        # that executes migrate, not in a subsequent server or worker.
+        schema_commands = {
+            "migrate", "makemigrations", "showmigrations", "sqlmigrate",
+            "collectstatic", "check", "test",
+        }
+        command = sys.argv[1] if len(sys.argv) > 1 else None
+        if command not in schema_commands and "pytest" not in sys.modules:
+            finish_startup(self)
 
     def _activate_after_migrations(self):
         from helix_core.column_types import (

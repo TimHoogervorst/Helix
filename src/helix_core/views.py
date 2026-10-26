@@ -960,6 +960,17 @@ class PlatformRecordDetailView(APIView):
         return Response(response)
 
 
+class ReviewTargetHistoryView(APIView):
+    """Platform resource-aware read of retained review history."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, target_id):
+        from helix_core.public import review_target_history
+
+        return Response(review_target_history(target_id=target_id, actor=request.user))
+
+
 class PlatformRecordAttachmentDownloadView(PlatformRecordDetailView):
     def get(self, request, record_id, attachment_id):
         return self.download_attachment(request, record_id, attachment_id)

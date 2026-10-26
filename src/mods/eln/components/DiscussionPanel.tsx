@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Button, Textarea } from "@helix/mod-api/host";
 import {
   amendDiscussionMessage,
   createDiscussion,
@@ -61,10 +62,10 @@ function DiscussionMessageRow({
       </div>
       {editing ? (
         <div className="mt-2 space-y-2">
-          <textarea aria-label="Amend message" className="w-full rounded border border-input bg-background p-2 text-sm" value={body} onChange={(event) => setBody(event.target.value)} />
+          <Textarea className="w-full" aria-label="Amend message" value={body} onChange={(event) => setBody(event.target.value)} />
           <div className="flex gap-2">
-            <button type="button" className="rounded bg-primary px-3 py-1 text-sm text-primary-foreground" disabled={busy || !body.trim()} onClick={() => void save()}>Save amendment</button>
-            <button type="button" className="rounded border border-border px-3 py-1 text-sm" onClick={() => { setEditing(false); setBody(message.body); }}>Cancel</button>
+            <Button variant="primary" size="md" disabled={busy || !body.trim()} onClick={() => void save()}>Save amendment</Button>
+            <Button variant="ghost" size="md" onClick={() => { setEditing(false); setBody(message.body); }}>Cancel</Button>
           </div>
         </div>
       ) : (
@@ -87,8 +88,8 @@ function DiscussionMessageRow({
       )}
       {message.can_change && !editing && !message.retracted && (
         <div className="mt-1 flex gap-3 text-xs">
-          <button type="button" className="text-primary underline" disabled={busy} onClick={() => setEditing(true)}>Amend</button>
-          <button type="button" className="text-destructive underline" disabled={busy} onClick={() => void retract()}>Retract</button>
+          <Button variant="ghost" size="md" disabled={busy} onClick={() => setEditing(true)}>Amend</Button>
+          <Button variant="destructive" size="md" disabled={busy} onClick={() => void retract()}>Retract</Button>
         </div>
       )}
       {error && <p role="alert" className="mt-1 text-xs text-destructive">{error}</p>}
@@ -161,7 +162,7 @@ export default function DiscussionPanel({ recordId }: { recordId: string }) {
           <h2 id="authoring-discussions-title" className="text-lg font-semibold">Authoring discussions</h2>
           <p className="text-sm text-muted-foreground">These conversations do not change the document or block review completion.</p>
         </div>
-        <button type="button" className="text-sm text-primary underline" onClick={() => void refresh()}>Refresh</button>
+        <Button variant="ghost" size="md" onClick={() => void refresh()}>Refresh</Button>
       </div>
       {error && <p role="alert" className="mb-3 rounded border border-destructive/40 p-2 text-sm text-destructive">{error}</p>}
       {loading ? <p className="text-sm text-muted-foreground">Loading discussions…</p> : (
@@ -177,7 +178,7 @@ export default function DiscussionPanel({ recordId }: { recordId: string }) {
                     Started by {displayName(discussion.created_by)} · {new Date(discussion.created_at).toLocaleString()}
                     {discussion.resolved && <span className="ml-2 rounded bg-muted px-2 py-0.5 text-foreground">Resolved by {displayName(discussion.resolved_by)} · {discussion.resolved_at ? new Date(discussion.resolved_at).toLocaleString() : ""}</span>}
                   </div>
-                  {discussion.can_resolve && !discussion.resolved && <button type="button" className="shrink-0 text-xs text-primary underline" disabled={busy} onClick={() => void resolve(discussion.id)}>Resolve</button>}
+                  {discussion.can_resolve && !discussion.resolved && <Button variant="ghost" size="sm" className="shrink-0" disabled={busy} onClick={() => void resolve(discussion.id)}>Resolve</Button>}
                 </div>
                 <div className="space-y-3">
                   {root && <DiscussionMessageRow discussion={discussion} message={root} onChanged={(updated) => setDiscussions((items) => items.map((item) => item.id === updated.id ? updated : item))} />}
@@ -185,8 +186,8 @@ export default function DiscussionPanel({ recordId }: { recordId: string }) {
                 </div>
                 {discussion.can_contribute && (
                   <div className="mt-3 flex gap-2">
-                    <textarea aria-label="Reply to discussion" className="min-h-9 flex-1 rounded border border-input bg-background p-2 text-sm" value={replyDrafts[discussion.id] ?? ""} onChange={(event) => setReplyDrafts((current) => ({ ...current, [discussion.id]: event.target.value }))} placeholder="Write a reply…" />
-                    <button type="button" className="self-end rounded bg-primary px-3 py-2 text-sm text-primary-foreground" disabled={busy || !(replyDrafts[discussion.id] ?? "").trim()} onClick={() => void submit(discussion.id)}>Reply</button>
+                    <Textarea className="min-h-9 flex-1" aria-label="Reply to discussion" value={replyDrafts[discussion.id] ?? ""} onChange={(event) => setReplyDrafts((current) => ({ ...current, [discussion.id]: event.target.value }))} placeholder="Write a reply…" />
+                    <Button variant="primary" size="md" className="self-end" disabled={busy || !(replyDrafts[discussion.id] ?? "").trim()} onClick={() => void submit(discussion.id)}>Reply</Button>
                   </div>
                 )}
               </article>
@@ -196,8 +197,8 @@ export default function DiscussionPanel({ recordId }: { recordId: string }) {
       )}
       {canContribute && <div className="mt-5 rounded-md border border-border p-3">
         <label htmlFor="new-authoring-discussion" className="mb-2 block text-sm font-medium">Start a discussion</label>
-        <textarea id="new-authoring-discussion" className="min-h-20 w-full rounded border border-input bg-background p-2 text-sm" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Share a note or question…" />
-        <button type="button" className="mt-2 rounded bg-primary px-3 py-2 text-sm text-primary-foreground" disabled={busy || !draft.trim()} onClick={() => void submit()}>Post discussion</button>
+        <Textarea className="min-h-20 w-full" id="new-authoring-discussion" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Share a note or question…" />
+        <Button variant="primary" size="md" className="mt-2" disabled={busy || !draft.trim()} onClick={() => void submit()}>Post discussion</Button>
       </div>}
     </section>
   );

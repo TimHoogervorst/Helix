@@ -32,6 +32,7 @@ from helix_core.views import (
     PlatformRecordExportView,
     ProjectAttachmentUploadView,
     PlatformRecordAttachmentDownloadView,
+    ReviewTargetHistoryView,
 )
 
 # Router for schemas, schema-types, and colors
@@ -52,6 +53,7 @@ urlpatterns = [
     path("discussions/<uuid:discussion_id>/messages/<uuid:message_id>/", PlatformDiscussionMessageView.as_view(), name="platform-discussion-message"),
     path("projects/<int:project_id>/attachments/", ProjectAttachmentUploadView.as_view(), name="platform-attachment-upload"),
     path("records/<uuid:record_id>/attachments/<uuid:attachment_id>/content/", PlatformRecordAttachmentDownloadView.as_view(), name="platform-attachment-download"),
+    path("review-targets/<uuid:target_id>/history/", ReviewTargetHistoryView.as_view(), name="platform-review-target-history"),
     path("action-invocations/", ActionInvocationCollectionView.as_view(), name="action-invocation-list"),
     path("action-invocations/<str:invocation_id>/", ActionInvocationDetailView.as_view(), name="action-invocation-detail"),
     path("actions/execute/", RecordActionExecuteView.as_view(), name="record-action-execute"),

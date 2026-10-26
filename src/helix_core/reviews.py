@@ -158,6 +158,66 @@ def review_target_state(record_id, *, actor):
     }
 
 
+def review_target_history(target_id, *, actor):
+    """Read the complete retained review history using Platform-owned identity."""
+    from bundled.access.access.policies import effective_role
+    from helix_core.models import ReviewTarget
+
+    try:
+        target = ReviewTarget.objects.select_related("record__project", "current_submission").get(pk=target_id)
+    except (ReviewTarget.DoesNotExist, ValueError, TypeError):
+        raise NotFound("Review target not found.")
+    record = target.record
+    role = effective_role(actor, record)
+    if role not in {"read", "review", "edit"}:
+        raise PermissionDenied("You do not have permission to read review history.")
+
+    from helix_core.review_threads import _payload
+    from helix_core.models import ReviewThread
+
+    submissions = []
+    for submission in target.submissions.select_related("rendition").prefetch_related(
+        "participations", "approval",
+    ).order_by("round_number"):
+        approval = getattr(submission, "approval", None)
+        submissions.append({
+            "id": str(submission.pk), "round": submission.round_number,
+            "manifest": deepcopy(submission.manifest),
+            "captured_evidence": deepcopy(submission.captured_evidence),
+            "submitted_by": submission.submitted_by_snapshot,
+            "submitted_at": submission.submitted_at,
+            "withdrawn_by": submission.withdrawn_by_snapshot,
+            "withdrawn_at": submission.withdrawn_at,
+            "rendition_id": str(submission.rendition_id) if submission.rendition_id else None,
+            "download_url": (
+                f"/api/records/{record.pk}/attachments/{submission.rendition.attachment_id}/content/?revision_id={submission.rendition.revision_id}"
+                if submission.rendition_id and submission.rendition.attachment_id else None
+            ),
+            "participations": [{
+                "id": str(item.pk), "reviewer": item.actor_snapshot,
+                "state": item.state, "assessment": item.assessment,
+                "assessment_history": deepcopy(item.assessment_history),
+                "started_at": item.started_at, "updated_at": item.updated_at,
+            } for item in submission.participations.all()],
+            "approval": None if approval is None else {
+                "id": str(approval.pk), "witness": approval.witness_snapshot,
+                "assessment": approval.assessment,
+                "retained_evidence": deepcopy(approval.retained_evidence),
+                "approved_at": approval.approved_at,
+            },
+        })
+    threads = ReviewThread.objects.filter(target=target).select_related(
+        "submission", "carried_from", "raised_from_discussion", "target",
+    ).prefetch_related("messages__history")
+    return {
+        "target_id": str(target.pk), "record_id": str(record.pk),
+        "provider_mod_id": target.provider_mod_id, "state": target.state,
+        "current_submission_id": str(target.current_submission_id) if target.current_submission_id else None,
+        "submissions": submissions,
+        "threads": [_payload(thread, actor, role) for thread in threads],
+    }
+
+
 def submit_review_target(
     *, record_id, target_identity, actor, expected_state_token, expected_groups, request_id,
 ):

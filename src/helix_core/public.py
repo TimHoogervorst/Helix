@@ -796,6 +796,13 @@ def review_target_state(**values: Any) -> dict[str, Any]:
     return operation(**values)
 
 
+def review_target_history(**values: Any) -> dict[str, Any]:
+    """Read complete retained history through Platform resource access."""
+    from helix_core.reviews import review_target_history as operation
+
+    return operation(**values)
+
+
 def approve_review_target(**values: Any) -> dict[str, Any]:
     """Approve an exact active submission using an eligible independent witness."""
     from helix_core.review_threads import approve_review as operation

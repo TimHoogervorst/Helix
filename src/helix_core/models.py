@@ -508,6 +508,104 @@ class PlatformRendition(models.Model):
         raise ValueError("PlatformRendition is immutable")
 
 
+class ReviewTarget(models.Model):
+    """Platform-owned lifecycle and persistent lock for one reviewed record."""
+
+    class State(models.TextChoices):
+        AUTHORING = "authoring", "Authoring"
+        SUBMITTED = "submitted", "Submitted"
+        FINISHED = "finished", "Finished"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    record = models.OneToOneField(
+        PlatformRecord, on_delete=models.CASCADE, related_name="review_target",
+    )
+    provider_mod_id = models.CharField(max_length=255)
+    registration_id = models.CharField(max_length=255, default="")
+    state = models.CharField(max_length=16, choices=State.choices, default=State.AUTHORING)
+    current_submission = models.ForeignKey(
+        "ReviewSubmission", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="current_for_targets",
+    )
+    creator_snapshot = models.JSONField(default=dict, blank=True)
+    contributor_history_complete = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "helix_review_target"
+
+    @property
+    def locked(self):
+        return self.state in {self.State.SUBMITTED, self.State.FINISHED}
+
+
+class ReviewContributor(models.Model):
+    """Durable attribution for a user who created or changed reviewed content."""
+
+    target = models.ForeignKey(ReviewTarget, on_delete=models.CASCADE, related_name="contributors")
+    actor_stable_id = models.CharField(max_length=255)
+    actor = models.ForeignKey("core.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    actor_snapshot = models.JSONField(default=dict, blank=True)
+    first_effect = models.CharField(max_length=100)
+    recorded_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "helix_review_contributor"
+        constraints = [models.UniqueConstraint(fields=("target", "actor_stable_id"), name="helix_review_contributor_actor_uniq")]
+
+
+class ReviewSubmission(models.Model):
+    """Immutable exact multi-group manifest for one submitted review round."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    target = models.ForeignKey(ReviewTarget, on_delete=models.CASCADE, related_name="submissions")
+    round_number = models.PositiveIntegerField()
+    manifest = models.JSONField()
+    captured_evidence = models.JSONField(default=dict, blank=True)
+    rendition = models.ForeignKey(
+        PlatformRendition, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="review_submissions",
+    )
+    submitted_by = models.ForeignKey(
+        "core.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    submitted_by_snapshot = models.JSONField(default=dict, blank=True)
+    submitted_at = models.DateTimeField(default=timezone.now)
+    request_id = models.UUIDField()
+    request_fingerprint = models.CharField(max_length=64)
+    withdrawn_by_snapshot = models.JSONField(default=dict, blank=True)
+    withdrawn_at = models.DateTimeField(null=True, blank=True)
+    withdraw_actor_stable_id = models.CharField(max_length=255, blank=True, default="")
+    withdraw_request_id = models.UUIDField(null=True, blank=True)
+    withdraw_request_fingerprint = models.CharField(max_length=64, blank=True, default="")
+
+    class Meta:
+        db_table = "helix_review_submission"
+        constraints = [
+            models.UniqueConstraint(fields=("target", "round_number"), name="helix_review_submission_round_uniq"),
+            models.UniqueConstraint(fields=("submitted_by", "request_id"), name="helix_review_submission_actor_request_uniq"),
+        ]
+        ordering = ("target", "round_number")
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and type(self).objects.filter(pk=self.pk).exists():
+            old = type(self).objects.get(pk=self.pk)
+            immutable = (
+                "target_id", "round_number", "manifest", "captured_evidence",
+                "rendition_id", "submitted_by_id", "submitted_by_snapshot", "submitted_at",
+                "request_id", "request_fingerprint",
+            )
+            if any(getattr(old, name) != getattr(self, name) for name in immutable):
+                raise ValueError("ReviewSubmission evidence and identity are immutable")
+        if self.submitted_by_id and not self.submitted_by_snapshot:
+            self.submitted_by_snapshot = user_attribution_snapshot(self.submitted_by)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("ReviewSubmission is immutable")
+
+
 @receiver(post_delete, sender=AttachmentRevisionLink)
 def mark_attachment_unreferenced(sender, instance, **kwargs):
     attachment = instance.attachment

@@ -14,7 +14,7 @@ import { TipTapRenderer } from "@helix/mod-api/editor";
 import { elnExtensions } from "../editor/extensions/elnExtensions";
 import { useEntryWorkspace } from "../hooks/useEntryWorkspace";
 import { useTaggableItems } from "../tags/hooks/useTaggableItems";
-import { attachTags, captureReview, detachTag, listRenditions, type HistoricalRendition } from "../api";
+import { attachTags, submitReview, withdrawReview, getReviewState, detachTag, listRenditions, type HistoricalRendition, type ReviewState } from "../api";
 import { useMentionContext } from "@helix/mod-api/host";
 import { useActivity } from "../hooks/useActivity";
 import { getRecentEditors } from "../activityHelpers";
@@ -147,6 +147,9 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const [renditions, setRenditions] = useState<HistoricalRendition[]>([]);
   const [reviewing, setReviewing] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewState, setReviewState] = useState<ReviewState | null>(null);
+  const reviewRequestRef = useRef<{ id: string; payload: string } | null>(null);
+  const withdrawRequestRef = useRef<string | null>(null);
   const editorRef = useRef<Editor | null>(null);
   const savedInvocationEntryRef = useRef<typeof workspace.entry>(null);
   const [actionDefinitions, setActionDefinitions] = useState<Record<string, ActionContractDefinition>>({});
@@ -167,6 +170,9 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     void listRenditions(entryId)
       .then((items) => { if (!cancelled) setRenditions(items); })
       .catch(() => { if (!cancelled) setRenditions([]); });
+    void getReviewState(entryId)
+      .then((state) => { if (!cancelled) setReviewState(state); })
+      .catch(() => { if (!cancelled) setReviewState(null); });
     return () => { cancelled = true; };
   }, [entryId, isNew]);
 
@@ -180,7 +186,18 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       if (!saved?.platform_state_token || !saved.document_revision_id) {
         throw new Error("Save the document before reviewing it.");
       }
-      await captureReview(saved.display_id, saved.platform_state_token, saved.document_revision_id);
+      const payload = `${saved.platform_state_token}:${saved.document_revision_id}`;
+      if (reviewRequestRef.current?.payload !== payload) {
+        reviewRequestRef.current = { id: crypto.randomUUID(), payload };
+      }
+      const submission = await submitReview(saved.display_id, saved.platform_state_token, saved.document_revision_id, reviewRequestRef.current.id);
+      reviewRequestRef.current = null;
+      setReviewState({
+        available: true,
+        state: "submitted",
+        locked: true,
+        current_submission_id: submission.submission_id,
+      });
       setRenditions(await listRenditions(saved.display_id));
     } catch (error) {
       setReviewError(error instanceof Error ? error.message : "The review rendition could not be captured.");
@@ -188,6 +205,22 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       setReviewing(false);
     }
   }, [entryId, isNew, isLockedByOther, workspace.save.save]);
+
+  const handleWithdrawReview = useCallback(async () => {
+    if (!entryId || reviewState?.state !== "submitted") return;
+    setReviewing(true);
+    setReviewError(null);
+    try {
+      if (!withdrawRequestRef.current) withdrawRequestRef.current = crypto.randomUUID();
+      await withdrawReview(entryId, withdrawRequestRef.current);
+      withdrawRequestRef.current = null;
+      setReviewState((state) => state ? { ...state, state: "authoring", locked: false, current_submission_id: null } : state);
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : "The submission could not be withdrawn.");
+    } finally {
+      setReviewing(false);
+    }
+  }, [entryId, reviewState?.state]);
 
   useEffect(() => {
     let cancelled = false;
@@ -527,7 +560,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
 
   const editorElement = (
     <ElnPortableBlockHostContext.Provider value={portableBlockHost}>
-    <fieldset disabled={workspace.save.actionBusy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+    <fieldset disabled={workspace.save.actionBusy || reviewState?.locked === true} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
     <TipTapRenderer
       key={`${entryId ?? "new"}:${editorGeneration}`}
       editorRef={editorRef}
@@ -539,7 +572,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       extensions={editorExtensions}
       onCreate={handleEditorCreate}
       onUpdate={handleEditorUpdate}
-      editable={workspace.editor.editable}
+      editable={workspace.editor.editable && reviewState?.locked !== true}
       saveSignal={workspace.editor.saveSignal}
       targetId={workspace.editor.targetId}
       onFlushActions={sendAction}
@@ -578,6 +611,8 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       queueLength={queueLength}
       onSave={handleSave}
       onReview={() => { void handleReview(); }}
+      onWithdrawReview={() => { void handleWithdrawReview(); }}
+      reviewState={reviewState}
       reviewing={reviewing}
       reviewError={reviewError}
       renditions={renditions}

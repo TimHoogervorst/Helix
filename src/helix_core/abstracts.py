@@ -174,6 +174,7 @@ class Sourceable(models.Model):
             "kind": self._source_kind(self),
             "id": self.pk,
         }]
+        pending_updates = []
         for model in apps.get_models():
             if not issubclass(model, Sourceable):
                 continue
@@ -186,7 +187,25 @@ class Sourceable(models.Model):
                 descendant.source_path = new_prefix + path[len(old_prefix):]
                 changed.append(descendant)
             if changed:
-                model.objects.bulk_update(changed, ["source_path"])
+                pending_updates.append((model, changed))
+        # Preflight the entire subtree before writing any path. A locked
+        # Platform review target makes the ancestor move all-or-nothing.
+        for model, changed in pending_updates:
+            if model._meta.db_table == "helix_platform_record":
+                from helix_core.models import PlatformRecord
+                list(PlatformRecord.objects.select_for_update().filter(
+                    pk__in=[item.pk for item in changed]
+                ).order_by("pk").values_list("pk", flat=True))
+                from helix_core.models import ReviewTarget
+                locked = ReviewTarget.objects.filter(
+                    record_id__in=[item.pk for item in changed],
+                    state__in=("submitted", "finished"),
+                ).exists()
+                if locked:
+                    from helix_core.record_persistence import StateConflict
+                    raise StateConflict("This move would change the Source path of a locked review target.")
+        for model, changed in pending_updates:
+            model.objects.bulk_update(changed, ["source_path"])
 
     def save(self, *args, **kwargs):
         old_record = None

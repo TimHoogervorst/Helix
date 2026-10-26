@@ -49,6 +49,7 @@ def register(mod):
     """Called by ModLoader after topological sort. Populates the backend registry."""
     from mods.eln.cascade import update_status_from_source
     from mods.eln.models import NotebookEntry
+    from mods.eln.renditions import PRESENTATION_VERSION, render_review_manifest
     from mods.eln.serializers import NotebookEntrySerializer
     from mods.eln.views import NotebookEntryViewSet
     from helix_core.public import visible_rows_q
@@ -68,6 +69,15 @@ def register(mod):
             "created": "eln.entry.created",
             "edited": "eln.entry.edited",
         },
+    )
+    mod.register_review_target(
+        "review-target",
+        entry,
+        revision_groups=["document"],
+        renderer=render_review_manifest,
+        renderer_version=PRESENTATION_VERSION,
+        annotation_capabilities=[],
+        operation_effects={"edit_entry": ["document"]},
     )
     mod.register_source_kind(
         "entry",

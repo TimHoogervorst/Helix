@@ -254,6 +254,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             raise PermissionDenied(
                 "You do not have permission to delete this entry."
             )
+        if instance.platform_record_id:
+            from helix_core.public import ensure_record_unlocked
+            ensure_record_unlocked(instance.platform_record_id)
         with transaction.atomic():
             delete_source_descendants(instance, actor=self.request.user)
             if instance.platform_record_id:
@@ -433,6 +436,70 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             PlatformAttachment.objects.filter(pk=uploaded.pk, status="staged").delete()
             raise
 
+    @action(detail=True, methods=["post"], url_path="review/submit")
+    def submit_review(self, request, display_id=None):
+        """Submit the exact saved ELN state through Platform's review contract."""
+        from helix_core.public import submit_review_target
+        from helix_core.public import effective_role
+        from helix_core.public import StateConflict
+
+        entry = self.get_object()
+        if effective_role(request.user, entry) != "edit":
+            raise PermissionDenied("You do not have permission to submit this entry for review.")
+        record = entry.platform_record
+        if record is None:
+            raise StateConflict("Save the document before submitting it for review.")
+        state_token = request.data.get("state_token")
+        revision_id = request.data.get("revision_id")
+        if not state_token or not revision_id:
+            raise DRFValidationError({"review": "state_token and revision_id are required."})
+        group = record.revision_groups.filter(group_key="document").select_related("current_revision").first()
+        if (
+            group is None or group.current_revision_id is None
+            or str(group.current_revision_id) != str(revision_id)
+            or str(record.state_token) != str(state_token)
+            or group.current_revision.snapshot.get("document") != entry.content
+        ):
+            raise StateConflict("Submission requires the exact current saved ELN document Revision.")
+        result = submit_review_target(
+            record_id=record.pk,
+            target_identity="helix.eln:review-target",
+            actor=request.user,
+            expected_state_token=state_token,
+            expected_groups={"document": str(revision_id)},
+            request_id=request.data.get("request_id"),
+        )
+        result["download_url"] = (
+            f"/api/records/{record.pk}/attachments/{result['attachment_id']}/content/"
+            f"?revision_id={revision_id}"
+        )
+        return Response(result, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="review/withdraw")
+    def withdraw_review(self, request, display_id=None):
+        """Explicitly return the submitted entry to authoring, retaining its round."""
+        from helix_core.public import withdraw_review_submission
+
+        entry = self.get_object()
+        if entry.platform_record_id is None:
+            raise DRFValidationError({"review": "This entry has no Platform review target."})
+        return Response(withdraw_review_submission(
+            record_id=entry.platform_record_id,
+            actor=request.user,
+            request_id=request.data.get("request_id"),
+        ))
+
+    @action(detail=True, methods=["get"], url_path="review/status")
+    def review_status(self, request, display_id=None):
+        from helix_core.public import review_target_state, effective_role
+
+        entry = self.get_object()
+        if effective_role(request.user, entry) not in {"read", "edit"}:
+            raise PermissionDenied("You do not have permission to read review history.")
+        if entry.platform_record_id is None:
+            return Response({"available": False, "reason": "Save the document before review."})
+        return Response(review_target_state(record_id=entry.platform_record_id, actor=request.user))
+
     @action(detail=True, methods=["get"], url_path="renditions")
     def renditions(self, request, display_id=None):
         """List immutable captures while applying the entry's current access policy."""
@@ -482,6 +549,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             raise PermissionDenied(
                 "You do not have permission to edit this entry."
             )
+        if instance.platform_record_id:
+            from helix_core.public import ensure_record_unlocked
+            ensure_record_unlocked(instance.platform_record_id)
 
         # ── Cross-Project move rejection ───────────────────────────────────
         if "source_type" in validated_data or "source_id" in validated_data:
@@ -634,6 +704,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             raise PermissionDenied(
                 "You do not have permission to edit this entry."
             )
+        if entry.platform_record_id:
+            from helix_core.public import ensure_record_unlocked
+            ensure_record_unlocked(entry.platform_record_id)
         tag_ids = request.data.get("tag_ids", [])
         if not isinstance(tag_ids, list):
             return Response(
@@ -657,6 +730,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             raise PermissionDenied(
                 "You do not have permission to edit this entry."
             )
+        if entry.platform_record_id:
+            from helix_core.public import ensure_record_unlocked
+            ensure_record_unlocked(entry.platform_record_id)
         try:
             tag = Tag.objects.get(id=tag_id)
         except Tag.DoesNotExist:
@@ -844,6 +920,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             raise PermissionDenied(
                 "You do not have permission to lock this entry."
             )
+        if entry.platform_record_id:
+            from helix_core.public import ensure_record_unlocked
+            ensure_record_unlocked(entry.platform_record_id)
 
         try:
             existing = entry.lock

@@ -59,6 +59,21 @@ class ContentSourceProvider:
     capabilities: tuple[str, ...] = ()
     provider_mod_id: str | None = None
 
+
+@dataclass(frozen=True, slots=True)
+class ReviewTargetProvider:
+    """A Mod's declaration of the record scope and renderer accepted by Platform review."""
+
+    identity: str
+    target_model_reference: Any
+    revision_groups: tuple[str, ...]
+    renderer: Callable[..., Any]
+    renderer_version: str
+    annotation_capabilities: tuple[str, ...] = ()
+    anchor_validator: Callable[..., bool] | None = None
+    operation_effects: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    provider_mod_id: str | None = None
+
 FORMULA_FUNCTION_ID = re.compile(r"^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)*$")
 
 
@@ -88,6 +103,7 @@ class BackendModRegistry:
         self._registered_models: dict[str, type | str] = {}
         self._source_kinds: dict[str, Any] = {}
         self._content_sources: dict[str, ContentSourceProvider] = {}
+        self._review_targets: dict[str, ReviewTargetProvider] = {}
         self._formula_functions: dict[str, dict[str, Any]] = {}
         # Generic capability-bearing registrations.  Keep the common shape in
         # one place so new registry citizens do not grow bespoke capability
@@ -209,6 +225,47 @@ class BackendModRegistry:
             ),
             None,
         )
+
+    def register_review_target(
+        self, identity: str, target_model_reference: Any, *,
+        revision_groups: list[str], renderer: Callable[..., Any],
+        renderer_version: str, annotation_capabilities: list[str] | None = None,
+        anchor_validator: Callable[..., bool] | None = None,
+        operation_effects: Mapping[str, list[str]] | None = None,
+        provider_mod_id: str | None = None,
+    ) -> None:
+        if identity in self._review_targets:
+            raise ValueError(f"Duplicate review target registration '{identity}'")
+        if not revision_groups or any(not isinstance(key, str) or not key for key in revision_groups):
+            raise ValueError("Review targets must declare at least one Revision Group")
+        if len(set(revision_groups)) != len(revision_groups):
+            raise ValueError("Review target Revision Groups must be unique")
+        if not callable(renderer) or not isinstance(renderer_version, str) or not renderer_version:
+            raise ValueError("Review target rendering requires a callable and exact version")
+        if anchor_validator is not None and not callable(anchor_validator):
+            raise TypeError("anchor_validator must be callable")
+        effects = operation_effects or {}
+        if not isinstance(effects, Mapping) or any(
+            not isinstance(operation, str) or not operation
+            or not isinstance(groups, (list, tuple))
+            or any(group not in revision_groups for group in groups)
+            for operation, groups in effects.items()
+        ):
+            raise ValueError("Operation effects must map operations to declared Revision Groups")
+        self._review_targets[identity] = ReviewTargetProvider(
+            identity=identity,
+            target_model_reference=target_model_reference,
+            revision_groups=tuple(revision_groups),
+            renderer=renderer,
+            renderer_version=renderer_version,
+            annotation_capabilities=tuple(dict.fromkeys(annotation_capabilities or [])),
+            anchor_validator=anchor_validator,
+            operation_effects={key: tuple(value) for key, value in effects.items()},
+            provider_mod_id=provider_mod_id,
+        )
+
+    def get_review_target(self, identity: str) -> ReviewTargetProvider | None:
+        return self._review_targets.get(identity)
 
     def resolve_content_source_model(self, kind: str) -> type:
         """Resolve a provider's model reference without importing its mod."""

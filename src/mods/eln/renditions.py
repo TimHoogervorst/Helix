@@ -28,6 +28,16 @@ def _text_lines(node):
     if node_type == "text":
         return [str(node.get("text", ""))]
 
+    supported = {
+        "doc", "paragraph", "heading", "hardBreak", "bulletList", "orderedList",
+        "listItem", "blockquote", "horizontalRule", "table", "tableRow",
+        "tableCell", "tableHeader", "registry-table",
+    }
+    if node_type not in supported:
+        raise ValueError(f"ELN content type '{node_type or 'unknown'}' cannot be rendered faithfully yet.")
+    if node_type == "hardBreak":
+        return [""]
+
     # Keep unknown portable Blocks visible without invoking their runtime.
     if node_type in {"elnPortableBlock", "elnPortableInline"}:
         return [f"[Portable content: {node.get('attrs', {}).get('id', 'unknown')}]" ]
@@ -121,7 +131,7 @@ def _pdf_bytes(lines, embedded_files, *, title):
     for page_lines in pages:
         commands = [b"BT /F1 10 Tf 48 792 Td 13 TL"]
         for line in page_lines:
-            encoded = line.encode("cp1252", errors="replace")
+            encoded = line.encode("cp1252", errors="strict")
             commands.append(b"<" + encoded.hex().encode("ascii") + b"> Tj T* ")
         commands.append(b"ET")
         stream = b"\n".join(commands)
@@ -209,5 +219,29 @@ def render_document_pdf(*, entry_name, revision_snapshot, project_id):
     resources = [("source-document.json", "application/json", source)]
     resources.extend(_resource_files(document, project_id))
     lines = [entry_name, "Historical Rendition of the saved ELN document", ""]
+    description = revision_snapshot.get("reviewed_description")
+    if isinstance(description, str) and description.strip():
+        lines.extend([description.strip(), ""])
     lines.extend(_text_lines(document))
     return _pdf_bytes(lines, resources, title=f"{entry_name} historical rendition")
+
+
+def render_review_manifest(*, manifest, project_id):
+    """Render the immutable ELN inputs supplied by Platform review."""
+    metadata = manifest.get("reviewed_metadata") or {}
+    groups = manifest.get("groups") or {}
+    document_group = groups.get("document")
+    if not isinstance(document_group, dict) or not isinstance(document_group.get("snapshot"), dict):
+        raise ValueError("The registered ELN document Revision is missing from the submission manifest.")
+    snapshot = document_group["snapshot"]
+    description = metadata.get("description", "")
+    if isinstance(description, str) and description.strip():
+        # Keep the exact reviewed description with the captured document source.
+        snapshot = {**snapshot, "reviewed_description": description, "review_manifest": manifest}
+    else:
+        snapshot = {**snapshot, "review_manifest": manifest}
+    return render_document_pdf(
+        entry_name=metadata.get("name") or "Untitled ELN entry",
+        revision_snapshot=snapshot,
+        project_id=project_id,
+    )

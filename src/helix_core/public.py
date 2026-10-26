@@ -427,6 +427,36 @@ class ModRegistrar:
             action_identities=action_identities,
         )
 
+    def register_review_target(
+        self,
+        local_key: str,
+        target: ModelReference,
+        *,
+        revision_groups: list[str],
+        renderer: Callable[..., Any],
+        renderer_version: str,
+        annotation_capabilities: list[str] | None = None,
+        anchor_validator: Callable[..., bool] | None = None,
+        operation_effects: dict[str, list[str]] | None = None,
+    ) -> str:
+        """Opt a Mod target into Platform's fixed review lifecycle and guards."""
+        self._owned(target)
+        if target.id not in self._registry.get_registered_models():
+            raise ValueError(f"Target model '{target}' is not registered")
+        identity = _reference(self.id, local_key)
+        self._registry.register_review_target(
+            identity,
+            target,
+            revision_groups=revision_groups,
+            renderer=renderer,
+            renderer_version=renderer_version,
+            annotation_capabilities=annotation_capabilities,
+            anchor_validator=anchor_validator,
+            operation_effects=operation_effects,
+            provider_mod_id=self.id,
+        )
+        return identity
+
     def register_urls(self, patterns: list) -> None:
         self._registry.register_urls(self._registry_id, patterns)
 
@@ -727,6 +757,34 @@ def retain_rendition(**values: Any) -> Any:
         AttachmentRevisionLink, PlatformAttachment, PlatformRecord,
         PlatformRendition, RecordRevisionGroup, ScientificRevision,
     )
+
+
+def submit_review_target(**values: Any) -> dict[str, Any]:
+    """Submit one registered target through the Platform-owned review lifecycle."""
+    from helix_core.reviews import submit_review_target as operation
+
+    return operation(**values)
+
+
+def withdraw_review_submission(**values: Any) -> dict[str, Any]:
+    """Withdraw the active submission while retaining its immutable history."""
+    from helix_core.reviews import withdraw_review_submission as operation
+
+    return operation(**values)
+
+
+def review_target_state(**values: Any) -> dict[str, Any]:
+    """Read shared Platform review state and retained submission manifests."""
+    from helix_core.reviews import review_target_state as operation
+
+    return operation(**values)
+
+
+def ensure_record_unlocked(record_or_id: Any) -> None:
+    """Enforce a persistent Platform review lock before a protected mutation."""
+    from helix_core.reviews import ensure_record_unlocked as operation
+
+    return operation(record_or_id)
     from django.core.exceptions import ValidationError
 
     record = PlatformRecord.objects.get(pk=values["record_id"])

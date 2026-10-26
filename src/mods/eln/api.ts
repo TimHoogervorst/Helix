@@ -51,6 +51,44 @@ export interface ReviewCapture extends Omit<HistoricalRendition, "revision_seque
   attachment_id: string;
 }
 
+export interface ReviewState {
+  available: boolean;
+  reason?: string | null;
+  state?: "authoring" | "submitted" | "finished";
+  locked?: boolean;
+  current_submission_id?: string | null;
+  submissions?: Array<{
+    id: string;
+    round: number;
+    manifest: Record<string, unknown>;
+    submitted_at: string;
+    submitted_by: Record<string, unknown>;
+    withdrawn_at: string | null;
+    rendition_id: string | null;
+  }>;
+}
+
+export function submitReview(
+  displayId: string,
+  stateToken: string,
+  revisionId: string,
+  requestId: string,
+): Promise<{ target_id: string; submission_id: string; round: number; state: string; manifest: Record<string, unknown>; rendition_id: string; attachment_id: string; download_url: string }> {
+  return post<{ target_id: string; submission_id: string; round: number; state: string; manifest: Record<string, unknown>; rendition_id: string; attachment_id: string; download_url: string }>(`/eln/entries/${displayId}/review/submit/`, {
+    state_token: stateToken,
+    revision_id: revisionId,
+    request_id: requestId,
+  });
+}
+
+export function withdrawReview(displayId: string, requestId: string): Promise<{ target_id: string; submission_id: string; state: string; replayed: boolean }> {
+  return post<{ target_id: string; submission_id: string; state: string; replayed: boolean }>(`/eln/entries/${displayId}/review/withdraw/`, { request_id: requestId });
+}
+
+export function getReviewState(displayId: string): Promise<ReviewState> {
+  return get<ReviewState>(`/eln/entries/${displayId}/review/status/`);
+}
+
 export function captureReview(
   displayId: string,
   stateToken: string,

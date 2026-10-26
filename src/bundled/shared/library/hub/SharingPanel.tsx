@@ -155,6 +155,7 @@ export function SharingPanel({ folderId, projectId, onMutated }: SharingPanelPro
             data-testid="share-level-select"
           >
             <option value="read">Read</option>
+            <option value="review">Review</option>
             <option value="read_write">Read + Write</option>
           </Select>
           <IconButton
@@ -193,6 +194,7 @@ export function SharingPanel({ folderId, projectId, onMutated }: SharingPanelPro
           data-testid="add-share-level-select"
         >
           <option value="read">Read</option>
+          <option value="review">Review</option>
           <option value="read_write">Read + Write</option>
         </Select>
         <Button

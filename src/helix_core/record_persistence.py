@@ -771,7 +771,7 @@ def _validate_contract_value(type_node, value, where, depth=0):
 def _require_current_read_access(actor, record):
     from bundled.access.access.policies import effective_role
 
-    if effective_role(actor, record) not in {"read", "edit"}:
+    if effective_role(actor, record) not in {"read", "review", "edit"}:
         raise PermissionDenied("You no longer have permission to access this Action outcome.")
 
 
@@ -880,7 +880,7 @@ def _resolve_record_source(actor, source, type_node, where):
         raise PermissionDenied("You do not have permission to use this Action input.")
     target = PlatformRecord.objects.select_for_update(of=("self",)).select_related("schema__schema_type").get(pk=target.pk)
     _lock_record_access_rows(actor, target)
-    if effective_role(actor, target) not in {"read", "edit"}:
+    if effective_role(actor, target) not in {"read", "review", "edit"}:
         raise PermissionDenied("You do not have permission to use this Action input.")
 
     groups = target.revision_groups.select_for_update().filter(group_key="record")
@@ -2108,7 +2108,7 @@ def _authorize_invocation_replay(actor, receipt):
                 project = Project.objects.get(pk=project_id)
             except (Project.DoesNotExist, ValueError, TypeError):
                 raise PermissionDenied("The Action outcome lacks authorization context for a deleted participant.")
-            if role(actor, project) not in {"read", "edit"}:
+            if role(actor, project) not in {"read", "review", "edit"}:
                 raise PermissionDenied("You no longer have permission to access this Action outcome.")
             unavailable.add(record_id)
             continue

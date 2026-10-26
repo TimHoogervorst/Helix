@@ -70,20 +70,30 @@ POLICY_DESCRIPTIONS: dict[str, str] = {
     "public": "Public operations — available to all authenticated users",
 }
 
+_ROLE_RANK = {None: 0, "read": 1, "review": 2, "edit": 3}
+
+
+def _stronger_role(*roles):
+    return max(roles, key=lambda value: _ROLE_RANK.get(value, 0))
+
+
+def _capped_role(role_value, cap):
+    return min((role_value, cap), key=lambda value: _ROLE_RANK.get(value, 0))
+
 # ── public API ───────────────────────────────────────────────────────────
 
 
 def role(user, project=None):
     """Return the effective Project Role for *user* on *project*.
 
-    Returns the strongest Project Role (``None``, ``"read"``, or
-    ``"edit"``) that *user* holds on *project*, considering direct
+    Returns the strongest Project Role (``None``, ``"read"``, ``"review"``,
+    or ``"edit"``) that *user* holds on *project*, considering direct
     Grants, Team Grants, and Organization Admin bypass.
 
       * Organization Admins and Superusers return ``"edit"`` (effective full
         access, the break-glass bypass).
       * Active Users get the strongest of direct and active-Team Grants.
-      * Edit wins over Read.
+      * Edit wins over Review, which wins over Read, independent of label order.
       * Inactive Users always return ``None``.
       * Anonymous / unsaved Users always return ``None``.
     """
@@ -117,29 +127,17 @@ def role(user, project=None):
         .values_list("role", flat=True)
         .first()
     )
-    if direct == ProjectRole.EDIT:
-        return "edit"
-
     user_group_ids = list(user.groups.values_list("pk", flat=True))
+    team_grant_role = None
     if user_group_ids:
         team_grant_role = (
             Grant.objects.filter(
                 project_id=project_id,
                 team__group_id__in=user_group_ids,
             )
-            .order_by("role")
             .values_list("role", flat=True)
-            .first()
         )
-        if team_grant_role == ProjectRole.EDIT:
-            return "edit"
-        if team_grant_role == ProjectRole.READ:
-            return "read"
-
-    if direct == ProjectRole.READ:
-        return "read"
-
-    return None
+    return _stronger_role(direct, *team_grant_role)
 
 
 def can(user, action, resource=None, via_project=None):
@@ -216,8 +214,8 @@ def effective_role(user, resource):
     """Resolve the effective role *user* holds on *resource*.
 
     The resource may be a Folder, Entry, or Entity.  Returns the
-    strongest role (``"edit"``, ``"read"``, or ``None``) the viewer
-    holds, considering:
+    strongest role (``"edit"``, ``"review"``, ``"read"``, or ``None``) the
+    viewer holds, considering:
 
       * the Organization Admin / Superuser bypass (always ``"edit"``),
       * direct and Team Grants on the resource's Project, and
@@ -271,17 +269,21 @@ def effective_role(user, resource):
 
         if _is_resource_the_shared_folder(resource, share):
             derived = "read"
-        elif target_role == "edit" and share.level == ShareLevel.READ_WRITE:
-            derived = "edit"
         else:
-            derived = "read"
-
-        if derived == "edit":
-            return "edit"
-        if best is None:
-            best = "read"
+            share_cap = {
+                ShareLevel.READ: "read",
+                ShareLevel.REVIEW: "review",
+                ShareLevel.READ_WRITE: "edit",
+            }[share.level]
+            derived = _capped_role(target_role, share_cap)
+        best = _stronger_role(best, derived)
 
     return best
+
+
+def can_review(user, resource):
+    """Return whether *user* has Review or Edit access to *resource*."""
+    return _ROLE_RANK.get(effective_role(user, resource), 0) >= _ROLE_RANK["review"]
 
 
 def accessible_project_ids(user):
@@ -451,13 +453,15 @@ def _check_level(user, required_level: str, resource=None, via_project=None) -> 
     if required_level == "authenticated":
         return user.is_authenticated and user.is_active
 
-    effective_role = _effective_project_role(user, resource, via_project)
+    resolved_role = _effective_project_role(user, resource, via_project)
 
     if required_level == "read":
-        return effective_role is not None
+        if resource is not None and hasattr(resource, "project_id"):
+            return effective_role(user, resource) is not None
+        return resolved_role is not None
 
     if required_level == "edit":
-        return effective_role == "edit"
+        return resolved_role == "edit"
 
     if required_level == "admin":
         return _is_org_admin(user)
@@ -516,13 +520,15 @@ def _effective_project_role(user, resource=None, via_project=None):
 
     from .models import ShareLevel
 
-    if target_role == "read":
+    if _is_resource_the_shared_folder(resource, share):
         return "read"
 
-    if share.level == ShareLevel.READ_WRITE:
-        return "edit"
-
-    return "read"
+    share_cap = {
+        ShareLevel.READ: "read",
+        ShareLevel.REVIEW: "review",
+        ShareLevel.READ_WRITE: "edit",
+    }[share.level]
+    return _capped_role(target_role, share_cap)
 
 
 def _is_resource_the_shared_folder(resource, share) -> bool:

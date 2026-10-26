@@ -697,6 +697,13 @@ def effective_role(*args: Any, **kwargs: Any) -> Any:
     return operation(*args, **kwargs)
 
 
+def can_review(*args: Any, **kwargs: Any) -> Any:
+    """Public resource-aware Review authorization (Edit includes Review)."""
+    from bundled.access.access.policies import can_review as operation
+
+    return operation(*args, **kwargs)
+
+
 def role(*args: Any, **kwargs: Any) -> Any:
     from bundled.access.access.policies import role as operation
 

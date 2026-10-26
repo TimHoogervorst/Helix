@@ -506,7 +506,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         from helix_core.public import effective_role
 
         entry = self.get_object()
-        if effective_role(request.user, entry) not in {"read", "edit"}:
+        if effective_role(request.user, entry) not in {"read", "review", "edit"}:
             raise PermissionDenied("You do not have permission to read this entry's history.")
         results = []
         from helix_core.public import list_renditions

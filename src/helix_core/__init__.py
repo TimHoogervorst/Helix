@@ -13,6 +13,7 @@ from .public import (
     TypedService,
     ContentSourceProvider,
     ProposedEffects,
+    can_review,
     make_app_config,
 )
 
@@ -29,6 +30,7 @@ __all__ = [
     "TypedService",
     "ContentSourceProvider",
     "ProposedEffects",
+    "can_review",
     "make_app_config",
     "AbstractBaseAction",
     "ActionLoggingMixin",

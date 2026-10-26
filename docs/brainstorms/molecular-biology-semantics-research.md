@@ -64,7 +64,7 @@ Sticky-end fragment lengths require care: the reference-strand partition, duplex
 
 ## Annotation propagation
 
-pydna offers `Dseqrecord` as a record wrapper and documents cutting with retained sequence features. Library behavior is a candidate mechanism, not a substitute for a product policy. [Dseqrecord API](https://pydna-group.github.io/pydna/modules/pydna_dseqrecord.html)
+pydna offers `Dseqrecord` as a record wrapper with feature operations and a digest operation returning new records. Exact annotation retention and clipping behavior must be verified against the selected release; these APIs do not settle the product policy. [Dseqrecord API](https://pydna-group.github.io/pydna/modules/pydna_dseqrecord.html)
 
 Proposed policy: rebase wholly retained annotations onto output coordinates and preserve source-feature IDs. Explicitly mark clipped/split annotations as partial, including the source interval and retained parts. Do not label a cut CDS or protein-coding region as an intact functional feature. If a feature crosses a circular origin, reconstruct its ordered parts before intersection with product intervals. UI selection coordinates and propagation must share one tested mapping. Feature propagation onto overhang-only segments needs an explicit convention in the data-model decision.
 

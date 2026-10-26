@@ -315,6 +315,7 @@ def submit_review_target(
             from helix_core.models import ReviewThread
             for blocker in ReviewThread.objects.filter(
                 target=target, submission=previous_submission,
+                blocking=True,
                 state__in=(ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED),
             ).select_related("requester").order_by("created_at"):
                 ReviewThread.objects.create(

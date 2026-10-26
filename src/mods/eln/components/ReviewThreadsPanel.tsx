@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import {
-  addReviewThread, approveReview, assessReview, changeReviewThread, getReviewState, getReviewThreads, reopenReview,
+  addReviewThread, approveReview, assessReview, changeReviewThread, finishReview, getReviewState, getReviewThreads, reopenReview,
   replyReviewThread, startReviewParticipation,
   type ReviewState, type ReviewThread, type ReviewThreadsState,
 } from "../api";
@@ -42,6 +42,7 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
   const approvalRequestId = useRef<string | null>(null);
   const submissionId = reviewState?.current_submission_id;
   const active = reviewState?.state === "submitted" && Boolean(submissionId);
+  const reviewable = (reviewState?.state === "submitted" || reviewState?.state === "finished") && Boolean(submissionId);
   const refresh = useCallback(async () => {
     try { setState(await getReviewThreads(displayId)); setError(null); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Review feedback could not be loaded."); }
@@ -95,7 +96,7 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
   if (!reviewState?.submissions?.length) return null;
   return <section aria-label="Submission review feedback" className="mx-auto my-6 w-full max-w-4xl border-t border-border px-6 py-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h2 className="text-lg font-semibold">Review feedback</h2><p className="text-sm text-muted-foreground">Stored participation and comments for {active ? "the active submission" : "the latest submission"}.</p></div>
+      <div><h2 className="text-lg font-semibold">Review feedback</h2><p className="text-sm text-muted-foreground">Stored participation and comments for {reviewable ? "the current submission" : "the latest submission"}.</p></div>
       {active && !state.participation && <button type="button" className="rounded bg-primary px-3 py-2 text-sm text-primary-foreground" disabled={busy} onClick={start}>Start review</button>}
       {state.participation && <span className="rounded bg-muted px-2 py-1 text-sm">{state.participation.state.replaceAll("_", " ")}</span>}
       {state.can_reopen && <button type="button" className="rounded border border-border px-3 py-2 text-sm" disabled={busy} onClick={reopen}>Reopen finished work</button>}
@@ -103,7 +104,7 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
     {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
     {state.approval_available === false && state.approval_unavailable_reason && <p role="status" data-approval-category={state.approval_unavailable_category || "readiness"} className="my-3 text-sm text-muted-foreground"><strong>{state.approval_unavailable_category === "access" ? "Review access required." : state.approval_unavailable_category === "attribution" ? "Contributor history." : state.approval_unavailable_category === "exclusion" ? "Witness eligibility." : state.approval_unavailable_category === "blockers" ? "Blocking feedback." : "Approval readiness."}</strong> {state.approval_unavailable_reason}</p>}
     {state.approval && <div className="my-4 rounded border border-border p-3" role="status"><p className="font-medium">Approved by {name(state.approval.witness)} · {new Date(state.approval.approved_at).toLocaleString()}</p><p className="mt-1 text-sm">{state.approval.assessment}</p></div>}
-    {active && state.participation && <>
+    {reviewable && state.participation && <>
       <div className="my-4 space-y-2 rounded border border-border p-3">
         <label className="block text-sm font-medium" htmlFor="review-feedback-draft">Add feedback</label>
         <textarea id="review-feedback-draft" className="min-h-16 w-full rounded border border-input bg-background p-2 text-sm" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Describe the requested change or concern" />
@@ -119,9 +120,10 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
         <div className="mt-3 space-y-2">{thread.messages.map((message) => <p key={message.id} className="border-l-2 border-border pl-3 text-sm"><strong>{name(message.author)}:</strong> {message.retracted ? "Message retracted" : message.body}</p>)}</div>
         {thread.can_address && <button type="button" className="mt-2 text-xs text-primary underline" disabled={busy} onClick={() => void run(() => changeReviewThread(displayId, thread.id, "address"))}>Mark Addressed</button>}
         {thread.can_resolve && <div className="mt-2 flex gap-3"><button type="button" className="text-xs text-primary underline" disabled={busy} onClick={() => void run(() => changeReviewThread(displayId, thread.id, "resolve"))}>Resolve request</button><button type="button" className="text-xs text-muted-foreground underline" disabled={busy} onClick={() => void run(() => changeReviewThread(displayId, thread.id, "withdraw"))}>Withdraw request</button></div>}
-        {thread.blocking && <div className="mt-3 flex gap-2"><textarea aria-label="Reply to review feedback" className="min-h-9 flex-1 rounded border border-input bg-background p-2 text-sm" value={replyDrafts[thread.id] ?? ""} onChange={(event) => setReplyDrafts((current) => ({ ...current, [thread.id]: event.target.value }))} /><button type="button" className="self-end rounded border border-border px-3 py-2 text-sm" disabled={busy || !(replyDrafts[thread.id] ?? "").trim()} onClick={() => reply(thread)}>Reply</button></div>}
+        {reviewable && (thread.state === "open" || thread.state === "addressed") && <div className="mt-3 flex gap-2"><textarea aria-label="Reply to review feedback" className="min-h-9 flex-1 rounded border border-input bg-background p-2 text-sm" value={replyDrafts[thread.id] ?? ""} onChange={(event) => setReplyDrafts((current) => ({ ...current, [thread.id]: event.target.value }))} /><button type="button" className="self-end rounded border border-border px-3 py-2 text-sm" disabled={busy || !(replyDrafts[thread.id] ?? "").trim()} onClick={() => reply(thread)}>Reply</button></div>}
       </article>)}</div>
-      {state.participation.state !== "finished" && <div className="mt-4 rounded border border-border p-3"><label htmlFor="review-assessment" className="text-sm font-medium">Final assessment</label><textarea id="review-assessment" className="mt-2 min-h-16 w-full rounded border border-input bg-background p-2 text-sm" value={assessment} onChange={(event) => setAssessment(event.target.value)} /><div className="mt-2 flex flex-wrap gap-2">{state.threads.some((thread) => thread.requester_is_actor && thread.blocking) && <button type="button" className="rounded border border-border px-3 py-2 text-sm" disabled={busy || !assessment.trim()} onClick={() => void run(() => assessReview(displayId, assessment))}>Request changes</button>}<button type="button" className="rounded bg-primary px-3 py-2 text-sm text-primary-foreground" disabled={busy || !assessment.trim() || !state.approval_available} title={state.approval_unavailable_reason || "Approve and finish this target"} onClick={approve}>Approve and finish target</button></div></div>}
+      {state.participation.state !== "finished" && <div className="mt-4 rounded border border-border p-3"><label htmlFor="review-assessment" className="text-sm font-medium">Final assessment</label><textarea id="review-assessment" className="mt-2 min-h-16 w-full rounded border border-input bg-background p-2 text-sm" value={assessment} onChange={(event) => setAssessment(event.target.value)} /><div className="mt-2 flex flex-wrap gap-2">{active ? <>{state.threads.some((thread) => thread.requester_is_actor && thread.blocking) && <button type="button" className="rounded border border-border px-3 py-2 text-sm" disabled={busy || !assessment.trim()} onClick={() => void run(() => assessReview(displayId, assessment))}>Request changes</button>}<button type="button" className="rounded bg-primary px-3 py-2 text-sm text-primary-foreground" disabled={busy || !assessment.trim() || !state.approval_available} title={state.approval_unavailable_reason || "Approve and finish this target"} onClick={approve}>Approve and finish target</button></> : <button type="button" className="rounded bg-primary px-3 py-2 text-sm text-primary-foreground" disabled={busy || !assessment.trim()} onClick={() => void run(async () => { await finishReview(displayId, assessment); setAssessment(""); })}>Finish review</button>}</div>{active && !state.approval_available && state.approval_unavailable_reason && <p className="mt-2 text-sm text-muted-foreground">{state.approval_unavailable_reason}</p>}{!active && <p className="mt-2 text-sm text-muted-foreground">This submission is already finished. You can record your assessment and finish your participation; approval and Request changes are unavailable.</p>}</div>}
+      {state.participation.state === "finished" && <p className="mt-4 text-sm text-muted-foreground">Your participation is finished. You can continue non-blocking feedback, but this submission cannot receive another approval or Request changes.</p>}
     </>}
   </section>;
 }

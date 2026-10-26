@@ -529,6 +529,14 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 record_id=entry.platform_record_id, actor=request.user,
                 assessment=request.data.get("assessment"), request_id=request.data.get("request_id"),
             ))
+        if request.data.get("outcome") == "finish_review":
+            from helix_core.public import finish_review_participation
+            entry = self.get_object()
+            if entry.platform_record_id is None:
+                raise DRFValidationError({"review": "This entry has no Platform review target."})
+            return Response(finish_review_participation(
+                entry=entry, actor=request.user, assessment=request.data.get("assessment"),
+            ))
         from helix_core.review_threads import assess_review
         return Response(assess_review(
             self.get_object(), request.user,

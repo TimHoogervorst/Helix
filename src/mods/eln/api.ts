@@ -109,6 +109,9 @@ export function replyReviewThread(displayId: string, threadId: string, body: str
 export function assessReview(displayId: string, assessment: string) {
   return post(`/eln/entries/${displayId}/review/assess/`, { assessment, outcome: "request_changes" });
 }
+export function finishReview(displayId: string, assessment: string) {
+  return post(`/eln/entries/${displayId}/review/assess/`, { assessment, outcome: "finish_review" });
+}
 export function approveReview(displayId: string, assessment: string, requestId: string) {
   return post(`/eln/entries/${displayId}/review/assess/`, { assessment, outcome: "approve", request_id: requestId });
 }

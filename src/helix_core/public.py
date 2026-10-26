@@ -799,6 +799,13 @@ def approve_review_target(**values: Any) -> dict[str, Any]:
     return operation(**values)
 
 
+def finish_review_participation(**values: Any) -> dict[str, Any]:
+    """Finish one participant's assessment after a witness completes the target."""
+    from helix_core.review_threads import assess_review as operation
+
+    return operation(outcome="finish_review", **values)
+
+
 def reopen_review_target(**values: Any) -> dict[str, Any]:
     """Reopen a finished review target with a retained reason and attribution."""
     from helix_core.reviews import reopen_review_target as operation

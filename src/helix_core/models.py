@@ -785,7 +785,7 @@ class ReviewReopen(models.Model):
 
 
 class ReviewThread(models.Model):
-    """A blocker anchored to one exact submission, with carry-forward lineage."""
+    """A comment or blocker anchored to one exact submission, with carry-forward lineage."""
 
     class State(models.TextChoices):
         OPEN = "open", "Open"
@@ -802,6 +802,7 @@ class ReviewThread(models.Model):
     requester_stable_id = models.CharField(max_length=255)
     requester_snapshot = models.JSONField(default=dict, blank=True)
     anchor = models.JSONField(default=dict)
+    blocking = models.BooleanField(default=True)
     state = models.CharField(max_length=12, choices=State.choices, default=State.OPEN)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)

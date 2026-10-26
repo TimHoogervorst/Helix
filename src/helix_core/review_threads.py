@@ -47,7 +47,7 @@ def _payload(thread, actor, role):
         "carried_from_id": str(thread.carried_from_id) if thread.carried_from_id else None,
         "requester": thread.requester_snapshot, "anchor": thread.anchor, "state": thread.state,
         "requester_is_actor": thread.requester_id == actor.pk,
-        "blocking": thread.state in {ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED},
+        "blocking": thread.blocking and thread.state in {ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED},
         "raised_from_discussion_id": str(thread.raised_from_discussion.origin_id) if thread.raised_from_discussion_id else None,
         "created_at": thread.created_at, "resolved_at": thread.resolved_at,
         "can_resolve": role in {"review", "edit"} and thread.requester_id == actor.pk and thread.state in {ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED},
@@ -105,8 +105,9 @@ def create_review_thread(entry, actor, *, submission_id, anchor, body, discussio
     if role not in {"review", "edit"}:
         raise PermissionDenied("Review access is required to add feedback.")
     target = ReviewTarget.objects.select_for_update().select_related("current_submission").filter(record=record).first()
-    if target is None or target.state != ReviewTarget.State.SUBMITTED or str(target.current_submission_id) != str(submission_id):
-        raise ValidationError({"submission_id": "Feedback must be bound to the exact active submission."})
+    if (target is None or target.state not in {ReviewTarget.State.SUBMITTED, ReviewTarget.State.FINISHED}
+            or str(target.current_submission_id) != str(submission_id)):
+        raise ValidationError({"submission_id": "Feedback must be bound to the exact current submission."})
     if not ReviewParticipation.objects.filter(submission=target.current_submission, actor=actor).exists():
         raise PermissionDenied("Start review participation before adding feedback.")
     if not isinstance(anchor, dict) or anchor.get("submission_id") != str(target.current_submission_id):
@@ -131,6 +132,7 @@ def create_review_thread(entry, actor, *, submission_id, anchor, body, discussio
         target=target, submission=target.current_submission, requester=actor,
         requester_stable_id=str(actor.pk), requester_snapshot=user_attribution_snapshot(actor),
         anchor=anchor, raised_from_discussion=discussion,
+        blocking=target.state == ReviewTarget.State.SUBMITTED,
     )
     message = ReviewThreadMessage.objects.create(thread=thread, author=actor, author_snapshot=user_attribution_snapshot(actor))
     ReviewThreadMessageRevision.objects.create(message=message, sequence=1, action="create", body=_clean_body(body), actor=actor)
@@ -148,9 +150,11 @@ def create_review_thread(entry, actor, *, submission_id, anchor, body, discussio
 def change_thread(entry, actor, thread_id, action):
     record, role = _record_for_entry(entry, actor)
     target = ReviewTarget.objects.select_for_update().filter(record=record).first()
-    if target is None or target.state != ReviewTarget.State.SUBMITTED:
-        raise ValidationError("Feedback can only be changed on an active submission.")
+    if target is None or target.state not in {ReviewTarget.State.SUBMITTED, ReviewTarget.State.FINISHED}:
+        raise ValidationError("Feedback can only be changed on the current submission.")
     thread = get_object_or_404(ReviewThread.objects.select_for_update().select_related("target", "submission", "requester"), pk=thread_id, target__record=record)
+    if target.state == ReviewTarget.State.FINISHED and thread.submission_id != target.current_submission_id:
+        raise ValidationError("Only feedback on the finished submission can be changed.")
     if role not in {"review", "edit"}:
         raise PermissionDenied("Review access is required to change feedback.")
     if action == "address":
@@ -185,9 +189,11 @@ def reply_to_thread(entry, actor, thread_id, *, body, parent_id=None):
     if role not in {"review", "edit"}:
         raise PermissionDenied("Review access is required to reply.")
     target = ReviewTarget.objects.select_for_update().filter(record=record).first()
-    if target is None or target.state != ReviewTarget.State.SUBMITTED:
-        raise ValidationError("Feedback can only be changed on an active submission.")
+    if target is None or target.state not in {ReviewTarget.State.SUBMITTED, ReviewTarget.State.FINISHED}:
+        raise ValidationError("Feedback can only be changed on the current submission.")
     thread = get_object_or_404(ReviewThread.objects.select_for_update(), pk=thread_id, target__record=record)
+    if target.state == ReviewTarget.State.FINISHED and thread.submission_id != target.current_submission_id:
+        raise ValidationError("Only feedback on the finished submission can receive replies.")
     if thread.state not in {ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED}:
         raise ValidationError("Resolved feedback cannot receive replies.")
     parent = get_object_or_404(ReviewThreadMessage, pk=parent_id, thread=thread) if parent_id else None
@@ -202,9 +208,11 @@ def change_thread_message(entry, actor, thread_id, message_id, *, action, body=N
     if role not in {"review", "edit"}:
         raise PermissionDenied("Review access is required to change messages.")
     target = ReviewTarget.objects.select_for_update().filter(record=record).first()
-    if target is None or target.state != ReviewTarget.State.SUBMITTED:
-        raise ValidationError("Feedback can only be changed on an active submission.")
+    if target is None or target.state not in {ReviewTarget.State.SUBMITTED, ReviewTarget.State.FINISHED}:
+        raise ValidationError("Feedback can only be changed on the current submission.")
     thread = get_object_or_404(ReviewThread, pk=thread_id, target__record=record)
+    if target.state == ReviewTarget.State.FINISHED and thread.submission_id != target.current_submission_id:
+        raise ValidationError("Only feedback on the finished submission can be changed.")
     message = get_object_or_404(ReviewThreadMessage.objects.select_for_update().prefetch_related("history"), pk=message_id, thread=thread)
     if message.author_id != actor.pk:
         raise PermissionDenied("You can only amend or retract your own messages.")
@@ -228,10 +236,40 @@ def assess_review(entry, actor, *, assessment, outcome, request_id=None):
     if not isinstance(assessment, str) or not assessment.strip():
         raise ValidationError({"assessment": "A final assessment is required."})
     target = ReviewTarget.objects.select_for_update().select_related("current_submission").filter(record=record).first()
-    if target is None or target.state != ReviewTarget.State.SUBMITTED:
-        raise ValidationError({"review": "There is no active submission."})
+    if target is None or target.current_submission is None:
+        raise ValidationError({"review": "There is no current submission."})
     participation = get_object_or_404(ReviewParticipation.objects.select_for_update(), submission=target.current_submission, actor=actor)
-    own_open = ReviewThread.objects.filter(target=target, submission=target.current_submission, requester=actor, state__in=(ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED)).exists()
+    if outcome == "finish_review":
+        if target.state != ReviewTarget.State.FINISHED:
+            raise ValidationError({"review": "Finish review is available after another witness finishes this submission."})
+        if participation.state == ReviewParticipation.State.FINISHED:
+            raise ValidationError({"review": "Your participation is already finished."})
+        history = list(participation.assessment_history)
+        if participation.assessment:
+            history.append({"assessment": participation.assessment, "state": participation.state, "recorded_at": participation.updated_at.isoformat()})
+        participation.assessment = assessment.strip()
+        participation.assessment_history = history
+        participation.state = ReviewParticipation.State.FINISHED
+        participation.save(update_fields=("assessment", "assessment_history", "state", "updated_at"))
+        from helix_core.models import ActionLogEntry, ActionParticipant
+        audit = ActionLogEntry.objects.create(
+            performed_by=actor, action="helix.review.finish_review", action_type="reviewed",
+            target_model_reference="helix.record", target_object_id=str(record.pk),
+            initiating_mod_id=target.provider_mod_id, initiating_mod_version="unknown",
+            metadata={"target_id": str(target.pk), "submission_id": str(target.current_submission_id),
+                      "participation_id": str(participation.pk), "assessment": participation.assessment},
+        )
+        ActionParticipant.objects.create(action=audit, record=record,
+            target_model_reference="helix.record", target_object_id=str(record.pk), role="subject")
+        return {"id": str(participation.pk), "submission_id": str(participation.submission_id),
+                "state": participation.state, "assessment": participation.assessment,
+                "assessment_history": participation.assessment_history}
+    if target.state != ReviewTarget.State.SUBMITTED:
+        raise ValidationError({"review": "Request changes is unavailable after the target is finished."})
+    own_open = ReviewThread.objects.filter(
+        target=target, submission=target.current_submission, requester=actor, blocking=True,
+        state__in=(ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED),
+    ).exists()
     if outcome != "request_changes" or not own_open:
         raise ValidationError({"outcome": "Request changes requires at least one of your unresolved requests."})
     history = list(participation.assessment_history)
@@ -405,6 +443,7 @@ def approve_review(entry=None, *, record_id=None, actor, assessment, request_id)
         raise PermissionDenied("Start review participation before approving.")
     blockers = ReviewThread.objects.select_for_update().filter(
         target=target, submission=submission,
+        blocking=True,
         state__in=(ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED),
     )
     if blockers.exclude(requester_stable_id=str(actor.pk)).exists():
@@ -413,6 +452,7 @@ def approve_review(entry=None, *, record_id=None, actor, assessment, request_id)
     # though its current-round copy is the active blocker.
     own_blockers = list(ReviewThread.objects.select_for_update().filter(
         target=target, requester_stable_id=str(actor.pk),
+        blocking=True,
         state__in=(ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED),
     ))
     now = timezone.now()

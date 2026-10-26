@@ -1,3 +1,7 @@
+from django.db import transaction
+
+
+@transaction.atomic
 def cascade_source_status(*, source_type_id: int, source_id: int, status: str) -> int:
     """Update every status-bearing item in a Source subtree.
 

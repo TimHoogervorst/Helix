@@ -73,8 +73,6 @@ export interface ReviewThread {
   id: string;
   submission_id: string;
   original_submission_id: string;
-  submission_id: string;
-  original_submission_id: string;
   state: "open" | "addressed" | "resolved" | "withdrawn";
   blocking: boolean;
   anchor: Record<string, unknown>;

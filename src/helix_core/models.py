@@ -731,6 +731,59 @@ class ReviewParticipation(models.Model):
         constraints = [models.UniqueConstraint(fields=("submission", "actor_stable_id"), name="helix_review_participation_actor_uniq")]
 
 
+class ReviewApproval(models.Model):
+    """Immutable witness decision and the exact retained evidence it approves."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    target = models.ForeignKey(ReviewTarget, on_delete=models.CASCADE, related_name="approvals")
+    submission = models.OneToOneField(ReviewSubmission, on_delete=models.CASCADE, related_name="approval")
+    participation = models.ForeignKey(ReviewParticipation, on_delete=models.CASCADE, related_name="approvals")
+    witness = models.ForeignKey("core.User", on_delete=models.SET_NULL, null=True, related_name="witness_approvals")
+    witness_stable_id = models.CharField(max_length=255)
+    witness_snapshot = models.JSONField(default=dict, blank=True)
+    assessment = models.TextField()
+    retained_evidence = models.JSONField(default=dict)
+    request_id = models.UUIDField()
+    request_fingerprint = models.CharField(max_length=64)
+    approved_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "helix_review_approval"
+        constraints = [models.UniqueConstraint(fields=("witness_stable_id", "request_id"), name="helix_review_approval_request_uniq")]
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise ValueError("ReviewApproval is immutable")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("ReviewApproval is immutable")
+
+
+class ReviewReopen(models.Model):
+    """Immutable reason and attribution for explicitly reopening completed work."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    target = models.ForeignKey(ReviewTarget, on_delete=models.CASCADE, related_name="reopens")
+    approval = models.ForeignKey(ReviewApproval, on_delete=models.CASCADE, related_name="reopens")
+    actor = models.ForeignKey("core.User", on_delete=models.SET_NULL, null=True, related_name="review_reopens")
+    actor_stable_id = models.CharField(max_length=255)
+    actor_snapshot = models.JSONField(default=dict, blank=True)
+    reason = models.TextField()
+    reopened_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "helix_review_reopen"
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise ValueError("ReviewReopen is immutable")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("ReviewReopen is immutable")
+
+
 class ReviewThread(models.Model):
     """A blocker anchored to one exact submission, with carry-forward lineage."""
 

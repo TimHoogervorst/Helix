@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import {
-  addReviewThread, assessReview, changeReviewThread, getReviewThreads,
+  addReviewThread, approveReview, assessReview, changeReviewThread, getReviewState, getReviewThreads, reopenReview,
   replyReviewThread, startReviewParticipation,
   type ReviewState, type ReviewThread, type ReviewThreadsState,
 } from "../api";
@@ -10,8 +10,28 @@ function name(person: { displayName?: string; username?: string }) {
   return person.displayName || person.username || "Former user";
 }
 
-export default function ReviewThreadsPanel({ displayId, reviewState, editor }: {
+function approvalRequestFor(displayId: string, submissionId: string, assessment: string) {
+  const key = `helix.review.approval.${displayId}.${submissionId}`;
+  let requests: Record<string, string> = {};
+  try { requests = JSON.parse(sessionStorage.getItem(key) || "{}"); } catch { /* Start a fresh request identity. */ }
+  const requestId = requests[assessment] || crypto.randomUUID();
+  requests[assessment] = requestId;
+  try { sessionStorage.setItem(key, JSON.stringify(requests)); } catch { /* The in-memory request ID still supports retries in this page. */ }
+  return { key, requestId };
+}
+
+function forgetApprovalRequest(key: string, assessment: string) {
+  try {
+    const requests: Record<string, string> = JSON.parse(sessionStorage.getItem(key) || "{}");
+    delete requests[assessment];
+    if (Object.keys(requests).length) sessionStorage.setItem(key, JSON.stringify(requests));
+    else sessionStorage.removeItem(key);
+  } catch { try { sessionStorage.removeItem(key); } catch { /* Storage can be unavailable in restricted contexts. */ } }
+}
+
+export default function ReviewThreadsPanel({ displayId, reviewState, editor, onReviewStateChanged }: {
   displayId: string; reviewState: ReviewState | null; editor: Editor | null;
+  onReviewStateChanged: (state: ReviewState) => void;
 }) {
   const [state, setState] = useState<ReviewThreadsState>({ participation: null, threads: [] });
   const [draft, setDraft] = useState("");
@@ -19,6 +39,7 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor }: {
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const approvalRequestId = useRef<string | null>(null);
   const submissionId = reviewState?.current_submission_id;
   const active = reviewState?.state === "submitted" && Boolean(submissionId);
   const refresh = useCallback(async () => {
@@ -49,14 +70,38 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor }: {
     await replyReviewThread(displayId, thread.id, replyDrafts[thread.id] ?? "");
     setReplyDrafts((current) => ({ ...current, [thread.id]: "" }));
   });
+  const approve = () => {
+    if (!window.confirm("Approval resolves your outstanding requests, publishes this assessment as your witness comment, and finishes this target. Another reviewer's outstanding request will prevent approval. Continue?")) return;
+    if (!submissionId) return;
+    const savedRequest = approvalRequestFor(displayId, submissionId, assessment.trim());
+    approvalRequestId.current = savedRequest.requestId;
+    const requestId = savedRequest.requestId;
+    void run(async () => {
+      await approveReview(displayId, assessment, requestId);
+      const nextState = await getReviewState(displayId);
+      onReviewStateChanged(nextState);
+      approvalRequestId.current = null;
+      forgetApprovalRequest(savedRequest.key, assessment.trim());
+    });
+  };
+  const reopen = () => {
+    const reason = window.prompt("Reason for reopening this finished work:");
+    if (!reason?.trim()) return;
+    void run(async () => {
+      await reopenReview(displayId, reason);
+      onReviewStateChanged(await getReviewState(displayId));
+    });
+  };
   if (!reviewState?.submissions?.length) return null;
   return <section aria-label="Submission review feedback" className="mx-auto my-6 w-full max-w-4xl border-t border-border px-6 py-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h2 className="text-lg font-semibold">Review feedback</h2><p className="text-sm text-muted-foreground">Stored participation and comments for {active ? "the active submission" : "the latest submission"}.</p></div>
       {active && !state.participation && <button type="button" className="rounded bg-primary px-3 py-2 text-sm text-primary-foreground" disabled={busy} onClick={start}>Start review</button>}
       {state.participation && <span className="rounded bg-muted px-2 py-1 text-sm">{state.participation.state.replaceAll("_", " ")}</span>}
+      {state.can_reopen && <button type="button" className="rounded border border-border px-3 py-2 text-sm" disabled={busy} onClick={reopen}>Reopen finished work</button>}
     </div>
     {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
+    {state.approval && <div className="my-4 rounded border border-border p-3" role="status"><p className="font-medium">Approved by {name(state.approval.witness)} · {new Date(state.approval.approved_at).toLocaleString()}</p><p className="mt-1 text-sm">{state.approval.assessment}</p></div>}
     {active && state.participation && <>
       <div className="my-4 space-y-2 rounded border border-border p-3">
         <label className="block text-sm font-medium" htmlFor="review-feedback-draft">Add feedback</label>
@@ -75,7 +120,7 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor }: {
         {thread.can_resolve && <div className="mt-2 flex gap-3"><button type="button" className="text-xs text-primary underline" disabled={busy} onClick={() => void run(() => changeReviewThread(displayId, thread.id, "resolve"))}>Resolve request</button><button type="button" className="text-xs text-muted-foreground underline" disabled={busy} onClick={() => void run(() => changeReviewThread(displayId, thread.id, "withdraw"))}>Withdraw request</button></div>}
         {thread.blocking && <div className="mt-3 flex gap-2"><textarea aria-label="Reply to review feedback" className="min-h-9 flex-1 rounded border border-input bg-background p-2 text-sm" value={replyDrafts[thread.id] ?? ""} onChange={(event) => setReplyDrafts((current) => ({ ...current, [thread.id]: event.target.value }))} /><button type="button" className="self-end rounded border border-border px-3 py-2 text-sm" disabled={busy || !(replyDrafts[thread.id] ?? "").trim()} onClick={() => reply(thread)}>Reply</button></div>}
       </article>)}</div>
-      {state.participation.state === "under_review" && state.threads.some((thread) => thread.requester_is_actor && thread.blocking) && <div className="mt-4 rounded border border-border p-3"><label htmlFor="review-assessment" className="text-sm font-medium">Final assessment for Request changes</label><textarea id="review-assessment" className="mt-2 min-h-16 w-full rounded border border-input bg-background p-2 text-sm" value={assessment} onChange={(event) => setAssessment(event.target.value)} /><button type="button" className="mt-2 rounded bg-primary px-3 py-2 text-sm text-primary-foreground" disabled={busy || !assessment.trim()} onClick={() => void run(() => assessReview(displayId, assessment))}>Request changes</button></div>}
+      {state.participation.state !== "finished" && <div className="mt-4 rounded border border-border p-3"><label htmlFor="review-assessment" className="text-sm font-medium">Final assessment</label><textarea id="review-assessment" className="mt-2 min-h-16 w-full rounded border border-input bg-background p-2 text-sm" value={assessment} onChange={(event) => setAssessment(event.target.value)} /><div className="mt-2 flex flex-wrap gap-2">{state.threads.some((thread) => thread.requester_is_actor && thread.blocking) && <button type="button" className="rounded border border-border px-3 py-2 text-sm" disabled={busy || !assessment.trim()} onClick={() => void run(() => assessReview(displayId, assessment))}>Request changes</button>}<button type="button" className="rounded bg-primary px-3 py-2 text-sm text-primary-foreground" disabled={busy || !assessment.trim() || !state.approval_available} title={state.approval_unavailable_reason || "Approve and finish this target"} onClick={approve}>Approve and finish target</button></div>{!state.approval_available && state.approval_unavailable_reason && <p className="mt-2 text-sm text-muted-foreground">{state.approval_unavailable_reason}</p>}</div>}
     </>}
   </section>;
 }

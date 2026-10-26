@@ -45,6 +45,22 @@ def record_review_content_effect(*, record, actor, provider_mod_id, group_key, e
     )
 
 
+def record_review_metadata_effect(*, record, actor):
+    """Retain attribution when record metadata or field values change."""
+    from helix_core.models import ReviewContributor, ReviewTarget, user_attribution_snapshot
+
+    target = ReviewTarget.objects.filter(record=record).first()
+    if target is None:
+        return
+    stable_id = str(getattr(actor, "pk", "anonymous"))
+    ReviewContributor.objects.get_or_create(
+        target=target, actor_stable_id=stable_id,
+        defaults={"actor": actor if getattr(actor, "is_authenticated", False) else None,
+                  "actor_snapshot": user_attribution_snapshot(actor),
+                  "first_effect": "metadata-edited"},
+    )
+
+
 def ensure_record_unlocked(record_or_id):
     """Reject edits while a submitted or finished review target is locked."""
     from helix_core.models import PlatformRecord, ReviewTarget
@@ -367,3 +383,46 @@ def withdraw_review_submission(*, record_id, actor, request_id):
     )
     return {"target_id": str(target.pk), "submission_id": str(submission.pk),
             "state": target.state, "replayed": False}
+
+
+@transaction.atomic
+def reopen_review_target(*, record_id, actor, reason):
+    """Return a finished target to authoring with an immutable reasoned event."""
+    from bundled.access.access.policies import effective_role
+    from helix_core.models import (
+        ActionLogEntry, ActionParticipant, PlatformRecord, ReviewApproval,
+        ReviewReopen, ReviewTarget, user_attribution_snapshot,
+    )
+    if not isinstance(reason, str) or not reason.strip() or len(reason.strip()) > 20000:
+        raise ValidationError({"reason": "A reason of 1 to 20,000 characters is required."})
+    try:
+        record = PlatformRecord.objects.select_for_update(of=("self",)).select_related("project").get(pk=record_id)
+    except (PlatformRecord.DoesNotExist, ValueError, TypeError):
+        raise NotFound("Record not found.")
+    if effective_role(actor, record) != "edit":
+        raise PermissionDenied("You need Edit permission to reopen this target.")
+    target = ReviewTarget.objects.select_for_update().filter(record=record).first()
+    if target is None or target.state != ReviewTarget.State.FINISHED:
+        raise ValidationError({"review": "Only a finished target can be reopened."})
+    approval = ReviewApproval.objects.filter(target=target).order_by("-approved_at").first()
+    if approval is None:
+        raise ValidationError({"review": "The finished target has no retained witness approval."})
+    reopened = ReviewReopen.objects.create(
+        target=target, approval=approval, actor=actor,
+        actor_stable_id=str(actor.pk), actor_snapshot=user_attribution_snapshot(actor),
+        reason=reason.strip(), reopened_at=timezone.now(),
+    )
+    target.state = ReviewTarget.State.AUTHORING
+    target.current_submission = None
+    target.save(update_fields=("state", "current_submission", "updated_at"))
+    audit = ActionLogEntry.objects.create(
+        performed_by=actor, action="helix.review.reopened", action_type="reviewed",
+        target_model_reference="helix.record", target_object_id=str(record.pk),
+        initiating_mod_id=target.provider_mod_id, initiating_mod_version="unknown",
+        metadata={"target_id": str(target.pk), "approval_id": str(approval.pk),
+                  "reopen_id": str(reopened.pk), "reason": reopened.reason},
+    )
+    ActionParticipant.objects.create(action=audit, record=record,
+        target_model_reference="helix.record", target_object_id=str(record.pk), role="subject")
+    return {"target_id": str(target.pk), "state": target.state,
+            "reopen_id": str(reopened.pk), "approval_id": str(approval.pk)}

@@ -560,6 +560,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   );
 
   const editorElement = (
+    <>
     <ElnPortableBlockHostContext.Provider value={portableBlockHost}>
     <fieldset disabled={workspace.save.actionBusy || reviewState?.locked === true} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
     <TipTapRenderer
@@ -581,7 +582,8 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     />
     </fieldset>
     </ElnPortableBlockHostContext.Provider>
-    {!isNew && entryDisplayId && <ReviewThreadsPanel displayId={entryDisplayId} reviewState={reviewState} editor={editorRef.current} />}
+    {!isNew && entryDisplayId && <ReviewThreadsPanel displayId={entryDisplayId} reviewState={reviewState} editor={editorRef.current} onReviewStateChanged={setReviewState} />}
+    </>
   );
 
   const sidebarElement = (

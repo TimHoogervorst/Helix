@@ -520,10 +520,30 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="review/assess")
     def assess_review(self, request, display_id=None):
+        if request.data.get("outcome") == "approve":
+            from helix_core.public import approve_review_target
+            entry = self.get_object()
+            if entry.platform_record_id is None:
+                raise DRFValidationError({"review": "This entry has no Platform review target."})
+            return Response(approve_review_target(
+                record_id=entry.platform_record_id, actor=request.user,
+                assessment=request.data.get("assessment"), request_id=request.data.get("request_id"),
+            ))
         from helix_core.review_threads import assess_review
         return Response(assess_review(
             self.get_object(), request.user,
             assessment=request.data.get("assessment"), outcome=request.data.get("outcome"),
+        ))
+
+    @action(detail=True, methods=["post"], url_path="review/reopen")
+    def reopen_review(self, request, display_id=None):
+        from helix_core.public import reopen_review_target
+        entry = self.get_object()
+        if entry.platform_record_id is None:
+            raise DRFValidationError({"review": "This entry has no Platform review target."})
+        return Response(reopen_review_target(
+            record_id=entry.platform_record_id, actor=request.user,
+            reason=request.data.get("reason"),
         ))
 
     @action(detail=True, methods=["post"], url_path=r"review/threads/(?P<thread_id>[^/.]+)/(?P<thread_action>address|resolve|withdraw|reopen)")

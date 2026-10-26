@@ -792,6 +792,20 @@ def review_target_state(**values: Any) -> dict[str, Any]:
     return operation(**values)
 
 
+def approve_review_target(**values: Any) -> dict[str, Any]:
+    """Approve an exact active submission using an eligible independent witness."""
+    from helix_core.review_threads import approve_review as operation
+
+    return operation(**values)
+
+
+def reopen_review_target(**values: Any) -> dict[str, Any]:
+    """Reopen a finished review target with a retained reason and attribution."""
+    from helix_core.reviews import reopen_review_target as operation
+
+    return operation(**values)
+
+
 def ensure_record_unlocked(record_or_id: Any) -> None:
     """Enforce a persistent Platform review lock before a protected mutation."""
     from helix_core.reviews import ensure_record_unlocked as operation

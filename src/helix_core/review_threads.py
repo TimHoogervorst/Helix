@@ -1,5 +1,8 @@
 """Platform API operations for exact-submission review participation and blockers."""
 
+from copy import deepcopy
+from uuid import UUID
+
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -62,7 +65,15 @@ def review_threads(entry, actor):
     if submission is None:
         return {"participation": None, "threads": []}
     participation = ReviewParticipation.objects.filter(submission=submission, actor=actor).first() if target.current_submission_id else None
+    eligibility = _approval_eligibility(target, submission, actor, role) if target.current_submission_id else (False, "There is no active submission.")
     return {
+        "approval_available": eligibility[0], "approval_unavailable_reason": eligibility[1],
+        "can_reopen": role == "edit" and target.state == ReviewTarget.State.FINISHED,
+        "approval": None if not hasattr(submission, "approval") else {
+            "id": str(submission.approval.pk), "witness": submission.approval.witness_snapshot,
+            "assessment": submission.approval.assessment,
+            "approved_at": submission.approval.approved_at,
+        },
         "participation": None if participation is None else {
             "id": str(participation.pk), "submission_id": str(submission.pk), "state": participation.state,
             "assessment": participation.assessment, "assessment_history": participation.assessment_history,
@@ -135,6 +146,9 @@ def create_review_thread(entry, actor, *, submission_id, anchor, body, discussio
 @transaction.atomic
 def change_thread(entry, actor, thread_id, action):
     record, role = _record_for_entry(entry, actor)
+    target = ReviewTarget.objects.select_for_update().filter(record=record).first()
+    if target is None or target.state != ReviewTarget.State.SUBMITTED:
+        raise ValidationError("Feedback can only be changed on an active submission.")
     thread = get_object_or_404(ReviewThread.objects.select_for_update().select_related("target", "submission", "requester"), pk=thread_id, target__record=record)
     if role not in {"review", "edit"}:
         raise PermissionDenied("Review access is required to change feedback.")
@@ -169,6 +183,9 @@ def reply_to_thread(entry, actor, thread_id, *, body, parent_id=None):
     record, role = _record_for_entry(entry, actor)
     if role not in {"review", "edit"}:
         raise PermissionDenied("Review access is required to reply.")
+    target = ReviewTarget.objects.select_for_update().filter(record=record).first()
+    if target is None or target.state != ReviewTarget.State.SUBMITTED:
+        raise ValidationError("Feedback can only be changed on an active submission.")
     thread = get_object_or_404(ReviewThread.objects.select_for_update(), pk=thread_id, target__record=record)
     if thread.state not in {ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED}:
         raise ValidationError("Resolved feedback cannot receive replies.")
@@ -183,6 +200,9 @@ def change_thread_message(entry, actor, thread_id, message_id, *, action, body=N
     record, role = _record_for_entry(entry, actor)
     if role not in {"review", "edit"}:
         raise PermissionDenied("Review access is required to change messages.")
+    target = ReviewTarget.objects.select_for_update().filter(record=record).first()
+    if target is None or target.state != ReviewTarget.State.SUBMITTED:
+        raise ValidationError("Feedback can only be changed on an active submission.")
     thread = get_object_or_404(ReviewThread, pk=thread_id, target__record=record)
     message = get_object_or_404(ReviewThreadMessage.objects.select_for_update().prefetch_related("history"), pk=message_id, thread=thread)
     if message.author_id != actor.pk:
@@ -198,7 +218,9 @@ def change_thread_message(entry, actor, thread_id, message_id, *, action, body=N
 
 
 @transaction.atomic
-def assess_review(entry, actor, *, assessment, outcome):
+def assess_review(entry, actor, *, assessment, outcome, request_id=None):
+    if outcome == "approve":
+        return approve_review(entry, actor=actor, assessment=assessment, request_id=request_id)
     record, role = _record_for_entry(entry, actor)
     if role not in {"review", "edit"}:
         raise PermissionDenied("Review access is required to submit an assessment.")
@@ -208,7 +230,7 @@ def assess_review(entry, actor, *, assessment, outcome):
     if target is None or target.state != ReviewTarget.State.SUBMITTED:
         raise ValidationError({"review": "There is no active submission."})
     participation = get_object_or_404(ReviewParticipation.objects.select_for_update(), submission=target.current_submission, actor=actor)
-    own_open = ReviewThread.objects.filter(target=target, requester=actor, state__in=(ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED)).exists()
+    own_open = ReviewThread.objects.filter(target=target, submission=target.current_submission, requester=actor, state__in=(ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED)).exists()
     if outcome != "request_changes" or not own_open:
         raise ValidationError({"outcome": "Request changes requires at least one of your unresolved requests."})
     history = list(participation.assessment_history)
@@ -231,6 +253,198 @@ def assess_review(entry, actor, *, assessment, outcome):
         target_object_id=str(record.pk), role="subject",
     )
     return {"id": str(participation.pk), "submission_id": str(participation.submission_id), "state": participation.state, "assessment": participation.assessment, "assessment_history": participation.assessment_history}
+
+
+def _approval_eligibility(target, submission, actor, role):
+    from helix_core.mod_system.registry import registry
+    from helix_core.models import ActionParticipant, PlatformRecord, PlatformRendition, ReviewTarget as ReviewTargetModel
+
+    if role not in {"review", "edit"}:
+        return False, "Current Review access is required to approve."
+    if target.state != ReviewTarget.State.SUBMITTED or target.current_submission_id != submission.pk:
+        return False, "Approval requires the exact active submission."
+    if not target.contributor_history_complete:
+        return False, "Complete contributor attribution is unavailable, so this submission cannot be approved."
+    provider = registry.get_review_target(target.registration_id)
+    if provider is None:
+        return False, "The registered review provider is unavailable."
+    manifest = submission.manifest or {}
+    groups = manifest.get("groups")
+    if (not provider.revision_groups or not isinstance(groups, dict) or set(groups) != set(provider.revision_groups)
+            or submission.rendition_id is None or not submission.captured_evidence.get("pdf_attachment_id")
+            or str(manifest.get("record_id")) != str(target.record_id)):
+        return False, "The active submission is missing complete retained evidence."
+    rendition = PlatformRendition.objects.filter(pk=submission.rendition_id).first()
+    primary_group = groups.get(provider.revision_groups[0], {})
+    if (rendition is None
+            or str(rendition.attachment_id) != str(submission.captured_evidence.get("pdf_attachment_id"))
+            or str(rendition.revision_id) != str(primary_group.get("revision_id"))
+            or rendition.source_hash != str(primary_group.get("content_hash"))):
+        return False, "The retained presentation does not match the exact active submission."
+    excluded = {str(target.creator_snapshot.get("id", ""))}
+    excluded.update(filter(None, [str(target.record.author_id or ""), str(target.record.last_editor_id or "")]))
+    excluded.update(target.contributors.values_list("actor_stable_id", flat=True))
+    for participation in ActionParticipant.objects.filter(
+        record=target.record, action__action_type__in=("created", "edited"),
+    ).select_related("action"):
+        contributor_id = participation.action.performed_by_id or participation.action.performed_by_snapshot.get("id")
+        if not contributor_id:
+            return False, "Contributor attribution is incomplete for the reviewed record."
+        excluded.add(str(contributor_id))
+    for group in target.record.revision_groups.all():
+        for revision in group.revisions.all():
+            contributor_id = revision.created_by_id or revision.created_by_snapshot.get("id")
+            if not contributor_id:
+                return False, "Contributor attribution is incomplete for the reviewed record."
+            excluded.add(str(contributor_id))
+    for prior_submission in target.submissions.all():
+        excluded.add(str(prior_submission.submitted_by_snapshot.get("id", "")))
+        if prior_submission.submitted_by_id:
+            excluded.add(str(prior_submission.submitted_by_id))
+    external = manifest.get("captured_external_evidence") or {}
+    for external_id, item in external.items():
+        try:
+            external_record = PlatformRecord.objects.get(pk=external_id)
+        except (PlatformRecord.DoesNotExist, ValueError, TypeError):
+            return False, "Indirect contributor attribution is incomplete for captured external evidence."
+        if not isinstance(item, dict) or str(item.get("record_id")) != str(external_record.pk):
+            return False, "Captured external evidence does not identify its exact record."
+        excluded.update(filter(None, [str(external_record.author_id or ""), str(external_record.last_editor_id or "")]))
+        indirect_target = ReviewTargetModel.objects.filter(record=external_record).first()
+        if indirect_target is not None:
+            if not indirect_target.contributor_history_complete:
+                return False, "Indirect contributor attribution is incomplete for captured external evidence."
+            excluded.update(indirect_target.contributors.values_list("actor_stable_id", flat=True))
+        for participation in ActionParticipant.objects.filter(
+            record=external_record, action__action_type__in=("created", "edited"),
+        ).select_related("action"):
+            contributor_id = participation.action.performed_by_id or participation.action.performed_by_snapshot.get("id")
+            if not contributor_id:
+                return False, "Indirect contributor attribution is incomplete for captured external evidence."
+            excluded.add(str(contributor_id))
+        for group in external_record.revision_groups.all():
+            for revision in group.revisions.all():
+                contributor_id = revision.created_by_id or revision.created_by_snapshot.get("id")
+                if not contributor_id:
+                    return False, "Indirect contributor attribution is incomplete for captured external evidence."
+                excluded.add(str(contributor_id))
+    if str(actor.pk) in excluded:
+        return False, "Contributors and submitters cannot witness this target."
+    return True, None
+
+
+@transaction.atomic
+def approve_review(entry=None, *, record_id=None, actor, assessment, request_id):
+    from bundled.access.access.policies import effective_role
+    from helix_core.models import (
+        ActionLogEntry, ActionParticipant, ReviewApproval, ReviewTarget,
+        PlatformRendition,
+    )
+    from helix_core.record_mutations import request_fingerprint
+    from helix_core.record_persistence import StateConflict
+
+    if record_id is None:
+        record, role = _record_for_entry(entry, actor)
+    else:
+        try:
+            record = PlatformRecord.objects.select_related("project").get(pk=record_id)
+        except (PlatformRecord.DoesNotExist, ValueError, TypeError):
+            raise NotFound("Review target not found.")
+        role = effective_role(actor, record)
+        if role not in {"read", "review", "edit"}:
+            raise NotFound("Review target not found.")
+    if not isinstance(assessment, str) or not assessment.strip():
+        raise ValidationError({"assessment": "A final assessment is required."})
+    try:
+        request_uuid = UUID(str(request_id))
+    except (TypeError, ValueError):
+        raise ValidationError({"request_id": "A stable request UUID is required."})
+
+    # All target transitions and record edits take this row lock first. This
+    # serializes approval against withdrawal, blockers, and content changes.
+    record = PlatformRecord.objects.select_for_update(of=("self",)).select_related("project").get(pk=record.pk)
+    current_role = effective_role(actor, record)
+    if current_role not in {"read", "review", "edit"}:
+        raise PermissionDenied("You no longer have access to this approval outcome.")
+    target = ReviewTarget.objects.select_for_update().select_related("current_submission").filter(record=record).first()
+    if target is None:
+        raise ValidationError({"review": "There is no active submission to approve."})
+    replay = ReviewApproval.objects.filter(witness_stable_id=str(actor.pk), request_id=request_uuid).select_related("submission", "target").first()
+    fingerprint = request_fingerprint({
+        "record_id": str(record.pk), "submission_id": str(replay.submission_id if replay else target.current_submission_id),
+        "assessment": assessment.strip(), "action": "approve-review",
+    })
+    if replay:
+        if replay.request_fingerprint != fingerprint:
+            raise StateConflict("This request ID was already used for a different approval.")
+        return {"approval_id": str(replay.pk), "submission_id": str(replay.submission_id), "state": "finished", "replayed": True}
+    if current_role not in {"review", "edit"}:
+        raise PermissionDenied("Current Review access is required to approve.")
+    submission = target.current_submission
+    if submission is None:
+        raise ValidationError({"review": "There is no active submission to approve."})
+    allowed, reason = _approval_eligibility(target, submission, actor, effective_role(actor, record))
+    if not allowed:
+        raise PermissionDenied(reason)
+    participation = ReviewParticipation.objects.select_for_update().filter(submission=submission, actor=actor).first()
+    if participation is None:
+        raise PermissionDenied("Start review participation before approving.")
+    blockers = ReviewThread.objects.select_for_update().filter(
+        target=target, submission=submission,
+        state__in=(ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED),
+    )
+    if blockers.exclude(requester_stable_id=str(actor.pk)).exists():
+        raise ValidationError({"review": "Another reviewer has an outstanding blocking request."})
+    # Resolve the whole request lineage: a carried request is one request,
+    # though its current-round copy is the active blocker.
+    own_blockers = list(ReviewThread.objects.select_for_update().filter(
+        target=target, requester_stable_id=str(actor.pk),
+        state__in=(ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED),
+    ))
+    now = timezone.now()
+    for thread in own_blockers:
+        thread.state = ReviewThread.State.RESOLVED
+        thread.resolved_at = now
+        thread.resolved_by_snapshot = user_attribution_snapshot(actor)
+        thread.save(update_fields=("state", "resolved_at", "resolved_by_snapshot", "updated_at"))
+
+    rendition = PlatformRendition.objects.select_related("attachment").get(pk=submission.rendition_id)
+    evidence = {
+        "manifest": deepcopy(submission.manifest),
+        "captured_evidence": deepcopy(submission.captured_evidence),
+        "rendition_id": str(rendition.pk),
+        "revision_id": str(rendition.revision_id),
+        "attachment_id": str(rendition.attachment_id),
+        "source_hash": rendition.source_hash,
+    }
+    history = list(participation.assessment_history)
+    if participation.assessment:
+        history.append({"assessment": participation.assessment, "state": participation.state, "recorded_at": participation.updated_at.isoformat()})
+    participation.assessment = assessment.strip()
+    participation.assessment_history = history
+    participation.state = ReviewParticipation.State.FINISHED
+    participation.save(update_fields=("assessment", "assessment_history", "state", "updated_at"))
+    approval = ReviewApproval.objects.create(
+        target=target, submission=submission, participation=participation,
+        witness=actor, witness_stable_id=str(actor.pk),
+        witness_snapshot=user_attribution_snapshot(actor), assessment=assessment.strip(),
+        retained_evidence=evidence, request_id=request_uuid,
+        request_fingerprint=fingerprint, approved_at=now,
+    )
+    target.state = ReviewTarget.State.FINISHED
+    target.save(update_fields=("state", "updated_at"))
+    audit = ActionLogEntry.objects.create(
+        performed_by=actor, action="helix.review.approved", action_type="reviewed",
+        target_model_reference="helix.record", target_object_id=str(record.pk),
+        initiating_mod_id=target.provider_mod_id, initiating_mod_version="unknown",
+        request_id=request_uuid,
+        metadata={"target_id": str(target.pk), "submission_id": str(submission.pk),
+                  "approval_id": str(approval.pk), "assessment": approval.assessment,
+                  "rendition_id": str(rendition.pk), "source_hash": rendition.source_hash},
+    )
+    ActionParticipant.objects.create(action=audit, record=record,
+        target_model_reference="helix.record", target_object_id=str(record.pk), role="subject")
+    return {"approval_id": str(approval.pk), "submission_id": str(submission.pk), "state": target.state, "replayed": False}
 
 
 def _clean_body(body):

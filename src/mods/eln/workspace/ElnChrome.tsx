@@ -362,11 +362,13 @@ function ElnChrome({
               )}
             </Button>
 
-            {isReviewLocked ? (
+            {reviewState?.state === "submitted" ? (
               <Button variant="ghost" size="sm" aria-label="Withdraw review submission" disabled={reviewing} onClick={onWithdrawReview}>
                 {reviewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />}
                 {reviewing ? "Withdrawing…" : "Withdraw submission"}
               </Button>
+            ) : reviewState?.state === "finished" ? (
+              <span className="rounded bg-muted px-3 py-2 text-sm" role="status">Witness approved</span>
             ) : (
               <Button
                 variant="primary"
@@ -397,7 +399,7 @@ function ElnChrome({
                     >
                       <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
                       <span>{isReviewLocked
-                        ? "This exact submission is locked for review. Withdraw it before making changes."
+                        ? (reviewState?.state === "finished" ? "This target is finished and locked. An editor must reopen it with a reason before making changes." : "This exact submission is locked for review. Withdraw it before making changes.")
                         : <>This entry is currently being edited by <strong>{lockHeldBy || "another user"}</strong>. You are viewing it in read-only mode.</>}
                       </span>
                     </div>

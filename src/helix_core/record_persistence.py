@@ -407,6 +407,9 @@ def edit_record(
         record.last_editor = actor
         record.state_token = uuid4()
         record.save(update_fields=["field_values", "properties", "last_editor", "state_token", "updated_at"])
+        if values_changed or metadata_changed:
+            from helix_core.reviews import record_review_metadata_effect
+            record_review_metadata_effect(record=record, actor=actor)
 
         group = record.revision_groups.select_for_update(of=("self",)).select_related(
             "current_revision"

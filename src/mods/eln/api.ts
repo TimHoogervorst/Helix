@@ -85,6 +85,10 @@ export interface ReviewThread {
 export interface ReviewThreadsState {
   participation: { id: string; submission_id: string; state: string; assessment: string } | null;
   threads: ReviewThread[];
+  approval_available?: boolean;
+  approval_unavailable_reason?: string | null;
+  can_reopen?: boolean;
+  approval?: { id: string; witness: { username?: string; displayName?: string }; assessment: string; approved_at: string } | null;
 }
 export function getReviewThreads(displayId: string): Promise<ReviewThreadsState> {
   return get<ReviewThreadsState>(`/eln/entries/${displayId}/review/threads/`);
@@ -103,6 +107,12 @@ export function replyReviewThread(displayId: string, threadId: string, body: str
 }
 export function assessReview(displayId: string, assessment: string) {
   return post(`/eln/entries/${displayId}/review/assess/`, { assessment, outcome: "request_changes" });
+}
+export function approveReview(displayId: string, assessment: string, requestId: string) {
+  return post(`/eln/entries/${displayId}/review/assess/`, { assessment, outcome: "approve", request_id: requestId });
+}
+export function reopenReview(displayId: string, reason: string) {
+  return post(`/eln/entries/${displayId}/review/reopen/`, { reason });
 }
 
 export function submitReview(

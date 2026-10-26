@@ -73,6 +73,8 @@ export interface ReviewThread {
   id: string;
   submission_id: string;
   original_submission_id: string;
+  submission_id: string;
+  original_submission_id: string;
   state: "open" | "addressed" | "resolved" | "withdrawn";
   blocking: boolean;
   anchor: Record<string, unknown>;
@@ -81,7 +83,11 @@ export interface ReviewThread {
   can_dispose_suggestion: boolean;
   requester: { username?: string; displayName?: string };
   requester_is_actor: boolean;
-  messages: Array<{ id: string; body: string; author: { username?: string; displayName?: string }; retracted: boolean }>;
+  messages: Array<{
+    id: string; body: string; author: { username?: string; displayName?: string };
+    retracted: boolean; can_change: boolean;
+    history: Array<{ action: "create" | "amend" | "retract"; body: string; actor: { username?: string; displayName?: string }; created_at: string }>;
+  }>;
   can_resolve: boolean;
   can_address: boolean;
 }
@@ -111,6 +117,12 @@ export function disposeReviewSuggestion(displayId: string, threadId: string, act
 }
 export function replyReviewThread(displayId: string, threadId: string, body: string) {
   return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/messages/`, { body });
+}
+export function amendReviewThreadMessage(displayId: string, threadId: string, messageId: string, body: string) {
+  return patch<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/messages/${messageId}/`, { body });
+}
+export function retractReviewThreadMessage(displayId: string, threadId: string, messageId: string) {
+  return del<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/messages/${messageId}/`);
 }
 export function assessReview(displayId: string, assessment: string) {
   return post(`/eln/entries/${displayId}/review/assess/`, { assessment, outcome: "request_changes" });

@@ -77,6 +77,50 @@ def ensure_record_unlocked(record_or_id):
         raise StateConflict("This record is locked by its active review submission.")
 
 
+def ensure_source_subtree_unlocked(root):
+    """Reject Source moves that would relocate any actively reviewed record below root."""
+    from django.contrib.contenttypes.models import ContentType
+    from helix_core.mod_system.registry import registry
+    from helix_core.models import PlatformRecord, ReviewTarget
+    from helix_core.record_persistence import StateConflict
+
+    source_models = [model for _provider, model in registry.content_source_models()
+                     if all(hasattr(model, field) for field in ("source_type_id", "source_id"))]
+    if PlatformRecord not in source_models:
+        source_models.append(PlatformRecord)
+    model_types = {ContentType.objects.get_for_model(model, for_concrete_model=False).pk: model
+                   for model in source_models}
+    pending = [(ContentType.objects.get_for_model(root, for_concrete_model=False).pk, root.pk)]
+    visited = set()
+    record_ids = {str(root.platform_record_id)} if getattr(root, "platform_record_id", None) else set()
+    while pending:
+        parent_type, parent_id = pending.pop()
+        marker = (parent_type, str(parent_id))
+        if marker in visited:
+            continue
+        visited.add(marker)
+        for child_type, model in model_types.items():
+            children = model.objects.filter(source_type_id=parent_type, source_id=parent_id)
+            child_ids = list(children.values_list("pk", flat=True))
+            if model is PlatformRecord:
+                record_ids.update(str(value) for value in child_ids)
+            elif any(field.name == "platform_record" for field in model._meta.get_fields()):
+                record_ids.update(str(value) for value in model.objects.filter(
+                    pk__in=child_ids, platform_record_id__isnull=False,
+                ).values_list("platform_record_id", flat=True))
+            pending.extend((child_type, child_id) for child_id in child_ids)
+    if not record_ids:
+        return
+    locked_ids = list(PlatformRecord.objects.select_for_update(of=("self",)).filter(
+        pk__in=record_ids,
+    ).order_by("pk").values_list("pk", flat=True))
+    if ReviewTarget.objects.filter(
+        record_id__in=locked_ids,
+        state__in=(ReviewTarget.State.SUBMITTED, ReviewTarget.State.FINISHED),
+    ).exists():
+        raise StateConflict("This Source move would relocate a locked review target.")
+
+
 def compatible_review_provider(target, record=None):
     """Return the provider only when its identity and declared scope still fit."""
     from helix_core.mod_system.registry import registry

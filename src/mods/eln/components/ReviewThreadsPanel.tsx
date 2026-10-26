@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { Button, Textarea } from "@helix/mod-api/host";
 import {
-  addReviewThread, approveReview, assessReview, changeReviewThread, finishReview, getReviewState, disposeReviewSuggestion, getReviewThreads, reopenReview,
-  replyReviewThread, startReviewParticipation,
+  addReviewThread, amendReviewThreadMessage, approveReview, assessReview, changeReviewThread, finishReview, getReviewState, disposeReviewSuggestion, getReviewThreads, reopenReview,
+  replyReviewThread, retractReviewThreadMessage, startReviewParticipation,
   type ReviewState, type ReviewThread, type ReviewThreadsState,
 } from "../api";
 
@@ -30,6 +30,43 @@ function forgetApprovalRequest(key: string, assessment: string) {
   } catch { try { sessionStorage.removeItem(key); } catch { /* Storage can be unavailable in restricted contexts. */ } }
 }
 
+function blockRange(doc: Editor["state"]["doc"], path: unknown): { from: number; to: number } | null {
+  if (!Array.isArray(path) || !path.every((index) => Number.isInteger(index) && index >= 0)) return null;
+  let node = doc;
+  let nodePos = -1;
+  for (const index of path as number[]) {
+    if (index >= node.childCount) return null;
+    let offset = 0;
+    for (let sibling = 0; sibling < index; sibling++) offset += node.child(sibling).nodeSize;
+    nodePos += 1 + offset;
+    node = node.child(index);
+  }
+  return { from: nodePos, to: nodePos + node.nodeSize };
+}
+
+function ReviewThreadMessage({ displayId, threadId, message, onChanged, run }: {
+  displayId: string; threadId: string;
+  message: ReviewThread["messages"][number];
+  onChanged: () => Promise<void>;
+  run: (operation: () => Promise<unknown>) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [body, setBody] = useState(message.body);
+  return <article className="border-l-2 border-border pl-3 text-sm">
+    <p><strong>{name(message.author)}:</strong> {message.retracted ? "Message retracted" : message.body}</p>
+    {editing && <div className="mt-2 space-y-2"><Textarea aria-label="Amend review message" value={body} onChange={(event) => setBody(event.target.value)} />
+      <div className="flex gap-2"><Button variant="primary" size="sm" disabled={!body.trim()} onClick={() => run(async () => { await amendReviewThreadMessage(displayId, threadId, message.id, body); setEditing(false); await onChanged(); })}>Save amendment</Button>
+        <Button variant="ghost" size="sm" onClick={() => { setBody(message.body); setEditing(false); }}>Cancel</Button></div></div>}
+    {message.can_change && !editing && !message.retracted && <div className="mt-1 flex gap-2">
+      <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>Amend</Button>
+      <Button variant="destructive" size="sm" onClick={() => run(async () => { await retractReviewThreadMessage(displayId, threadId, message.id); await onChanged(); })}>Retract</Button>
+    </div>}
+    {message.history.length > 1 && <details className="mt-1 text-xs text-muted-foreground"><summary className="cursor-pointer">Message history</summary>
+      <ol className="mt-1 space-y-1">{message.history.map((revision, index) => <li key={`${message.id}-${index}`}>{revision.action === "create" ? "Original" : revision.action === "amend" ? "Amended" : "Retracted"} by {name(revision.actor)} · {new Date(revision.created_at).toLocaleString()}{revision.action !== "retract" && <blockquote className="border-l border-border pl-2">{revision.body}</blockquote>}</li>)}</ol>
+    </details>}
+  </article>;
+}
+
 export default function ReviewThreadsPanel({ displayId, reviewState, editor, onReviewStateChanged, save }: {
   displayId: string; reviewState: ReviewState | null; editor: Editor | null; save: () => Promise<{ document_revision_id?: string | null } | null>;
   onReviewStateChanged: (state: ReviewState) => void;
@@ -50,6 +87,20 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
     catch (cause) { setError(cause instanceof Error ? cause.message : "Review feedback could not be loaded."); }
   }, [displayId]);
   useEffect(() => { void refresh(); }, [refresh, submissionId]);
+  useEffect(() => {
+    if (!editor) return;
+    editor.commands.setReviewAnnotations(state.threads.flatMap((thread) => {
+      if (thread.anchor.submission_id !== submissionId) return [];
+      if (thread.anchor.kind === "text" && typeof thread.anchor.from === "number" && typeof thread.anchor.to === "number") {
+        return [{ id: thread.id, kind: "text" as const, from: thread.anchor.from, to: thread.anchor.to }];
+      }
+      if (thread.anchor.kind === "block") {
+        const range = blockRange(editor.state.doc, thread.anchor.block_path);
+        return range ? [{ id: thread.id, kind: "block" as const, ...range }] : [];
+      }
+      return [];
+    }));
+  }, [editor, state.threads, submissionId]);
 
   const run = async (operation: () => Promise<unknown>) => {
     setBusy(true); setError(null);
@@ -68,6 +119,21 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
       kind, from: selection.from, to: selection.to, text,
     };
     void run(async () => { await addReviewThread(displayId, submissionId, anchor, draft, suggestReplacement ? replacementDraft : undefined); setDraft(""); setReplacementDraft(""); });
+  };
+  const commentOnBlock = () => {
+    if (!submissionId || !editor) return;
+    const $from = editor.state.selection.$from;
+    let depth = $from.depth;
+    while (depth > 0 && !$from.node(depth).isTextblock) depth--;
+    if (!depth) return;
+    const block = $from.node(depth);
+    const anchor = {
+      submission_id: submissionId, group_key: "document",
+      revision_id: reviewState?.submissions?.find((item) => item.id === submissionId)?.manifest?.groups?.document?.revision_id,
+      kind: "block", block_path: Array.from({ length: depth }, (_, index) => $from.index(index)),
+      text: block.textContent,
+    };
+    void run(async () => { await addReviewThread(displayId, submissionId, anchor, draft); setDraft(""); });
   };
   const reply = (thread: ReviewThread) => void run(async () => {
     await replyReviewThread(displayId, thread.id, replyDrafts[thread.id] ?? "");
@@ -156,15 +222,18 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
           <Button variant="ghost" size="md" disabled={busy || !draft.trim() || !editor || !editor.state.selection.empty} onClick={() => comment("document")}>Comment on document</Button>
           <Button variant="ghost" size="md" disabled={busy || !draft.trim() || !editor || editor.state.selection.empty} onClick={() => comment("text")}>Comment on selected text</Button>
           <Button variant="ghost" size="md" disabled={busy || !draft.trim() || !replacementDraft.trim() || !editor || editor.state.selection.empty} onClick={() => comment("text", true)}>Suggest replacement</Button>
+          <Button variant="ghost" size="md" disabled={busy || !draft.trim() || !editor} onClick={commentOnBlock}>Comment on block</Button>
         </div>
       </div>
-      <div className="space-y-3">{state.threads.map((thread) => <article key={thread.id} className="rounded border border-border bg-card p-3">
+      <div className="space-y-3">{state.threads.map((thread) => <article id={`review-thread-${thread.id}`} key={thread.id} className="rounded border border-border bg-card p-3">
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="font-medium">{name(thread.requester)} · {thread.state}</span>{thread.blocking && <span className="rounded bg-destructive/10 px-2 py-0.5 text-destructive">Blocks review</span>}</div>
         <p className="mt-1 text-xs text-muted-foreground">Original submission {thread.original_submission_id.slice(0, 8)} · {String(thread.anchor.kind)}{typeof thread.anchor.text === "string" && thread.anchor.text ? `: “${thread.anchor.text}”` : ""}</p>
+        {thread.original_submission_id !== submissionId && (() => { const historical = reviewState?.submissions?.find((item) => item.id === thread.original_submission_id); return historical?.download_url ? <a className="mt-1 inline-block text-xs text-primary underline" href={historical.download_url} target="_blank" rel="noreferrer">Open the exact frozen submission</a> : null; })()}
         {thread.suggestion.replacement && <p className="mt-1 text-xs text-muted-foreground">Suggested replacement: “{thread.suggestion.replacement}” · {thread.suggestion_disposition}</p>}
         {active && thread.suggestion_disposition === "pending" && thread.suggestion.replacement && <p className="mt-1 text-xs text-muted-foreground">Withdraw the submission to apply or reject this suggestion.</p>}
         {thread.anchor.kind === "text" && thread.anchor.submission_id === submissionId && editor && typeof thread.anchor.from === "number" && typeof thread.anchor.to === "number" && <Button variant="ghost" size="sm" className="mt-1" onClick={() => editor.chain().focus().setTextSelection({ from: thread.anchor.from as number, to: thread.anchor.to as number }).scrollIntoView().run()}>Show selected text</Button>}
-        <div className="mt-3 space-y-2">{thread.messages.map((message) => <p key={message.id} className="border-l-2 border-border pl-3 text-sm"><strong>{name(message.author)}:</strong> {message.retracted ? "Message retracted" : message.body}</p>)}</div>
+        {thread.anchor.kind === "block" && thread.anchor.submission_id === submissionId && editor && (() => { const range = blockRange(editor.state.doc, thread.anchor.block_path); return range ? <Button variant="ghost" size="sm" className="mt-1" onClick={() => editor.chain().focus().setNodeSelection(range.from).scrollIntoView().run()}>Show block</Button> : null; })()}
+        <div className="mt-3 space-y-2">{thread.messages.map((message) => <ReviewThreadMessage key={message.id} displayId={displayId} threadId={thread.id} message={message} onChanged={refresh} run={run} />)}</div>
         {thread.can_address && <Button variant="ghost" size="sm" className="mt-2" disabled={busy} onClick={() => void run(() => changeReviewThread(displayId, thread.id, "address"))}>Mark Addressed</Button>}
         {thread.can_resolve && <div className="mt-2 flex gap-3"><Button variant="ghost" size="sm" disabled={busy} onClick={() => void run(() => changeReviewThread(displayId, thread.id, "resolve"))}>Resolve request</Button><Button variant="ghost" size="sm" disabled={busy} onClick={() => void run(() => changeReviewThread(displayId, thread.id, "withdraw"))}>Withdraw request</Button></div>}
         {reviewable && (thread.state === "open" || thread.state === "addressed") && <div className="mt-3 flex gap-2"><Textarea className="min-h-9 flex-1" aria-label="Reply to review feedback" value={replyDrafts[thread.id] ?? ""} onChange={(event) => setReplyDrafts((current) => ({ ...current, [thread.id]: event.target.value }))} /><Button variant="ghost" size="md" className="self-end" disabled={busy || !(replyDrafts[thread.id] ?? "").trim()} onClick={() => reply(thread)}>Reply</Button></div>}

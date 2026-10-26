@@ -655,6 +655,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 raise DRFValidationError(
                     {"source": "You do not have permission to move the entry here."}
                 )
+            if instance.source != new_source:
+                from helix_core.public import ensure_source_subtree_unlocked
+                ensure_source_subtree_unlocked(instance)
             instance.set_source(new_source)
 
         # Resolve the authoritative document from its Platform Revision Group.

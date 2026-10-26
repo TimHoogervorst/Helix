@@ -11,6 +11,7 @@
     "build": "cd src/shell && tsc && vite build",
     "preview": "cd src/shell && vite preview",
     "test": "npm run test:mod-api-package && cd src/shell && vitest run",
+    "test:eln": "cd src/shell && vitest run --config vitest.eln.config.ts",
     "test:watch": "cd src/shell && vitest",
     "test:mod-api-package": "npm run build:mod-api && node --test src/mod-api/package-tests/public-artifacts.check.mjs",
     "test:coverage": "cd src/shell && vitest run --coverage",

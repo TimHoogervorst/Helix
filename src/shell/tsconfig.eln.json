@@ -1,0 +1,1 @@
+{"extends":"./tsconfig.json","include":["../mods/eln/**/*.ts","../mods/eln/**/*.tsx"],"exclude":["../mods/eln/**/__tests__/**"]}

@@ -71,6 +71,36 @@ describe("useSaveQueue", () => {
     mockPut.mockReset();
   });
 
+  it("rejects an Action prerequisite when an earlier autosave loses the network", async () => {
+    mockPut.mockRejectedValue(new NetworkError("offline"));
+    const { result } = renderHook(() => useSaveQueue({ entryId: ENTRY_ID }));
+    let action!: Promise<EntryDetail>;
+    act(() => {
+      void result.current.enqueue({ content: "older" });
+      action = result.current.enqueue({ content: "latest" }, "manual", false, true);
+    });
+    await act(async () => { await expect(action).rejects.toThrow("offline"); });
+    expect(result.current.queueLength).toBe(1);
+    expect(() => result.current.adoptState(makeEntry())).toThrow("pending");
+  });
+
+  it("uses adopted Action state for the next save", async () => {
+    mockPut.mockResolvedValueOnce(makeEntry({ platform_state_token: "after-save" }))
+      .mockResolvedValueOnce(makeEntry({ platform_state_token: "after-edit" }));
+    const { result } = renderHook(() => useSaveQueue({ entryId: ENTRY_ID }));
+    await act(async () => { await result.current.enqueue({ state_token: "initial" }); });
+    act(() => result.current.adoptState(makeEntry({ platform_state_token: "after-action" })));
+    await act(async () => { await result.current.enqueue({ state_token: "stale-render" }); });
+    expect(mockPut.mock.calls[1][1].state_token).toBe("after-action");
+  });
+
+  it("keeps a rejected save in error status", async () => {
+    mockPut.mockRejectedValue(new Error("The record changed since this form was loaded."));
+    const { result } = renderHook(() => useSaveQueue({ entryId: ENTRY_ID }));
+    await act(async () => { await expect(result.current.enqueue({})).rejects.toThrow("record changed"); });
+    expect(result.current.status).toBe("error");
+  });
+
   // ── Initial state ──────────────────────────────────────────────────────
 
   it("has idle initial state with queueLength 0", () => {
@@ -102,7 +132,7 @@ describe("useSaveQueue", () => {
     expect(mockPut).toHaveBeenCalledTimes(1);
     expect(mockPut).toHaveBeenCalledWith(
       SAVE_URL,
-      { title: "Test" },
+      expect.objectContaining({ title: "Test", request_id: expect.any(String) }),
       undefined,
       {},
     );
@@ -220,9 +250,9 @@ describe("useSaveQueue", () => {
   it("retries stalled item on next enqueue (lazy retry)", async () => {
     // First call: network error
     mockPut.mockRejectedValueOnce(new NetworkError("Connection refused"));
-    // Second call (retry): success
+    // Retry and the subsequently queued save both succeed.
     const entry = makeEntry();
-    mockPut.mockResolvedValueOnce(entry);
+    mockPut.mockResolvedValue(entry);
 
     const { result } = renderHook(() =>
       useSaveQueue({ entryId: ENTRY_ID }),
@@ -339,7 +369,7 @@ describe("useSaveQueue", () => {
 
     expect(mockPut).toHaveBeenCalledWith(
       SAVE_URL,
-      { title: "Test" },
+      expect.objectContaining({ title: "Test", request_id: expect.any(String) }),
       undefined,
       { "X-Save-Mode": "autosave" },
     );
@@ -358,7 +388,7 @@ describe("useSaveQueue", () => {
 
     expect(mockPut).toHaveBeenCalledWith(
       SAVE_URL,
-      { title: "Test" },
+      expect.objectContaining({ title: "Test", request_id: expect.any(String) }),
       undefined,
       {},
     );
@@ -377,7 +407,7 @@ describe("useSaveQueue", () => {
 
     expect(mockPut).toHaveBeenCalledWith(
       SAVE_URL,
-      { title: "Test" },
+      expect.objectContaining({ title: "Test", request_id: expect.any(String) }),
       undefined,
       { "X-Save-Mode": "manual" },
     );
@@ -442,7 +472,7 @@ describe("useSaveQueue", () => {
 
     // If we got here without vitest complaining about unhandled rejections,
     // the test passes.
-    expect(result.current.status).toBe("saved");
+    expect(result.current.status).toBe("error");
   });
 
   // ── Queue drain after network-error recovery ───────────────────────────

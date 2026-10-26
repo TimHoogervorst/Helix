@@ -46,6 +46,9 @@ export interface UseEntryCrudOptions {
 }
 
 export interface UseEntryCrudReturn {
+  beginAction: () => Promise<EntryDetail>;
+  finishAction: (entry?: EntryDetail) => void;
+  actionBusy: boolean;
   /** True when the entry has loaded and the editor is ready (not loading/error). */
   isReady: boolean;
   entry: EntryDetail | null;
@@ -67,7 +70,7 @@ export interface UseEntryCrudReturn {
   /** Fire-and-forget auto-save — enqueues with saveMode "autosave". */
   autoSave: (folderId: number | null, hasBlockActions?: boolean) => void;
   /** Manual save — enqueues with saveMode "manual", returns the promise. */
-  save: (folderId: number | null, tagIds: number[], hasBlockActions?: boolean) => Promise<void>;
+  save: (folderId: number | null, tagIds: number[], hasBlockActions?: boolean) => Promise<EntryDetail | null>;
   deleteEntry: () => Promise<void>;
   /** Apply server response to local state (shared by autoSave and save). */
   applySavedEntry: (entry: EntryDetail) => void;
@@ -116,6 +119,8 @@ export function useEntryCrud({
   const lockGenRef = useRef<Record<string, number>>({});
 
   // ── Save queue (only when we have an entryId) ──
+  const actionBusyRef = useRef(false);
+  const [actionBusy, setActionBusy] = useState(false);
   const effectiveEntryId = entryId ?? entry?.display_id;
   const saveQueue = useSaveQueue(
     effectiveEntryId ? { entryId: effectiveEntryId } : { entryId: "__pending__" },
@@ -148,6 +153,7 @@ export function useEntryCrud({
   // ── Auto-save (fire-and-forget) ──
   const autoSave = useCallback(
     (_folderId: number | null, hasBlockActions?: boolean) => {
+      if (actionBusyRef.current) return;
       if (!effectiveEntryId || !title.trim()) return;
       if (isLockedByOther) return;
 
@@ -180,14 +186,15 @@ export function useEntryCrud({
         if (refIds.length > 0) {
           resolveIds(refIds);
         }
-      });
+      }).catch(() => { /* Queue status reports the failure; keep the draft. */ });
     },
     [effectiveEntryId, title, description, status, contentRef, enqueue, resolveIds, isLockedByOther, entry?.platform_state_token],
   );
 
   // ── Manual save (returns promise) ──
   const save = useCallback(
-    async (_folderId: number | null, tagIds: number[], hasBlockActions?: boolean) => {
+    async (_folderId: number | null, tagIds: number[], hasBlockActions?: boolean, failOnNetwork = false) => {
+      if (actionBusyRef.current) throw new Error("A document Action is in progress.");
       if (!effectiveEntryId || !title.trim()) return null;
       if (isLockedByOther) return null;
 
@@ -200,7 +207,7 @@ export function useEntryCrud({
         state_token: entry?.platform_state_token,
       };
 
-      const saved = await enqueue(payload, "manual", hasBlockActions);
+      const saved = await enqueue(payload, "manual", hasBlockActions, failOnNetwork);
 
       // For new entries, flush deferred tags after the first save
       if (isNew && tagIds.length > 0 && effectiveEntryId) {
@@ -214,12 +221,41 @@ export function useEntryCrud({
     [effectiveEntryId, title, description, status, isNew, contentRef, enqueue, applySavedEntry, isLockedByOther, entry?.platform_state_token],
   );
 
+  const beginAction = useCallback(async () => {
+    if (actionBusyRef.current) throw new Error("A document Action is already in progress.");
+    // Enqueue the final save synchronously before closing the gate. Existing
+    // saves drain ahead of it; no autosave can be enqueued after it.
+    const pending = save(null, [], undefined, true);
+    actionBusyRef.current = true;
+    setActionBusy(true);
+    try {
+      const saved = await pending;
+      if (!saved) throw new Error("Save this Notebook Entry before invoking an Action.");
+      return saved;
+    } catch (error) {
+      actionBusyRef.current = false;
+      setActionBusy(false);
+      throw error;
+    }
+  }, [save]);
+
+  const finishAction = useCallback((saved?: EntryDetail) => {
+    if (saved) {
+      saveQueue.adoptState(saved);
+      contentRef.current = splitFirstParagraph(saved.content).body;
+      applySavedEntry(saved);
+    }
+    actionBusyRef.current = false;
+    setActionBusy(false);
+  }, [saveQueue.adoptState, applySavedEntry, contentRef]);
+
   const setDescription = useCallback((d: string) => {
     setDescriptionState(d);
   }, []);
 
   // ── Delete ──
   const deleteEntry = useCallback(async () => {
+    if (actionBusyRef.current) return;
     if (!effectiveEntryId || !window.confirm("Delete this entry permanently?")) return;
 
     setDeleting(true);
@@ -353,6 +389,7 @@ export function useEntryCrud({
   }, [effectiveEntryId]);
 
   return {
+    beginAction, finishAction, actionBusy,
     isReady,
     entry,
     setEntry,

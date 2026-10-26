@@ -296,7 +296,7 @@ interface RegistryTableContentProps {
    * as `{blockId}.{localId}` and emits on the workspace bus.
    */
   emitAction?: (localId: string, payload?: Record<string, unknown>) => void;
-  registerRowsAction?: () => Promise<{ createdRecords?: Record<string, { id: string; displayId: string }> }>;
+  registerRowsAction?: () => Promise<{ documentAdopted?: boolean; createdRecords?: Record<string, { id: string; displayId: string }> }>;
 }
 
 // ── Inner Content Component ─────────────────────────────────────────────────
@@ -614,6 +614,7 @@ export function RegistryTableContent({
       try {
         if (registerRowsAction) {
           const response = await registerRowsAction();
+          if (response.documentAdopted) { setRegistering(false); return; }
           for (const { index, row } of nonGreenRows) {
             const registered = response.createdRecords?.[row.displayId];
             if (!registered) {

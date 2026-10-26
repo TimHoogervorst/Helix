@@ -65,6 +65,9 @@ export interface UseEntryWorkspaceReturn {
   };
 
   save: {
+    beginAction: () => Promise<EntryDetail>;
+    finishAction: (entry?: EntryDetail) => void;
+    actionBusy: boolean;
     saveStatus: SaveStatus;
     lastSavedAt: Date | null;
     queueLength: number;
@@ -234,6 +237,9 @@ export function useEntryWorkspace({
     },
 
     save: {
+      beginAction: crud.beginAction,
+      finishAction: crud.finishAction,
+      actionBusy: crud.actionBusy,
       saveStatus: crud.saveStatus,
       lastSavedAt: crud.lastSavedAt,
       queueLength: crud.queueLength,
@@ -252,7 +258,7 @@ export function useEntryWorkspace({
       content: bodyContent,
       onUpdate: handleEditorUpdate,
       onUpdateContent: handleEditorUpdateContent,
-      editable: !crud.isLockedByOther,
+      editable: !crud.isLockedByOther && !crud.actionBusy,
       saveSignal: crud.lastSavedAt,
       targetId: numericEntryId,
       hasPendingRef: hasBlockActionsRef,

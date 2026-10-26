@@ -325,6 +325,21 @@ def assess_review(entry, actor, *, assessment, outcome, request_id=None):
     if outcome == "finish_review":
         if target.state != ReviewTarget.State.FINISHED:
             raise ValidationError({"review": "Finish review is available after another witness finishes this submission."})
+        from helix_core.models import PlatformRendition, ReviewApproval
+        from helix_core.mod_system.registry import registry
+        provider = registry.get_review_target(target.registration_id)
+        manifest_groups = (target.current_submission.manifest or {}).get("groups")
+        rendition = PlatformRendition.objects.filter(pk=target.current_submission.rendition_id).first()
+        if (not ReviewApproval.objects.filter(submission=target.current_submission).exists()
+                or provider is None or not provider.revision_groups
+                or not isinstance(manifest_groups, dict)
+                or set(manifest_groups) != set(provider.revision_groups)
+                or rendition is None):
+            raise ValidationError({"review": "The review integration is not ready for this finished submission."})
+        primary_group = manifest_groups.get(provider.revision_groups[0], {})
+        if (str(rendition.revision_id) != str(primary_group.get("revision_id"))
+                or rendition.source_hash != str(primary_group.get("content_hash"))):
+            raise ValidationError({"review": "The retained presentation does not match this finished submission."})
         if participation.state == ReviewParticipation.State.FINISHED:
             raise ValidationError({"review": "Your participation is already finished."})
         history = list(participation.assessment_history)

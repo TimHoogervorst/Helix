@@ -324,6 +324,10 @@ def submit_review_target(
                     requester_stable_id=blocker.requester_stable_id,
                     requester_snapshot=deepcopy(blocker.requester_snapshot),
                     anchor=deepcopy(blocker.anchor), state=blocker.state,
+                    suggestion=deepcopy(blocker.suggestion),
+                    suggestion_disposition=blocker.suggestion_disposition,
+                    suggestion_actor_snapshot=deepcopy(blocker.suggestion_actor_snapshot),
+                    suggestion_result_revision=blocker.suggestion_result_revision,
                 )
             target.state = ReviewTarget.State.SUBMITTED
             target.current_submission = submission

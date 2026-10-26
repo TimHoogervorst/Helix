@@ -46,6 +46,8 @@ def _payload(thread, actor, role):
         "original_submission_id": str(original.submission_id),
         "carried_from_id": str(thread.carried_from_id) if thread.carried_from_id else None,
         "requester": thread.requester_snapshot, "anchor": thread.anchor, "state": thread.state,
+        "suggestion": thread.suggestion, "suggestion_disposition": thread.suggestion_disposition,
+        "suggestion_actor": thread.suggestion_actor_snapshot, "suggestion_result_revision_id": str(thread.suggestion_result_revision_id) if thread.suggestion_result_revision_id else None,
         "requester_is_actor": thread.requester_id == actor.pk,
         "blocking": thread.blocking and thread.state in {ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED},
         "raised_from_discussion_id": str(thread.raised_from_discussion.origin_id) if thread.raised_from_discussion_id else None,
@@ -100,7 +102,7 @@ def start_participation(entry, actor):
 
 
 @transaction.atomic
-def create_review_thread(entry, actor, *, submission_id, anchor, body, discussion_id=None):
+def create_review_thread(entry, actor, *, submission_id, anchor, body, discussion_id=None, suggestion=None):
     record, role = _record_for_entry(entry, actor)
     if role not in {"review", "edit"}:
         raise PermissionDenied("Review access is required to add feedback.")
@@ -128,10 +130,19 @@ def create_review_thread(entry, actor, *, submission_id, anchor, body, discussio
     discussion = None
     if discussion_id:
         discussion = get_object_or_404(PlatformDiscussion, record=record, origin_id=discussion_id)
+    if suggestion is not None:
+        if anchor.get("kind") != "text" or not isinstance(suggestion, dict) or set(suggestion) != {"replacement"}:
+            raise ValidationError({"suggestion": "A replacement must target one selected text range."})
+        replacement = suggestion.get("replacement")
+        if not isinstance(replacement, str) or not replacement.strip() or len(replacement) > 5000:
+            raise ValidationError({"suggestion": "Replacement text must be between 1 and 5,000 characters."})
+        if not anchor.get("text") or len(anchor["text"]) > 5000:
+            raise ValidationError({"suggestion": "The selected text cannot be replaced."})
+        suggestion = {"replacement": replacement}
     thread = ReviewThread.objects.create(
         target=target, submission=target.current_submission, requester=actor,
         requester_stable_id=str(actor.pk), requester_snapshot=user_attribution_snapshot(actor),
-        anchor=anchor, raised_from_discussion=discussion,
+        anchor=anchor, suggestion=suggestion or {}, raised_from_discussion=discussion,
         blocking=target.state == ReviewTarget.State.SUBMITTED,
     )
     message = ReviewThreadMessage.objects.create(thread=thread, author=actor, author_snapshot=user_attribution_snapshot(actor))

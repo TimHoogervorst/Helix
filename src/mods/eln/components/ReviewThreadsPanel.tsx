@@ -35,6 +35,7 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
 }) {
   const [state, setState] = useState<ReviewThreadsState>({ participation: null, threads: [] });
   const [draft, setDraft] = useState("");
+  const [replacementDraft, setReplacementDraft] = useState("");
   const [assessment, setAssessment] = useState("");
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
     finally { setBusy(false); }
   };
   const start = () => void run(() => startReviewParticipation(displayId));
-  const comment = (kind: "text" | "document") => {
+  const comment = (kind: "text" | "document", suggestReplacement = false) => {
     if (!submissionId || !editor) return;
     const selection = editor.state.selection;
     const text = kind === "text" ? editor.state.doc.textBetween(selection.from, selection.to, "\n") : "";
@@ -65,7 +66,7 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
       revision_id: reviewState?.submissions?.find((item) => item.id === submissionId)?.manifest?.groups?.document?.revision_id,
       kind, from: selection.from, to: selection.to, text,
     };
-    void run(async () => { await addReviewThread(displayId, submissionId, anchor, draft); setDraft(""); });
+    void run(async () => { await addReviewThread(displayId, submissionId, anchor, draft, suggestReplacement ? replacementDraft : undefined); setDraft(""); setReplacementDraft(""); });
   };
   const reply = (thread: ReviewThread) => void run(async () => {
     await replyReviewThread(displayId, thread.id, replyDrafts[thread.id] ?? "");
@@ -108,9 +109,11 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
       <div className="my-4 space-y-2 rounded border border-border p-3">
         <label className="block text-sm font-medium" htmlFor="review-feedback-draft">Add feedback</label>
         <textarea id="review-feedback-draft" className="min-h-16 w-full rounded border border-input bg-background p-2 text-sm" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Describe the requested change or concern" />
+        {!editor?.state.selection.empty && <label className="block text-sm">Suggested replacement<textarea aria-label="Suggested replacement" className="mt-1 min-h-12 w-full rounded border border-input bg-background p-2 text-sm" maxLength={5000} value={replacementDraft} onChange={(event) => setReplacementDraft(event.target.value)} placeholder="Optional; replaces only the selected text" /></label>}
         <div className="flex flex-wrap gap-2">
           <button type="button" className="rounded border border-border px-3 py-1.5 text-sm" disabled={busy || !draft.trim() || !editor || !editor.state.selection.empty} onClick={() => comment("document")}>Comment on document</button>
           <button type="button" className="rounded border border-border px-3 py-1.5 text-sm" disabled={busy || !draft.trim() || !editor || editor.state.selection.empty} onClick={() => comment("text")}>Comment on selected text</button>
+          <button type="button" className="rounded border border-border px-3 py-1.5 text-sm" disabled={busy || !draft.trim() || !replacementDraft.trim() || !editor || editor.state.selection.empty} onClick={() => comment("text", true)}>Suggest replacement</button>
         </div>
       </div>
       <div className="space-y-3">{state.threads.map((thread) => <article key={thread.id} className="rounded border border-border bg-card p-3">

@@ -510,7 +510,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             entry, request.user,
             submission_id=request.data.get("submission_id"),
             anchor=request.data.get("anchor"), body=request.data.get("body"),
-            discussion_id=request.data.get("discussion_id"),
+            discussion_id=request.data.get("discussion_id"), suggestion=request.data.get("suggestion"),
         ), status=201)
 
     @action(detail=True, methods=["post"], url_path="review/participate")

@@ -76,6 +76,8 @@ export interface ReviewThread {
   state: "open" | "addressed" | "resolved" | "withdrawn";
   blocking: boolean;
   anchor: Record<string, unknown>;
+  suggestion: { replacement?: string };
+  suggestion_disposition: "pending" | "applied" | "rejected";
   requester: { username?: string; displayName?: string };
   requester_is_actor: boolean;
   messages: Array<{ id: string; body: string; author: { username?: string; displayName?: string }; retracted: boolean }>;
@@ -97,8 +99,8 @@ export function getReviewThreads(displayId: string): Promise<ReviewThreadsState>
 export function startReviewParticipation(displayId: string) {
   return post<{ id: string; submission_id: string; state: string }>(`/eln/entries/${displayId}/review/participate/`, {});
 }
-export function addReviewThread(displayId: string, submissionId: string, anchor: Record<string, unknown>, body: string) {
-  return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/`, { submission_id: submissionId, anchor, body });
+export function addReviewThread(displayId: string, submissionId: string, anchor: Record<string, unknown>, body: string, replacement?: string) {
+  return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/`, { submission_id: submissionId, anchor, body, suggestion: replacement ? { replacement } : undefined });
 }
 export function changeReviewThread(displayId: string, threadId: string, action: "address" | "resolve" | "withdraw" | "reopen") {
   return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/${action}/`, {});

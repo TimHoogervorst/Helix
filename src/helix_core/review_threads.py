@@ -125,7 +125,7 @@ def create_review_thread(entry, actor, *, submission_id, anchor, body, discussio
     try:
         valid = provider.anchor_validator(anchor=anchor, manifest=target.current_submission.manifest)
     except Exception as exc:
-        raise ValidationError({"anchor": f"The Mod rejected the review anchor: {exc}"}) from exc
+        raise ValidationError({"anchor": "The Mod rejected the review anchor."}) from exc
     if not valid:
         raise ValidationError({"anchor": "The selected content does not match the submitted Revision."})
     discussion = None

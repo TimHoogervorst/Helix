@@ -1,6 +1,6 @@
 ## Running tests
 
-Backend tests use **pytest** — a single command runs `helix_core`, `core`, and every mod's tests. Frontend tests use Vitest.
+Backend tests use **pytest** — the canonical suite covers Platform and Bundled Mods; External Mods need explicit test runs. Frontend tests use Vitest.
 
 ```bash
 # Backend (Docker)
@@ -13,7 +13,11 @@ cd src && pytest -n auto
 npm test
 ```
 
-For local SQLite vs Docker Postgres, targeting a single mod, and CI — see `docs/agents/testing.md`.
+For local SQLite vs Docker Postgres, targeting a single mod, and CI — see `docs/agents/testing.md`. Changes to row locks, concurrency, or database-specific queries require PostgreSQL validation there.
+
+## Concurrent sessions
+
+Before implementation or prototype work that switches branches, commits, or merges, use a dedicated worktree. See `docs/agents/worktrees.md` for setup and integration.
 
 ## Agent skills
 

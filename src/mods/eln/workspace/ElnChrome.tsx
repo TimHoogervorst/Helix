@@ -24,8 +24,10 @@ import { TagSection } from "../tags/ui/TagSection";
 import { Button } from "@helix/mod-api/host";
 import { IconButton } from "@helix/mod-api/host";
 import { NotFound } from "@helix/mod-api/host";
+import DiscussionPanel from "../components/DiscussionPanel";
 import type { EntryDetail, Tag, ElnAction, SourcePathSegment } from "../types";
 import type { HistoricalRendition } from "../api";
+import type { ReviewState } from "../api";
 import type { SaveStatus } from "../hooks/useSaveQueue";
 
 function formatDateShort(iso: string): string {
@@ -40,6 +42,7 @@ export interface ElnChromeProps {
   entryDisplayId: string;
 
   entry: EntryDetail | null;
+  discussionRecordId?: string | null;
   projectUid?: string | null;
   folderPath: string;
   sourcePath?: SourcePathSegment[];
@@ -57,6 +60,8 @@ export interface ElnChromeProps {
   queueLength: number;
   onSave: () => void;
   onReview: () => void;
+  onWithdrawReview: () => void;
+  reviewState: ReviewState | null;
   reviewing: boolean;
   reviewError: string | null;
   renditions: HistoricalRendition[];
@@ -81,6 +86,7 @@ function ElnChrome({
   isNew,
   entryDisplayId,
   entry,
+  discussionRecordId,
   projectUid,
   folderPath,
   sourcePath,
@@ -94,6 +100,8 @@ function ElnChrome({
   queueLength,
   onSave,
   onReview,
+  onWithdrawReview,
+  reviewState,
   reviewing,
   reviewError,
   renditions,
@@ -113,6 +121,8 @@ function ElnChrome({
 
   const [showComments, setShowComments] = useState(true);
   const [shareClicked, setShareClicked] = useState(false);
+  const isReviewLocked = reviewState?.state === "submitted" || reviewState?.state === "finished";
+  const isEditingLocked = isLockedByOther || isReviewLocked;
 
   const handleShare = useCallback(() => {
     const url = `${window.location.origin}/eln/${entryDisplayId}`;
@@ -230,7 +240,7 @@ function ElnChrome({
 
             {/* ── Save status indicator ── */}
             {isReady && (() => {
-              if (isLockedByOther) {
+              if (isEditingLocked) {
                 const lockLabel = `Locked by ${lockHeldBy || "another user"} — read-only`;
                 return (
                   <IconButton
@@ -301,7 +311,7 @@ function ElnChrome({
             </IconButton>
 
             {/* ── MoreActions dropdown (Delete) — hidden when locked ── */}
-            {isReady && !isLockedByOther && (
+            {isReady && !isEditingLocked && (
               <MoreActions
                 items={[
                   {
@@ -352,18 +362,26 @@ function ElnChrome({
               )}
             </Button>
 
-            {/* Review capture does not claim a cryptographic signature. */}
-            <Button
-              variant="primary"
-              size="sm"
-              aria-label="Review and capture PDF"
-              title="Save the current draft and retain a PDF of its exact Revision"
-              disabled={isNew || !entry || isLockedByOther || reviewing}
-              onClick={onReview}
-            >
-              {reviewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />}
-              {reviewing ? "Capturing…" : "Review & capture"}
-            </Button>
+            {reviewState?.state === "submitted" ? (
+              <Button variant="ghost" size="sm" aria-label="Withdraw review submission" title={reviewState.available === false ? reviewState.reason || "The review Mod is unavailable." : "Withdraw this submission and return to authoring"} disabled={reviewing || reviewState.available === false} onClick={onWithdrawReview}>
+                {reviewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />}
+                {reviewing ? "Withdrawing…" : "Withdraw submission"}
+              </Button>
+            ) : reviewState?.state === "finished" ? (
+              <span className="rounded bg-muted px-3 py-2 text-sm" role="status">Witness approved</span>
+            ) : (
+              <Button
+                variant="primary"
+                size="sm"
+                aria-label="Submit for review"
+                title="Save the current draft and submit its exact saved state for review"
+                disabled={isNew || !entry || isLockedByOther || reviewing || reviewState?.available === false}
+                onClick={onReview}
+              >
+                {reviewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />}
+                {reviewing ? "Submitting…" : "Submit for review"}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -373,18 +391,27 @@ function ElnChrome({
             <div className="px-6 pb-24 pt-8">
               <CommentVisibilityProvider showComments={showComments}>
                 <div>
+                  {reviewState?.available === false && reviewState.reason && (
+                    <div className="mb-4 rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] px-4 py-2.5 text-sm" role="status" data-review-readiness="unavailable">
+                      Review transition unavailable. {reviewState.reason} Retained history and evidence remain available below.
+                    </div>
+                  )}
                   {/* ── Locked banner ── */}
-                  {isLockedByOther && (
+                  {isEditingLocked && (
                     <div
                       className="mb-4 flex items-center gap-2 rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] px-4 py-2.5 text-base text-[var(--color-ink-muted-foreground)]"
                       data-testid="locked-banner"
                     >
                       <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
-                      <span>
-                        This entry is currently being edited by{" "}
-                        <strong>{lockHeldBy || "another user"}</strong>. You are viewing it
-                        in read-only mode.
+                      <span>{isReviewLocked
+                        ? (reviewState?.state === "finished" ? "This target is finished and locked. An editor must reopen it with a reason before making changes." : reviewState?.available === false ? "This submission remains locked because its review Mod is unavailable or incompatible." : "This exact submission is locked for review. Withdraw it before making changes.")
+                        : <>This entry is currently being edited by <strong>{lockHeldBy || "another user"}</strong>. You are viewing it in read-only mode.</>}
                       </span>
+                    </div>
+                  )}
+                  {isReviewLocked && (
+                    <div className="mb-4 rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] px-4 py-2.5 text-sm" role="status">
+                      Review submission {reviewState?.submissions?.find((item) => item.id === reviewState.current_submission_id)?.round ?? "active"} is frozen. Its retained PDF and manifest remain in this page's history.
                     </div>
                   )}
                   {reviewError && (
@@ -418,27 +445,27 @@ function ElnChrome({
                     <h1
                       ref={(el) => {
                         titleRef.current = el;
-                        if (el && isNew && !isLockedByOther && !hasAutoFocusedRef.current) {
+                        if (el && isNew && !isEditingLocked && !hasAutoFocusedRef.current) {
                           hasAutoFocusedRef.current = true;
                           requestAnimationFrame(() => el.focus());
                         }
                       }}
-                      contentEditable={!isLockedByOther}
+                      contentEditable={!isEditingLocked}
                       suppressContentEditableWarning
                       onInput={(e) => {
-                        if (!isLockedByOther) onTitleChange(e.currentTarget.textContent || "");
+                        if (!isEditingLocked) onTitleChange(e.currentTarget.textContent || "");
                       }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") e.preventDefault();
                       }}
                       onPaste={(e) => {
-                        if (isLockedByOther) return;
+                        if (isEditingLocked) return;
                         e.preventDefault();
                         const text = e.clipboardData.getData("text/plain");
                         document.execCommand("insertText", false, text);
                       }}
                       onBlur={() => {
-                        if (!isLockedByOther && title.trim() !== title) onTitleChange(title.trim());
+                        if (!isEditingLocked && title.trim() !== title) onTitleChange(title.trim());
                       }}
                       className="mb-3 font-[var(--font-body)] text-4xl font-semibold leading-[1.05] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/30 empty:before:content-['Untitled']"
                       data-testid="title-display"
@@ -450,9 +477,9 @@ function ElnChrome({
                       className="eln-description-textarea mb-3 w-full resize-none overflow-hidden text-md leading-relaxed text-muted-foreground placeholder:text-muted-foreground/30"
                       value={description}
                       onChange={(e) => {
-                        if (!isLockedByOther) onDescriptionChange(e.target.value);
+                        if (!isEditingLocked) onDescriptionChange(e.target.value);
                       }}
-                      readOnly={isLockedByOther}
+                      readOnly={isEditingLocked}
                       placeholder="Add a description…"
                       data-testid="description-input"
                     />
@@ -460,8 +487,8 @@ function ElnChrome({
                     {/* Tags */}
                     <TagSection
                       tags={tags}
-                      onAddTag={isLockedByOther ? undefined : onAddTag}
-                      onRemoveTag={isLockedByOther ? undefined : onRemoveTag}
+                      onAddTag={isEditingLocked ? undefined : onAddTag}
+                      onRemoveTag={isEditingLocked ? undefined : onRemoveTag}
                     />
 
                     {/* Hairline divider */}
@@ -482,7 +509,7 @@ function ElnChrome({
                       ) {
                         return;
                       }
-                      if (!isLockedByOther) onAppendParagraph();
+                      if (!isEditingLocked) onAppendParagraph();
                     }}
                   >
                     {editor}
@@ -501,11 +528,26 @@ function ElnChrome({
                       </ul>
                     </section>
                   )}
+                  {!!reviewState?.submissions?.length && (
+                    <section aria-labelledby="review-submissions-heading" className="workspace-text-column mt-8 rounded-md border border-hairline p-4" data-testid="review-submissions">
+                      <h2 id="review-submissions-heading" className="mb-2 font-medium">Review submissions</h2>
+                      <p className="mb-3 text-sm text-muted-foreground">Each retained PDF is the frozen presentation submitted for that round. Its embedded source records the exact scientific values and external revisions.</p>
+                      <ul className="space-y-2">
+                        {reviewState.submissions.map((submission) => (
+                          <li key={submission.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                            <span>Round {submission.round} · {new Date(submission.submitted_at).toLocaleString()}</span>
+                            {submission.download_url ? <a className="text-primary underline" href={submission.download_url} target="_blank" rel="noreferrer">Open frozen review</a> : <span className="text-muted-foreground">Retained rendition unavailable</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+                  {!isNew && discussionRecordId && <DiscussionPanel recordId={discussionRecordId} />}
                   <button
                     type="button"
                     className="eln-end-of-entry workspace-text-column block w-full border-0 bg-transparent p-0 text-left"
                     data-testid="end-of-entry"
-                    onClick={() => !isLockedByOther && onAppendParagraph()}
+                    onClick={() => !isEditingLocked && onAppendParagraph()}
                   >
                     <div className="h-px bg-hairline" />
                     <div className="flex items-center justify-between pt-2 font-[var(--font-label)] text-xs uppercase tracking-widest text-muted-foreground">

@@ -98,13 +98,13 @@ def authorize_record_edit_recovery(actor, receipt):
         "project"
     ).filter(pk=record_id).first()
     if record is not None:
-        if effective_role(actor, record) not in {"read", "edit"}:
+        if effective_role(actor, record) not in {"read", "review", "edit"}:
             raise PermissionDenied("You no longer have permission to access this record outcome.")
         return response
 
     project_id = response.get("project_id") if isinstance(response, dict) else None
     project = Project.objects.filter(pk=project_id).first()
-    if project is None or role(actor, project) not in {"read", "edit"}:
+    if project is None or role(actor, project) not in {"read", "review", "edit"}:
         raise PermissionDenied("You no longer have permission to access this record outcome.")
     return {
         "id": str(record_id),
@@ -174,14 +174,14 @@ def authorize_revision_group_recovery(actor, receipt):
         "project"
     ).filter(pk=record_id).first()
     if record is not None:
-        if effective_role(actor, record) not in {"read", "edit"}:
+        if effective_role(actor, record) not in {"read", "review", "edit"}:
             raise PermissionDenied("You no longer have permission to access this Revision outcome.")
         return {key: value for key, value in response.items() if key != "_recovery"}
 
     recovery = response.get("_recovery")
     project_id = recovery.get("project_id") if isinstance(recovery, dict) else None
     project = Project.objects.filter(pk=project_id).first()
-    if project is None or role(actor, project) not in {"read", "edit"}:
+    if project is None or role(actor, project) not in {"read", "review", "edit"}:
         raise PermissionDenied("The Revision outcome lacks authorization context for its deleted Record.")
     return {
         "record_id": str(record_id),

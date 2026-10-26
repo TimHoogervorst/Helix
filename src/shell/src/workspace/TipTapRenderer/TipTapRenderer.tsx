@@ -16,7 +16,7 @@
  * #224 — TipTapRenderer spec
  * #351 — useActionAccumulator replaces useBlockActionLogging
  */
-import { useMemo } from "react";
+import { useLayoutEffect, useMemo } from "react";
 import type { MutableRefObject } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import type { Editor, Extensions } from "@tiptap/core";
@@ -41,6 +41,9 @@ export interface TipTapRendererProps
    * contract; only TipTapRenderer exposes this.
    */
   onCreate?: (editor: Editor) => void;
+
+  /** The live editor, cleared on destruction/unmount and replaced on remount. */
+  editorRef?: MutableRefObject<Editor | null>;
 
   /**
    * Optional initial content for the editor.
@@ -122,6 +125,7 @@ export function TipTapRenderer({
   bus,
   context,
   onCreate,
+  editorRef,
   content = null,
   extensions: additionalExtensions = [],
   onUpdate,
@@ -164,6 +168,17 @@ export function TipTapRenderer({
       onUpdate?.(editorInstance as Editor);
     },
   });
+
+  useLayoutEffect(() => {
+    if (!editorRef || !editor || editor.isDestroyed) return;
+    editorRef.current = editor;
+    const clear = () => { if (editorRef.current === editor) editorRef.current = null; };
+    editor.on("destroy", clear);
+    return () => {
+      editor.off("destroy", clear);
+      clear();
+    };
+  }, [editor, editorRef]);
 
   if (bindings.length === 0) return null;
 

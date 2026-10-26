@@ -94,7 +94,7 @@ export interface LibraryProjectItem {
   icon_key: string;
   color_key: string;
   is_archived: boolean;
-  current_user_role: "read" | "edit" | null;
+  current_user_role: "read" | "review" | "edit" | null;
 }
 
 /** A flat folder entry for the move picker. */

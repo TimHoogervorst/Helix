@@ -427,6 +427,42 @@ class ModRegistrar:
             action_identities=action_identities,
         )
 
+    def register_review_target(
+        self,
+        local_key: str,
+        target: ModelReference,
+        *,
+        revision_groups: list[str],
+        renderer: Callable[..., Any],
+        renderer_version: str,
+        evidence_capture: Callable[..., Any] | None = None,
+        annotation_capabilities: list[str] | None = None,
+        anchor_validator: Callable[..., bool] | None = None,
+        suggestion_validator: Callable[..., bool] | None = None,
+        suggestion_locator: Callable[..., list[tuple[int, int]]] | None = None,
+        operation_effects: dict[str, list[str]] | None = None,
+    ) -> str:
+        """Opt a Mod target into Platform's fixed review lifecycle and guards."""
+        self._owned(target)
+        if target.id not in self._registry.get_registered_models():
+            raise ValueError(f"Target model '{target}' is not registered")
+        identity = _reference(self.id, local_key)
+        self._registry.register_review_target(
+            identity,
+            target,
+            revision_groups=revision_groups,
+            renderer=renderer,
+            renderer_version=renderer_version,
+            evidence_capture=evidence_capture,
+            annotation_capabilities=annotation_capabilities,
+            anchor_validator=anchor_validator,
+            suggestion_validator=suggestion_validator,
+            suggestion_locator=suggestion_locator,
+            operation_effects=operation_effects,
+            provider_mod_id=self.id,
+        )
+        return identity
+
     def register_urls(self, patterns: list) -> None:
         self._registry.register_urls(self._registry_id, patterns)
 
@@ -516,6 +552,9 @@ _PUBLIC_TYPES: dict[str, tuple[str, str]] = {
     "ActionInvocationReceipt": ("helix_core.models", "ActionInvocationReceipt"),
     "ActionParticipant": ("helix_core.models", "ActionParticipant"),
     "PlatformRecord": ("helix_core.models", "PlatformRecord"),
+    "PlatformDiscussion": ("helix_core.models", "PlatformDiscussion"),
+    "PlatformDiscussionMessage": ("helix_core.models", "PlatformDiscussionMessage"),
+    "PlatformDiscussionMessageRevision": ("helix_core.models", "PlatformDiscussionMessageRevision"),
     "RetainedContract": ("helix_core.models", "RetainedContract"),
     "ScientificRevision": ("helix_core.models", "ScientificRevision"),
     "ColumnType": ("helix_core.column_types", "ColumnType"),
@@ -667,6 +706,13 @@ def effective_role(*args: Any, **kwargs: Any) -> Any:
     return operation(*args, **kwargs)
 
 
+def can_review(*args: Any, **kwargs: Any) -> Any:
+    """Public resource-aware Review authorization (Edit includes Review)."""
+    from bundled.access.access.policies import can_review as operation
+
+    return operation(*args, **kwargs)
+
+
 def role(*args: Any, **kwargs: Any) -> Any:
     from bundled.access.access.policies import role as operation
 
@@ -750,6 +796,69 @@ def retain_rendition(**values: Any) -> Any:
         presentation_version=values["presentation_version"],
         presentation_context=values.get("presentation_context") or {},
     )
+
+
+def submit_review_target(**values: Any) -> dict[str, Any]:
+    """Submit one registered target through the Platform-owned review lifecycle."""
+    from helix_core.reviews import submit_review_target as operation
+
+    return operation(**values)
+
+
+def withdraw_review_submission(**values: Any) -> dict[str, Any]:
+    """Withdraw the active submission while retaining its immutable history."""
+    from helix_core.reviews import withdraw_review_submission as operation
+
+    return operation(**values)
+
+
+def review_target_state(**values: Any) -> dict[str, Any]:
+    """Read shared Platform review state and retained submission manifests."""
+    from helix_core.reviews import review_target_state as operation
+
+    return operation(**values)
+
+
+def review_target_history(**values: Any) -> dict[str, Any]:
+    """Read complete retained history through Platform resource access."""
+    from helix_core.reviews import review_target_history as operation
+
+    return operation(**values)
+
+
+def approve_review_target(**values: Any) -> dict[str, Any]:
+    """Approve an exact active submission using an eligible independent witness."""
+    from helix_core.review_threads import approve_review as operation
+
+    return operation(**values)
+
+
+def finish_review_participation(**values: Any) -> dict[str, Any]:
+    """Finish one participant's assessment after a witness completes the target."""
+    from helix_core.review_threads import assess_review as operation
+
+    return operation(outcome="finish_review", **values)
+
+
+def reopen_review_target(**values: Any) -> dict[str, Any]:
+    """Reopen a finished review target with a retained reason and attribution."""
+    from helix_core.reviews import reopen_review_target as operation
+
+    return operation(**values)
+
+
+def ensure_record_unlocked(record_or_id: Any) -> None:
+    """Enforce a persistent Platform review lock before a protected mutation."""
+    from helix_core.reviews import ensure_record_unlocked as operation
+
+    return operation(record_or_id)
+
+
+def ensure_source_subtree_unlocked(root: Any) -> None:
+    """Reject Source moves when they would relocate locked review targets."""
+    from helix_core.reviews import ensure_source_subtree_unlocked as operation
+
+    return operation(root)
 
 
 def list_renditions(record_id: str, *, revision_id: str | None = None) -> list[dict[str, Any]]:

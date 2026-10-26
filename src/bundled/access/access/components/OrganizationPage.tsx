@@ -431,6 +431,7 @@ function renderTeamCard(team: Team) {
 
 const ROLE_LABELS: Record<string, string> = {
   read: "Read",
+  review: "Review",
   edit: "Edit",
 };
 

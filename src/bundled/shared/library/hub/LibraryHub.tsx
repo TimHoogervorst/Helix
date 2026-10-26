@@ -278,11 +278,11 @@ function ProjectBreadcrumbs({
 
 // ── Role badge for project cards ───────────────────────────────────────────
 
-function RoleBadge({ role }: { role: "read" | "edit" | null }) {
+function RoleBadge({ role }: { role: "read" | "review" | "edit" | null }) {
   if (!role) return null;
   return (
     <span className={`role-badge role-badge-${role}`}>
-      {role === "edit" ? "Edit" : "Read"}
+      {{ read: "Read", review: "Review", edit: "Edit" }[role]}
     </span>
   );
 }
@@ -383,7 +383,7 @@ function LibraryHub() {
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
 
-  const [projectRoleMap, setProjectRoleMap] = useState<Record<string, "read" | "edit" | null>>({});
+  const [projectRoleMap, setProjectRoleMap] = useState<Record<string, "read" | "review" | "edit" | null>>({});
 
   // Track whether user is an org admin
   const [isOrgAdmin, setIsOrgAdmin] = useState(false);
@@ -425,7 +425,7 @@ function LibraryHub() {
     try {
       const data = await getAccessibleProjects();
       setProjects(data);
-      const roleMap: Record<string, "read" | "edit" | null> = {};
+      const roleMap: Record<string, "read" | "review" | "edit" | null> = {};
       for (const p of data) {
         roleMap[p.uid] = p.current_user_role ?? null;
       }

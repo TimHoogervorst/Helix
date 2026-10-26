@@ -50,7 +50,7 @@ export default function ProjectsManagement() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [addingGrant, setAddingGrant] = useState(false);
-  const [grantRole, setGrantRole] = useState<"read" | "edit">("read");
+  const [grantRole, setGrantRole] = useState<"read" | "review" | "edit">("read");
   const [grantUserId, setGrantUserId] = useState<number | null>(null);
   const [grantTeamId, setGrantTeamId] = useState<number | null>(null);
 
@@ -522,7 +522,7 @@ export default function ProjectsManagement() {
                               : "bg-[var(--color-panel)] text-[var(--color-ink)]"
                           }`}
                         >
-                          {grant.role === "edit" ? "Edit" : "Read"}
+                          {{ read: "Read", review: "Review", edit: "Edit" }[grant.role]}
                         </span>
                       </div>
                       <IconButton
@@ -546,10 +546,11 @@ export default function ProjectsManagement() {
                           className="flex-1 rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-background)] px-3 py-1.5 text-sm text-[var(--color-ink)]"
                           value={grantRole}
                           onChange={(e) =>
-                            setGrantRole(e.target.value as "read" | "edit")
+                            setGrantRole(e.target.value as "read" | "review" | "edit")
                           }
                         >
                           <option value="read">Read</option>
+                          <option value="review">Review</option>
                           <option value="edit">Edit</option>
                         </select>
                         <select

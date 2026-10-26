@@ -371,6 +371,107 @@ class PlatformRecord(AbstractEntity):
         return delete_platform_record(self, actor=None)
 
 
+class PlatformDiscussion(models.Model):
+    """An ordinary, non-blocking conversation attached to a Platform record."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    origin_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    record = models.ForeignKey(
+        PlatformRecord, on_delete=models.CASCADE, related_name="discussions",
+    )
+    created_by = models.ForeignKey(
+        "core.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="platform_discussions_opened",
+    )
+    created_by_snapshot = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        "core.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="platform_discussions_resolved",
+    )
+    resolved_by_snapshot = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "helix_platform_discussion"
+        ordering = ("-created_at", "id")
+
+    @property
+    def is_resolved(self):
+        return self.resolved_at is not None
+
+    def save(self, *args, **kwargs):
+        if self.created_by_id and not self.created_by_snapshot:
+            self.created_by_snapshot = user_attribution_snapshot(self.created_by)
+        if self.resolved_by_id and not self.resolved_by_snapshot:
+            self.resolved_by_snapshot = user_attribution_snapshot(self.resolved_by)
+        return super().save(*args, **kwargs)
+
+
+class PlatformDiscussionMessage(models.Model):
+    """One authored contribution in an ordinary discussion."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    discussion = models.ForeignKey(
+        PlatformDiscussion, on_delete=models.CASCADE, related_name="messages",
+    )
+    parent = models.ForeignKey(
+        "self", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="replies",
+    )
+    author = models.ForeignKey(
+        "core.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="platform_discussion_messages",
+    )
+    author_snapshot = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "helix_platform_discussion_message"
+        ordering = ("created_at", "id")
+
+    def save(self, *args, **kwargs):
+        if self.author_id and not self.author_snapshot:
+            self.author_snapshot = user_attribution_snapshot(self.author)
+        return super().save(*args, **kwargs)
+
+
+class PlatformDiscussionMessageRevision(models.Model):
+    """Append-only create, amend, and retract history for a contribution."""
+
+    ACTIONS = (("create", "Create"), ("amend", "Amend"), ("retract", "Retract"))
+    message = models.ForeignKey(
+        PlatformDiscussionMessage, on_delete=models.CASCADE, related_name="history",
+    )
+    sequence = models.PositiveIntegerField()
+    action = models.CharField(max_length=10, choices=ACTIONS)
+    body = models.TextField(blank=True, default="")
+    actor = models.ForeignKey(
+        "core.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="platform_discussion_message_changes",
+    )
+    actor_snapshot = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "helix_platform_discussion_message_revision"
+        ordering = ("sequence",)
+        constraints = [models.UniqueConstraint(
+            fields=("message", "sequence"),
+            name="helix_discussion_message_seq_uniq",
+        )]
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and type(self).objects.filter(pk=self.pk).exists():
+            raise ValueError("Platform discussion message history is immutable")
+        if self.actor_id and not self.actor_snapshot:
+            self.actor_snapshot = user_attribution_snapshot(self.actor)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("Platform discussion message history is immutable")
+
+
 class RecordRevisionGroup(models.Model):
     """Stable identity and current pointer for a record's immutable field snapshot."""
 
@@ -506,6 +607,253 @@ class PlatformRendition(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValueError("PlatformRendition is immutable")
+
+
+class ReviewTarget(models.Model):
+    """Platform-owned lifecycle and persistent lock for one reviewed record."""
+
+    class State(models.TextChoices):
+        AUTHORING = "authoring", "Authoring"
+        SUBMITTED = "submitted", "Submitted"
+        FINISHED = "finished", "Finished"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    record = models.OneToOneField(
+        PlatformRecord, on_delete=models.CASCADE, related_name="review_target",
+    )
+    provider_mod_id = models.CharField(max_length=255)
+    registration_id = models.CharField(max_length=255, default="")
+    state = models.CharField(max_length=16, choices=State.choices, default=State.AUTHORING)
+    current_submission = models.ForeignKey(
+        "ReviewSubmission", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="current_for_targets",
+    )
+    creator_snapshot = models.JSONField(default=dict, blank=True)
+    contributor_history_complete = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "helix_review_target"
+
+    @property
+    def locked(self):
+        return self.state in {self.State.SUBMITTED, self.State.FINISHED}
+
+
+class ReviewContributor(models.Model):
+    """Durable attribution for a user who created or changed reviewed content."""
+
+    target = models.ForeignKey(ReviewTarget, on_delete=models.CASCADE, related_name="contributors")
+    actor_stable_id = models.CharField(max_length=255)
+    actor = models.ForeignKey("core.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    actor_snapshot = models.JSONField(default=dict, blank=True)
+    first_effect = models.CharField(max_length=100)
+    recorded_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "helix_review_contributor"
+        constraints = [models.UniqueConstraint(fields=("target", "actor_stable_id"), name="helix_review_contributor_actor_uniq")]
+
+
+class ReviewSubmission(models.Model):
+    """Immutable exact multi-group manifest for one submitted review round."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    target = models.ForeignKey(ReviewTarget, on_delete=models.CASCADE, related_name="submissions")
+    round_number = models.PositiveIntegerField()
+    manifest = models.JSONField()
+    captured_evidence = models.JSONField(default=dict, blank=True)
+    rendition = models.ForeignKey(
+        PlatformRendition, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="review_submissions",
+    )
+    submitted_by = models.ForeignKey(
+        "core.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    submitted_by_snapshot = models.JSONField(default=dict, blank=True)
+    submitted_at = models.DateTimeField(default=timezone.now)
+    request_id = models.UUIDField()
+    request_fingerprint = models.CharField(max_length=64)
+    withdrawn_by_snapshot = models.JSONField(default=dict, blank=True)
+    withdrawn_at = models.DateTimeField(null=True, blank=True)
+    withdraw_actor_stable_id = models.CharField(max_length=255, blank=True, default="")
+    withdraw_request_id = models.UUIDField(null=True, blank=True)
+    withdraw_request_fingerprint = models.CharField(max_length=64, blank=True, default="")
+
+    class Meta:
+        db_table = "helix_review_submission"
+        constraints = [
+            models.UniqueConstraint(fields=("target", "round_number"), name="helix_review_submission_round_uniq"),
+            models.UniqueConstraint(fields=("submitted_by", "request_id"), name="helix_review_submission_actor_request_uniq"),
+        ]
+        ordering = ("target", "round_number")
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and type(self).objects.filter(pk=self.pk).exists():
+            old = type(self).objects.get(pk=self.pk)
+            immutable = (
+                "target_id", "round_number", "manifest", "captured_evidence",
+                "rendition_id", "submitted_by_id", "submitted_by_snapshot", "submitted_at",
+                "request_id", "request_fingerprint",
+            )
+            if any(getattr(old, name) != getattr(self, name) for name in immutable):
+                raise ValueError("ReviewSubmission evidence and identity are immutable")
+        if self.submitted_by_id and not self.submitted_by_snapshot:
+            self.submitted_by_snapshot = user_attribution_snapshot(self.submitted_by)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("ReviewSubmission is immutable")
+
+
+class ReviewParticipation(models.Model):
+    """One reviewer's explicit participation in one immutable submission."""
+
+    class State(models.TextChoices):
+        UNDER_REVIEW = "under_review", "Under review"
+        REQUEST_CHANGES = "request_changes", "Request changes"
+        FINISHED = "finished", "Finished"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    submission = models.ForeignKey(ReviewSubmission, on_delete=models.CASCADE, related_name="participations")
+    actor = models.ForeignKey("core.User", on_delete=models.SET_NULL, null=True, related_name="review_participations")
+    actor_stable_id = models.CharField(max_length=255)
+    actor_snapshot = models.JSONField(default=dict, blank=True)
+    state = models.CharField(max_length=20, choices=State.choices, default=State.UNDER_REVIEW)
+    assessment = models.TextField(blank=True, default="")
+    assessment_history = models.JSONField(default=list, blank=True)
+    started_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "helix_review_participation"
+        constraints = [models.UniqueConstraint(fields=("submission", "actor_stable_id"), name="helix_review_participation_actor_uniq")]
+
+
+class ReviewApproval(models.Model):
+    """Immutable witness decision and the exact retained evidence it approves."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    target = models.ForeignKey(ReviewTarget, on_delete=models.CASCADE, related_name="approvals")
+    submission = models.OneToOneField(ReviewSubmission, on_delete=models.CASCADE, related_name="approval")
+    participation = models.ForeignKey(ReviewParticipation, on_delete=models.CASCADE, related_name="approvals")
+    witness = models.ForeignKey("core.User", on_delete=models.SET_NULL, null=True, related_name="witness_approvals")
+    witness_stable_id = models.CharField(max_length=255)
+    witness_snapshot = models.JSONField(default=dict, blank=True)
+    assessment = models.TextField()
+    retained_evidence = models.JSONField(default=dict)
+    request_id = models.UUIDField()
+    request_fingerprint = models.CharField(max_length=64)
+    approved_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "helix_review_approval"
+        constraints = [models.UniqueConstraint(fields=("witness_stable_id", "request_id"), name="helix_review_approval_request_uniq")]
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise ValueError("ReviewApproval is immutable")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("ReviewApproval is immutable")
+
+
+class ReviewReopen(models.Model):
+    """Immutable reason and attribution for explicitly reopening completed work."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    target = models.ForeignKey(ReviewTarget, on_delete=models.CASCADE, related_name="reopens")
+    approval = models.ForeignKey(ReviewApproval, on_delete=models.CASCADE, related_name="reopens")
+    actor = models.ForeignKey("core.User", on_delete=models.SET_NULL, null=True, related_name="review_reopens")
+    actor_stable_id = models.CharField(max_length=255)
+    actor_snapshot = models.JSONField(default=dict, blank=True)
+    reason = models.TextField()
+    reopened_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "helix_review_reopen"
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise ValueError("ReviewReopen is immutable")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("ReviewReopen is immutable")
+
+
+class ReviewThread(models.Model):
+    """A comment or blocker anchored to one exact submission, with carry-forward lineage."""
+
+    class State(models.TextChoices):
+        OPEN = "open", "Open"
+        ADDRESSED = "addressed", "Addressed"
+        RESOLVED = "resolved", "Resolved"
+        WITHDRAWN = "withdrawn", "Withdrawn"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    target = models.ForeignKey(ReviewTarget, on_delete=models.CASCADE, related_name="review_threads")
+    submission = models.ForeignKey(ReviewSubmission, on_delete=models.CASCADE, related_name="review_threads")
+    carried_from = models.ForeignKey("self", on_delete=models.SET_NULL, null=True, blank=True, related_name="carried_threads")
+    raised_from_discussion = models.ForeignKey(PlatformDiscussion, on_delete=models.SET_NULL, null=True, blank=True, related_name="raised_review_threads")
+    requester = models.ForeignKey("core.User", on_delete=models.SET_NULL, null=True, related_name="requested_review_threads")
+    requester_stable_id = models.CharField(max_length=255)
+    requester_snapshot = models.JSONField(default=dict, blank=True)
+    anchor = models.JSONField(default=dict)
+    blocking = models.BooleanField(default=True)
+    suggestion = models.JSONField(default=dict, blank=True)
+    suggestion_disposition = models.CharField(max_length=12, choices=(("pending", "Pending"), ("applied", "Applied"), ("rejected", "Rejected")), default="pending")
+    suggestion_actor_snapshot = models.JSONField(default=dict, blank=True)
+    suggestion_result_revision = models.ForeignKey("ScientificRevision", on_delete=models.SET_NULL, null=True, blank=True, related_name="review_suggestions")
+    state = models.CharField(max_length=12, choices=State.choices, default=State.OPEN)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by_snapshot = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "helix_review_thread"
+        ordering = ("created_at", "id")
+
+
+class ReviewThreadMessage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    thread = models.ForeignKey(ReviewThread, on_delete=models.CASCADE, related_name="messages")
+    parent = models.ForeignKey("self", on_delete=models.CASCADE, null=True, blank=True, related_name="replies")
+    author = models.ForeignKey("core.User", on_delete=models.SET_NULL, null=True, related_name="review_thread_messages")
+    author_snapshot = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "helix_review_thread_message"
+        ordering = ("created_at", "id")
+
+
+class ReviewThreadMessageRevision(models.Model):
+    message = models.ForeignKey(ReviewThreadMessage, on_delete=models.CASCADE, related_name="history")
+    sequence = models.PositiveIntegerField()
+    action = models.CharField(max_length=10, choices=(("create", "Create"), ("amend", "Amend"), ("retract", "Retract")))
+    body = models.TextField(blank=True, default="")
+    actor = models.ForeignKey("core.User", on_delete=models.SET_NULL, null=True, related_name="review_thread_message_changes")
+    actor_snapshot = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "helix_review_thread_message_revision"
+        ordering = ("sequence",)
+        constraints = [models.UniqueConstraint(fields=("message", "sequence"), name="helix_review_thread_message_seq_uniq")]
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and type(self).objects.filter(pk=self.pk).exists():
+            raise ValueError("Review thread message history is immutable")
+        if self.actor_id and not self.actor_snapshot:
+            self.actor_snapshot = user_attribution_snapshot(self.actor)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("Review thread message history is immutable")
 
 
 @receiver(post_delete, sender=AttachmentRevisionLink)

@@ -11,11 +11,13 @@ class OrganizationRole(models.TextChoices):
 
 class ProjectRole(models.TextChoices):
     READ = "read", "Read"
+    REVIEW = "review", "Review"
     EDIT = "edit", "Edit"
 
 
 class ShareLevel(models.TextChoices):
     READ = "read", "Read"
+    REVIEW = "review", "Review"
     READ_WRITE = "read_write", "Read + Write"
 
 
@@ -147,7 +149,7 @@ def _has_other_active_admin(excluding_user=None) -> bool:
 
 
 class Grant(models.Model):
-    """Assigns a fixed Read or Edit Project Role to a User or Team.
+    """Assigns a fixed Read, Review, or Edit Project Role to a User or Team.
 
     Exactly one Grantee (User *or* Team) must be non-null.  A conditional
     unique constraint allows at most one Grant per Project–User and one

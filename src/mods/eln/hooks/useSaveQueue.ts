@@ -27,6 +27,7 @@ export type SaveStatus = "idle" | "saving" | "saved" | "error";
 export type SaveMode = "autosave" | "manual";
 
 interface QueuedSave {
+  failOnNetwork?: boolean;
   payload: Record<string, unknown>;
   saveMode?: SaveMode;
   /** When true, the X-Block-Actions header is set on the PUT request,
@@ -42,6 +43,7 @@ export interface UseSaveQueueOptions {
 }
 
 export interface UseSaveQueueReturn {
+  adoptState: (entry: EntryDetail) => void;
   /** Current status of the save queue. */
   status: SaveStatus;
   /** When the most recent successful save completed, or null. */
@@ -61,6 +63,7 @@ export interface UseSaveQueueReturn {
     payload: Record<string, unknown>,
     saveMode?: SaveMode,
     hasBlockActions?: boolean,
+    failOnNetwork?: boolean,
   ) => Promise<EntryDetail>;
 }
 
@@ -82,6 +85,7 @@ export function useSaveQueue({
     if (drainingRef.current) return;
     drainingRef.current = true;
 
+    let failed = false;
     while (queueRef.current.length > 0) {
       const item = queueRef.current[0];
       setStatus("saving");
@@ -116,12 +120,21 @@ export function useSaveQueue({
       } catch (err) {
         // NetworkError → pause drain, keep item, retry on next enqueue
         if (err instanceof NetworkError) {
+          // An explicit Action must return control on a failed prerequisite
+          // save. Retain ordinary autosaves for the existing lazy retry path.
+          queueRef.current = queueRef.current.filter((pending) => {
+            if (!pending.failOnNetwork) return true;
+            pending.reject(err);
+            return false;
+          });
+          setQueueLength(queueRef.current.length);
           setStatus("error");
           drainingRef.current = false;
           return;
         }
 
         // Non-network error (ApiError, etc.) → reject and continue
+        failed = true;
         item.reject(err);
         queueRef.current.shift();
         setQueueLength(queueRef.current.length);
@@ -129,7 +142,7 @@ export function useSaveQueue({
     }
 
     // Queue fully drained without network errors
-    setStatus("saved");
+    setStatus(failed ? "error" : "saved");
     drainingRef.current = false;
   }, [entryId]);
 
@@ -138,6 +151,7 @@ export function useSaveQueue({
       payload: Record<string, unknown>,
       saveMode?: SaveMode,
       hasBlockActions?: boolean,
+      failOnNetwork = false,
     ): Promise<EntryDetail> => {
       const promise = new Promise<EntryDetail>((resolve, reject) => {
         const requestId = globalThis.crypto?.randomUUID?.() ??
@@ -146,6 +160,7 @@ export function useSaveQueue({
           payload: { ...payload, request_id: payload.request_id ?? requestId },
           saveMode,
           hasBlockActions,
+          failOnNetwork,
           resolve,
           reject,
         });
@@ -170,5 +185,10 @@ export function useSaveQueue({
     [drain],
   );
 
-  return { status, lastSavedAt, queueLength, enqueue };
+  const adoptState = useCallback((entry: EntryDetail) => {
+    if (drainingRef.current || queueRef.current.length) throw new Error("Cannot adopt Action state while saves are pending.");
+    stateTokenRef.current = entry.platform_state_token ?? null;
+  }, []);
+
+  return { status, lastSavedAt, queueLength, enqueue, adoptState };
 }

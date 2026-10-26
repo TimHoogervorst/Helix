@@ -51,13 +51,13 @@ export interface Project {
   color_key: string;
   is_archived: boolean;
   created_at: string;
-  current_user_role?: "read" | "edit" | null;
+  current_user_role?: "read" | "review" | "edit" | null;
 }
 
 export interface Grant {
   id: number;
   project: number;
-  role: "read" | "edit";
+  role: "read" | "review" | "edit";
   user: number | null;
   team: number | null;
   grantee_type: "user" | "team" | null;
@@ -73,5 +73,5 @@ export interface FolderShare {
   source_project_name: string;
   target_project: number;
   target_project_name: string;
-  level: "read" | "read_write";
+  level: "read" | "review" | "read_write";
 }

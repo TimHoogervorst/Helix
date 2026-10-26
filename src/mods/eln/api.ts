@@ -51,6 +51,111 @@ export interface ReviewCapture extends Omit<HistoricalRendition, "revision_seque
   attachment_id: string;
 }
 
+export interface ReviewState {
+  available: boolean;
+  reason?: string | null;
+  state?: "authoring" | "submitted" | "finished";
+  locked?: boolean;
+  current_submission_id?: string | null;
+  submissions?: Array<{
+    id: string;
+    round: number;
+    manifest: Record<string, unknown>;
+    submitted_at: string;
+    submitted_by: Record<string, unknown>;
+    withdrawn_at: string | null;
+    rendition_id: string | null;
+    download_url?: string | null;
+  }>;
+}
+
+export interface ReviewThread {
+  id: string;
+  submission_id: string;
+  original_submission_id: string;
+  state: "open" | "addressed" | "resolved" | "withdrawn";
+  blocking: boolean;
+  anchor: Record<string, unknown>;
+  suggestion: { replacement?: string };
+  suggestion_disposition: "pending" | "applied" | "rejected";
+  can_dispose_suggestion: boolean;
+  requester: { username?: string; displayName?: string };
+  requester_is_actor: boolean;
+  messages: Array<{
+    id: string; body: string; author: { username?: string; displayName?: string };
+    retracted: boolean; can_change: boolean;
+    history: Array<{ action: "create" | "amend" | "retract"; body: string; actor: { username?: string; displayName?: string }; created_at: string }>;
+  }>;
+  can_resolve: boolean;
+  can_address: boolean;
+}
+export interface ReviewThreadsState {
+  participation: { id: string; submission_id: string; state: string; assessment: string } | null;
+  threads: ReviewThread[];
+  approval_available?: boolean;
+  approval_unavailable_reason?: string | null;
+  approval_unavailable_category?: "access" | "readiness" | "attribution" | "exclusion" | "blockers" | null;
+  can_reopen?: boolean;
+  approval?: { id: string; witness: { username?: string; displayName?: string }; assessment: string; approved_at: string } | null;
+}
+export function getReviewThreads(displayId: string): Promise<ReviewThreadsState> {
+  return get<ReviewThreadsState>(`/eln/entries/${displayId}/review/threads/`);
+}
+export function startReviewParticipation(displayId: string) {
+  return post<{ id: string; submission_id: string; state: string }>(`/eln/entries/${displayId}/review/participate/`, {});
+}
+export function addReviewThread(displayId: string, submissionId: string, anchor: Record<string, unknown>, body: string, replacement?: string) {
+  return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/`, { submission_id: submissionId, anchor, body, suggestion: replacement ? { replacement } : undefined });
+}
+export function changeReviewThread(displayId: string, threadId: string, action: "address" | "resolve" | "withdraw" | "reopen") {
+  return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/${action}/`, {});
+}
+export function disposeReviewSuggestion(displayId: string, threadId: string, action: "apply" | "reject", resultRevisionId?: string, resultFrom?: number, sourceRevisionId?: string) {
+  return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/suggestion/${action}/`, { result_revision_id: resultRevisionId, result_from: resultFrom, source_revision_id: sourceRevisionId });
+}
+export function replyReviewThread(displayId: string, threadId: string, body: string) {
+  return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/messages/`, { body });
+}
+export function amendReviewThreadMessage(displayId: string, threadId: string, messageId: string, body: string) {
+  return patch<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/messages/${messageId}/`, { body });
+}
+export function retractReviewThreadMessage(displayId: string, threadId: string, messageId: string) {
+  return del<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/messages/${messageId}/`);
+}
+export function assessReview(displayId: string, assessment: string) {
+  return post(`/eln/entries/${displayId}/review/assess/`, { assessment, outcome: "request_changes" });
+}
+export function finishReview(displayId: string, assessment: string) {
+  return post(`/eln/entries/${displayId}/review/assess/`, { assessment, outcome: "finish_review" });
+}
+export function approveReview(displayId: string, assessment: string, requestId: string) {
+  return post(`/eln/entries/${displayId}/review/assess/`, { assessment, outcome: "approve", request_id: requestId });
+}
+export function reopenReview(displayId: string, reason: string) {
+  return post(`/eln/entries/${displayId}/review/reopen/`, { reason });
+}
+
+export function submitReview(
+  displayId: string,
+  stateToken: string,
+  revisionId: string,
+  requestId: string,
+): Promise<{ target_id: string; submission_id: string; round: number; state: string; manifest: Record<string, unknown>; rendition_id: string; attachment_id: string; download_url: string }> {
+  return post<{ target_id: string; submission_id: string; round: number; state: string; manifest: Record<string, unknown>; rendition_id: string; attachment_id: string; download_url: string }>(`/eln/entries/${displayId}/review/submit/`, {
+    state_token: stateToken,
+    revision_id: revisionId,
+    request_id: requestId,
+  });
+}
+
+export function withdrawReview(displayId: string, requestId: string): Promise<{ target_id: string; submission_id: string; state: string; replayed: boolean }> {
+  return post<{ target_id: string; submission_id: string; state: string; replayed: boolean }>(`/eln/entries/${displayId}/review/withdraw/`, { request_id: requestId });
+}
+
+export function getReviewState(displayId: string): Promise<ReviewState> {
+  return get<ReviewState>(`/eln/entries/${displayId}/review/status/`);
+}
+
 export function captureReview(
   displayId: string,
   stateToken: string,
@@ -60,6 +165,62 @@ export function captureReview(
     state_token: stateToken,
     revision_id: revisionId,
   });
+}
+
+export interface DiscussionMessageRevision {
+  action: "create" | "amend" | "retract";
+  body: string;
+  actor: { id?: string; username?: string; displayName?: string };
+  created_at: string;
+}
+
+export interface DiscussionMessage {
+  id: string;
+  parent_id: string | null;
+  author: { id?: string; username?: string; displayName?: string };
+  created_at: string;
+  body: string;
+  retracted: boolean;
+  history: DiscussionMessageRevision[];
+  can_change: boolean;
+}
+
+export interface Discussion {
+  id: string;
+  origin_id: string;
+  record_id: string;
+  created_by: { id?: string; username?: string; displayName?: string };
+  created_at: string;
+  resolved: boolean;
+  resolved_by: { id?: string; username?: string; displayName?: string };
+  resolved_at: string | null;
+  can_contribute: boolean;
+  can_resolve: boolean;
+  messages: DiscussionMessage[];
+}
+
+export function listDiscussions(recordId: string): Promise<{ results: Discussion[]; can_contribute: boolean }> {
+  return get<{ results: Discussion[]; can_contribute: boolean }>(`/discussions/?record=${encodeURIComponent(recordId)}`);
+}
+
+export function createDiscussion(recordId: string, body: string): Promise<Discussion> {
+  return post<Discussion>("/discussions/", { record_id: recordId, body });
+}
+
+export function replyToDiscussion(id: string, body: string, parentId?: string): Promise<Discussion> {
+  return post<Discussion>(`/discussions/${id}/`, { body, parent_id: parentId });
+}
+
+export function resolveDiscussion(id: string): Promise<Discussion> {
+  return post<Discussion>(`/discussions/${id}/resolve/`, {});
+}
+
+export function amendDiscussionMessage(discussionId: string, messageId: string, body: string): Promise<Discussion> {
+  return patch<Discussion>(`/discussions/${discussionId}/messages/${messageId}/`, { body });
+}
+
+export function retractDiscussionMessage(discussionId: string, messageId: string): Promise<Discussion> {
+  return del<Discussion>(`/discussions/${discussionId}/messages/${messageId}/`);
 }
 
 export async function listRenditions(displayId: string): Promise<HistoricalRendition[]> {

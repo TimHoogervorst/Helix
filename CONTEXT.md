@@ -352,6 +352,8 @@ A first-class root container for its folder tree, Entries, and Entities. Has a u
 
 A fixed access level on a Project, granted to a User or Team: **Read** (browse and open content) or **Edit** (create, modify, move, and delete content). A fixed enum — users cannot define new Project Roles. Project identity, Grants, archiving, and Shared Folders are managed by Organization Admins rather than through a Project Admin role. (Editable, user-defined Profiles are a deferred future extension.)
 
+**Agreed extension, not yet implemented:** Review is the fixed intermediate Project Role: Edit includes Review, and Review includes Read. Direct User Grants, Team Grants and Shared Folder access limits support this hierarchy. See [Define review rights and witness eligibility across access boundaries](https://github.com/TimHoogervorst/Helix/issues/726#issuecomment-6413663137).
+
 ### Organization Role
 
 A fixed access level on the Organization: **User** (normal day-to-day work) or **Admin** (manage users, teams, projects, Grants, Shared Folders, schemas, and all org-wide settings). An Organization Admin can perform every operation on every Project. Only Organization Admins can edit Project identity, manage Grants, archive Projects, or create and revoke Shared Folders. A fixed enum, never editable — unlike Project Roles, no future configurability is planned.
@@ -375,6 +377,44 @@ The assignment of a Project Role to one Grantee on one Project. A User's effecti
 ### Shared Folder
 
 A first-level Folder — a direct child of a Project — made visible to Projects other than the Project that owns it. Appears immediately at the root of each Project it is shared with; only Organization Admins can create or revoke the share. Each share carries an access level — **Read** or **Read + Write** — that caps each User's effective role on the sharee Project: Read grants read access, while Read + Write allows target Editors and Organization Admins to modify descendants within the shared subtree. The shared Folder itself cannot be renamed, moved, or deleted through the share, and descendants cannot be moved outside the subtree. The Project and nested Folders cannot be shared directly. Ownership never moves: the Folder and its contents keep their original Project.
+
+### Review Target
+
+A Durable Record whose reviewed content is subject to submission, review and witness completion. Its review scope can span multiple Revision Groups and reviewed metadata.
+
+**Status:** Agreed review design; not yet implemented. See [the public review contract decision](https://github.com/TimHoogervorst/Helix/issues/728#issuecomment-6414203937).
+
+### Review Submission
+
+A frozen review round for one Review Target, identifying the exact content and evidence offered for approval. Withdrawal and later resubmission create distinct rounds; approval of an earlier submission does not approve a later one.
+
+### Submission Manifest
+
+The immutable description of a Review Submission's exact Revision identities, reviewed metadata and captured external evidence. It identifies the complete reviewed state even when individual Revision Groups preserve only part of the target.
+
+### Review Thread
+
+A revision-bound review comment or text replacement suggestion together with its replies. The author may mark it **Addressed**; its originating reviewer confirms it **Resolved**. Every review thread opened before witness completion blocks sign-off until resolved. Threads opened after completion are non-blocking and do not invalidate the existing sign-off.
+
+**Status:** Agreed review design; not yet implemented. See [the annotation decision](https://github.com/TimHoogervorst/Helix/issues/727#issuecomment-6413908440).
+
+### Published Review
+
+A reviewer's completed individual assessment of an exact submission, with a final comment. **Approve** resolves the reviewer's own outstanding threads, publishes the assessment as witness approval, and finishes the target together; another reviewer's outstanding request prevents approval. **Request changes** publishes an assessment with at least one of that reviewer's own unresolved threads, including carried feedback, and leaves those requests blocking. After another witness finishes the target, **Finish review** completes remaining participation with a non-blocking final assessment and no additional witness approval. Later assessments and feedback preserve prior publication history.
+
+**Status:** Agreed review design; not yet implemented. See [the validated review interaction](https://github.com/TimHoogervorst/Helix/issues/729#issuecomment-6414528606) and [specification consolidation](https://github.com/TimHoogervorst/Helix/issues/732).
+
+### Review Contributor
+
+A person who has performed at least one content-changing action on a review target, including reviewed metadata edits or applying a suggestion. Contribution persists across reverts and later revisions; participation, comments, proposed suggestions and change requests alone do not constitute contribution.
+
+**Status:** Agreed review design; not yet implemented. See [the authorization decision](https://github.com/TimHoogervorst/Helix/issues/726#issuecomment-6413663137).
+
+### Witness
+
+A person with current Review access who approves an exact submitted revision. The target's original creator, every Review Contributor and every submitter are permanently ineligible to witness it, including when they are Organization Admins or superusers.
+
+**Status:** Agreed review design; not yet implemented. See [the authorization decision](https://github.com/TimHoogervorst/Helix/issues/726#issuecomment-6413663137).
 
 ### Archived Project
 
@@ -770,7 +810,17 @@ A registered, optional tab on an entity's workspace that a Schema can enable. Mo
 
 The first Schema Component is **Results** — a read-only tab showing every Result Entity whose Entity Column points at the entity, grouped into one block per Result Schema.
 
+**Agreed extension, not yet implemented:** A Schema Component may contribute configured fields and capabilities as well as presentation. Contributions belong to the individual Schema, not every Schema of its Schema Type. Presentation-only components such as Results do not have to contribute fields. See [the Molecular Biology Essentials integration decision](https://github.com/TimHoogervorst/Helix/issues/716#issuecomment-6412628711).
+
 **Synonyms:** entity component (rejected — limits the concept to entities)
+
+### Sequence Component
+
+An optional Schema Component that gives ordinary Entities one Sequence field and a Sequence tab. The field name is fixed. The Schema selects DNA, RNA or protein when the field is created; that molecular type cannot subsequently change in the initial design. Each Entity has at most one sequence, and its value may be empty. The shared tab presents each molecular type appropriately; tables show a compact preview.
+
+Disabling the component preserves the field's identity, selected molecular type and recorded values while removing its specialized tab and active contributed capabilities. Re-enabling reconnects to the same field and values, never creates a second field, and never resets the molecular type. Results can be enabled independently on the same Schema.
+
+**Status:** Agreed design for Molecular Biology Essentials; not yet implemented. [Decision](https://github.com/TimHoogervorst/Helix/issues/716#issuecomment-6412628711).
 
 ### Entity Column
 

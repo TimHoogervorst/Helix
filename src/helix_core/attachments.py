@@ -198,10 +198,10 @@ def rendition_metadata(*, record_id, revision_id=None):
 
 
 def open_revision_attachment(*, record, revision_id, attachment_id, actor):
-    from bundled.access.access.policies import role
+    from bundled.access.access.policies import effective_role
     from helix_core.models import AttachmentRevisionLink, ScientificRevision
 
-    if role(actor, record.project) not in {"read", "edit"}:
+    if effective_role(actor, record) not in {"read", "review", "edit"}:
         raise PermissionDenied("You do not have permission to read this record.")
     try:
         revision = ScientificRevision.objects.get(

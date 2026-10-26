@@ -1,3 +1,4 @@
+import { collectPortableBlocks, registrationBaselines } from "./savedActionBlocks";
 import { decodeBlockContent, getTypedPath } from "./portableInput";
 import { useRef, useEffect, useMemo, useCallback, useState } from "react";
 import type { Editor } from "@tiptap/core";
@@ -13,16 +14,17 @@ import { TipTapRenderer } from "@helix/mod-api/editor";
 import { elnExtensions } from "../editor/extensions/elnExtensions";
 import { useEntryWorkspace } from "../hooks/useEntryWorkspace";
 import { useTaggableItems } from "../tags/hooks/useTaggableItems";
-import { attachTags, captureReview, detachTag, listRenditions, type HistoricalRendition } from "../api";
+import { attachTags, submitReview, withdrawReview, getReviewState, detachTag, listRenditions, type HistoricalRendition, type ReviewState } from "../api";
 import { useMentionContext } from "@helix/mod-api/host";
 import { useActivity } from "../hooks/useActivity";
 import { getRecentEditors } from "../activityHelpers";
 import ElnChrome from "./ElnChrome";
+import ReviewThreadsPanel from "../components/ReviewThreadsPanel";
 import { portableAttributeNodeTypes, preparePortableDocument, restorePortableDocument } from "../portableDocument";
 import { PortableNodeAttributes } from "../editor/portableBlockExtensions";
 import { ElnPortableBlockHostContext, type ElnPortableBlockHost } from "../editor/portableBlockExtensions";
 import { get } from "@helix/mod-api/api";
-import { invokeAction, resolvePortableActionContext, type PortableBlockContent } from "@helix/mod-api/portable-blocks";
+import { invokeAction, resolvePortableActionContext } from "@helix/mod-api/portable-blocks";
 import type { ActionContractDefinition, ActionContractEnvelope, ContractType } from "@helix/mod-api/contracts";
 import type { ActionInvocationRequest } from "@helix/mod-api/host";
 
@@ -40,29 +42,6 @@ interface RecordActionProvider {
 
 type RecordInputSource = Extract<import("@helix/mod-api/portable-blocks").PortableInputSource, { kind: "record" }>;
 
-function collectPortableBlocks(value: unknown, blocks = new Map<string, PortableBlockContent>()): Map<string, PortableBlockContent> {
-  if (Array.isArray(value)) {
-    for (const child of value) collectPortableBlocks(child, blocks);
-  } else if (value && typeof value === "object") {
-    const object = value as Record<string, unknown>;
-    const attrs = object.attrs && typeof object.attrs === "object" ? object.attrs as Record<string, unknown> : undefined;
-    const source = attrs?.source && typeof attrs.source === "object" ? attrs.source as Record<string, unknown> : undefined;
-    const sourceAttrs = source?.attrs && typeof source.attrs === "object" ? source.attrs as Record<string, unknown> : undefined;
-    const candidateAttrs = sourceAttrs ?? attrs;
-    const candidate = candidateAttrs?.portableBlock && typeof candidateAttrs.portableBlock === "object"
-      ? candidateAttrs.portableBlock as PortableBlockContent
-      : candidateAttrs as PortableBlockContent | undefined;
-    if (candidate) {
-      const id = typeof candidate.id === "string" ? candidate.id : String(source?.type ?? "");
-      const content = candidate.content ?? (Array.isArray(candidateAttrs?.rows)
-        ? { type: { type: "json" }, value: candidateAttrs }
-        : undefined);
-      blocks.set(id, { ...candidate, id, ...(content ? { content } : {}) });
-    }
-    for (const child of Object.values(object)) collectPortableBlocks(child, blocks);
-  }
-  return blocks;
-}
 
 function collectRecordSources(value: unknown, found = new Map<string, RecordInputSource>()): Map<string, RecordInputSource> {
   if (Array.isArray(value)) {
@@ -169,6 +148,9 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   const [renditions, setRenditions] = useState<HistoricalRendition[]>([]);
   const [reviewing, setReviewing] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewState, setReviewState] = useState<ReviewState | null>(null);
+  const reviewRequestRef = useRef<{ id: string; payload: string } | null>(null);
+  const withdrawRequestRef = useRef<string | null>(null);
   const editorRef = useRef<Editor | null>(null);
   const savedInvocationEntryRef = useRef<typeof workspace.entry>(null);
   const [actionDefinitions, setActionDefinitions] = useState<Record<string, ActionContractDefinition>>({});
@@ -189,6 +171,9 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     void listRenditions(entryId)
       .then((items) => { if (!cancelled) setRenditions(items); })
       .catch(() => { if (!cancelled) setRenditions([]); });
+    void getReviewState(entryId)
+      .then((state) => { if (!cancelled) setReviewState(state); })
+      .catch(() => { if (!cancelled) setReviewState(null); });
     return () => { cancelled = true; };
   }, [entryId, isNew]);
 
@@ -202,7 +187,18 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       if (!saved?.platform_state_token || !saved.document_revision_id) {
         throw new Error("Save the document before reviewing it.");
       }
-      await captureReview(saved.display_id, saved.platform_state_token, saved.document_revision_id);
+      const payload = `${saved.platform_state_token}:${saved.document_revision_id}`;
+      if (reviewRequestRef.current?.payload !== payload) {
+        reviewRequestRef.current = { id: crypto.randomUUID(), payload };
+      }
+      const submission = await submitReview(saved.display_id, saved.platform_state_token, saved.document_revision_id, reviewRequestRef.current.id);
+      reviewRequestRef.current = null;
+      setReviewState({
+        available: true,
+        state: "submitted",
+        locked: true,
+        current_submission_id: submission.submission_id,
+      });
       setRenditions(await listRenditions(saved.display_id));
     } catch (error) {
       setReviewError(error instanceof Error ? error.message : "The review rendition could not be captured.");
@@ -210,6 +206,22 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       setReviewing(false);
     }
   }, [entryId, isNew, isLockedByOther, workspace.save.save]);
+
+  const handleWithdrawReview = useCallback(async () => {
+    if (!entryId || reviewState?.state !== "submitted") return;
+    setReviewing(true);
+    setReviewError(null);
+    try {
+      if (!withdrawRequestRef.current) withdrawRequestRef.current = crypto.randomUUID();
+      await withdrawReview(entryId, withdrawRequestRef.current);
+      withdrawRequestRef.current = null;
+      setReviewState((state) => state ? { ...state, state: "authoring", locked: false, current_submission_id: null } : state);
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : "The submission could not be withdrawn.");
+    } finally {
+      setReviewing(false);
+    }
+  }, [entryId, reviewState?.state]);
 
   useEffect(() => {
     let cancelled = false;
@@ -264,11 +276,12 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   }, []);
 
   const handleAppendParagraph = useCallback(() => {
+    if (workspace.save.actionBusy) return;
     const editor = editorRef.current;
-    if (!editor) return;
+    if (!editor || editor.isDestroyed) return;
     editor.commands.insertContentAt(editor.state.doc.content.size, { type: "paragraph" });
     editor.commands.focus("end");
-  }, []);
+  }, [workspace.save.actionBusy]);
 
   const editorBindings = useMemo(() => {
     const resolved = ModRegistry.getInstance().resolveSlot("eln.editor");
@@ -299,27 +312,55 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     );
   }, [workspace.editor.onUpdateContent]);
   const handleEditorCreate = useCallback((editor: Editor) => {
-    editorRef.current = editor;
-    handleEditorUpdate(editor);
+    if (!editor.isDestroyed) handleEditorUpdate(editor);
   }, [handleEditorUpdate]);
 
   const sendAction = useSendAction("eln");
 
+  const [editorGeneration, setEditorGeneration] = useState(0);
+  const committedActionRef = useRef(false);
+  const createdIdsRef = useRef(new Set<string>());
+  const synchronizingRef = useRef(false);
+  const synchronizeAction = useCallback(async () => {
+    if (synchronizingRef.current) return;
+    synchronizingRef.current = true;
+    try {
+      const saved = await get<NonNullable<typeof workspace.entry>>(`/eln/entries/${entryId}/`);
+      const displayContent = registrationBaselines(saved.content, createdIdsRef.current);
+      // Adopt the committed document through the same initial-content path as
+      // opening an entry. Never dispatch commands through a captured editor.
+      workspace.save.finishAction({ ...saved, content: displayContent });
+      setEditorGeneration((generation) => generation + 1);
+      committedActionRef.current = false;
+      bus.emit("eln.entry.saved", { entryId });
+    } finally {
+      synchronizingRef.current = false;
+    }
+  }, [entryId, workspace.save.finishAction, bus]);
+
   const beforePortableAction = useCallback(async () => {
-    if (isNew || !entryId) throw new Error("Save this Notebook Entry before invoking an Action.");
-    const saved = await workspace.save.save();
+    if (!entryId) throw new Error("Save this Notebook Entry before invoking an Action.");
+    const saved = await workspace.save.beginAction();
     if (!saved?.platform_record_id || !saved.platform_state_token || !saved.document_group_id || !saved.document_revision_id
       || !saved.platform_record_revision_id || !saved.platform_schema_state) {
+      workspace.save.finishAction();
       throw new Error("The committed Platform document state is unavailable; the Action was not invoked.");
     }
     savedInvocationEntryRef.current = saved;
-  }, [isNew, entryId, workspace.save.save]);
+  }, [entryId, workspace.save.beginAction, workspace.save.finishAction]);
 
   const invokePortableAction = useCallback(async (request: ActionInvocationRequest) => {
-    const outcome = await invokeAction(request);
-    bus.emit("eln.entry.saved", { entryId: workspace.entry?.display_id ?? entryId });
-    return outcome;
-  }, [bus, workspace.entry?.display_id, entryId]);
+    try {
+      const outcome = await invokeAction(request);
+      createdIdsRef.current = new Set(Object.values(outcome.createdRecords ?? {}).map((record) => record.id));
+      committedActionRef.current = true;
+      await synchronizeAction();
+      return { ...outcome, documentAdopted: true };
+    } catch (error) {
+      if (!committedActionRef.current) workspace.save.finishAction();
+      throw error;
+    }
+  }, [synchronizeAction, workspace.save.finishAction]);
 
   const portableBlockHost: ElnPortableBlockHost = useMemo(() => ({
     actionDefinitions,
@@ -362,65 +403,79 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       });
     },
     buildInvocation: (block, stepId): ActionInvocationRequest => {
-      const saved = savedInvocationEntryRef.current;
-      if (!saved?.platform_record_id || !saved.platform_state_token || !saved.document_group_id || !saved.document_revision_id
-        || !saved.platform_record_revision_id || !saved.platform_schema_state) {
-        throw new Error("Save the document before invoking this Action.");
+      try {
+        const saved = savedInvocationEntryRef.current;
+        if (!saved?.platform_record_id || !saved.platform_state_token || !saved.document_group_id || !saved.document_revision_id
+          || !saved.platform_record_revision_id || !saved.platform_schema_state) {
+          throw new Error("Save the document before invoking this Action.");
+        }
+        const savedBlocks = collectPortableBlocks(decodeBlockContent(saved.content));
+        const savedBlock = savedBlocks.get(block.id);
+        if (!savedBlock) throw new Error("The Block is missing from the saved document.");
+        block = savedBlock;
+        const step = block.actionSequence?.steps.find((candidate) => candidate.id === stepId);
+        if (!step) throw new Error(`Action step '${stepId}' is no longer present in the saved Block.`);
+        const compatibleProviders = recordActionProviders.filter((provider) =>
+          provider.contract_id === step.action.id && provider.contract_version === step.action.version,
+        );
+        const selectedProviderId = selectedPortableProviders[`${block.id}.${stepId}`];
+        const selectedProvider = compatibleProviders.find((provider) => provider.id === selectedProviderId) ?? compatibleProviders[0];
+        const context = resolvePortableActionContext(block, stepId, actionDefinitions, {
+          available: !!selectedProvider,
+        }, {
+          record: (source) => recordInputValues[JSON.stringify(source.reference)],
+          block: (source) => {
+            const target = savedBlocks.get(source.blockId);
+            if (!target?.content) return undefined;
+            return source.path.length === 0
+              ? target.content
+              : getTypedPath(target.content.value, source.path);
+          },
+        });
+        if (!context.available) throw new Error(context.reason ?? "This exact Action is unavailable.");
+        const targets = Object.keys(step.targets);
+        if (targets.length !== 1 || targets[0] !== "record") {
+          throw new Error("This ELN host can invoke Actions with one Platform record target.");
+        }
+        const unwrap = (ports: Readonly<Record<string, { value?: unknown }>>) => Object.fromEntries(
+          Object.entries(ports).map(([name, port]) => {
+            if (port.value === undefined) throw new Error(`Action input or parameter '${name}' is unresolved.`);
+            return [name, port.value];
+          }),
+        );
+        return {
+          invocationId: crypto.randomUUID(),
+          sequenceFingerprint: block.actionSequence!.fingerprint,
+          sequenceDeclaration: block.actionSequence as unknown as Readonly<Record<string, unknown>>,
+          inputs: unwrap(context.inputs),
+          parameters: unwrap(context.parameters),
+          targets: { record: saved.platform_record_id },
+          expectedState: { record: {
+            stateToken: saved.platform_state_token,
+            revisionId: saved.platform_record_revision_id,
+            schemaState: saved.platform_schema_state,
+            documentGroupId: saved.document_group_id,
+            documentRevisionId: saved.document_revision_id,
+          } },
+          providers: { action: selectedProvider!.id },
+        };
+      } catch (error) {
+        workspace.save.finishAction();
+        throw error;
       }
-      const step = block.actionSequence?.steps.find((candidate) => candidate.id === stepId);
-      if (!step) throw new Error(`Action step '${stepId}' is no longer present in the saved Block.`);
-      const compatibleProviders = recordActionProviders.filter((provider) =>
-        provider.contract_id === step.action.id && provider.contract_version === step.action.version,
-      );
-      const selectedProviderId = selectedPortableProviders[`${block.id}.${stepId}`];
-      const selectedProvider = compatibleProviders.find((provider) => provider.id === selectedProviderId) ?? compatibleProviders[0];
-      const context = resolvePortableActionContext(block, stepId, actionDefinitions, {
-        available: !!selectedProvider,
-      }, {
-        record: (source) => recordInputValues[JSON.stringify(source.reference)],
-        block: (source) => {
-          const target = portableBlocks.get(source.blockId);
-          if (!target?.content) return undefined;
-          return source.path.length === 0
-            ? target.content
-            : getTypedPath(target.content.value, source.path);
-        },
-      });
-      if (!context.available) throw new Error(context.reason ?? "This exact Action is unavailable.");
-      const targets = Object.keys(step.targets);
-      if (targets.length !== 1 || targets[0] !== "record") {
-        throw new Error("This ELN host can invoke Actions with one Platform record target.");
-      }
-      const unwrap = (ports: Readonly<Record<string, { value?: unknown }>>) => Object.fromEntries(
-        Object.entries(ports).map(([name, port]) => {
-          if (port.value === undefined) throw new Error(`Action input or parameter '${name}' is unresolved.`);
-          return [name, port.value];
-        }),
-      );
-      return {
-        invocationId: crypto.randomUUID(),
-        sequenceFingerprint: block.actionSequence!.fingerprint,
-        sequenceDeclaration: block.actionSequence as unknown as Readonly<Record<string, unknown>>,
-        inputs: unwrap(context.inputs),
-        parameters: unwrap(context.parameters),
-        targets: { record: saved.platform_record_id },
-        expectedState: { record: {
-          stateToken: saved.platform_state_token,
-          revisionId: saved.platform_record_revision_id,
-          schemaState: saved.platform_schema_state,
-          documentGroupId: saved.document_group_id,
-          documentRevisionId: saved.document_revision_id,
-        } },
-        providers: { action: selectedProvider!.id },
-      };
     },
     beforeInvoke: beforePortableAction,
     invokeAction: invokePortableAction,
     invokeStep: async (block, stepId) => {
       await beforePortableAction();
-      return invokePortableAction(portableBlockHost.buildInvocation(block, stepId));
+      try {
+        return await invokePortableAction(portableBlockHost.buildInvocation(block, stepId));
+      } catch (error) {
+        if (!committedActionRef.current) workspace.save.finishAction();
+        throw error;
+      }
     },
-  }), [actionDefinitions, recordActionProviders, selectedPortableProviders, recordInputValues, portableBlocks, beforePortableAction, invokePortableAction]);
+  }), [actionDefinitions, recordActionProviders, selectedPortableProviders, recordInputValues, portableBlocks, beforePortableAction, invokePortableAction, workspace.save.finishAction]);
 
   const { actions } = useActivity(entryId);
   const recentEditors = getRecentEditors(actions);
@@ -448,7 +503,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     () => ({
       workspaceId: "eln",
       user: null,
-      viewMode: "edit",
+      viewMode: workspace.save.actionBusy ? "view" : "edit",
       entryId,
       displayId: entryDisplayId,
       actions: ModRegistry.getInstance().getActions("eln"),
@@ -460,8 +515,8 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
          folderId: contextFolderId,
         projectId,
         isLockedByOther,
-        onStatusChange: setStatus,
-        onFolderChange: setFolderId,
+        onStatusChange: (value) => { if (!workspace.save.actionBusy) setStatus(value); },
+        onFolderChange: (value) => { if (!workspace.save.actionBusy) setFolderId(value); },
         resolutionMap,
         mentions: workspace.entry?.mentions ?? [],
         navigate: (path: string) => navigate(path),
@@ -471,7 +526,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       entryId, entryDisplayId, workspace.entry, lastEditor, status,
        folders, folderId, contextFolderId, projectId, isLockedByOther,
        setStatus, setFolderId,
-      resolutionMap, navigate,
+      resolutionMap, navigate, workspace.save.actionBusy,
     ],
   );
 
@@ -492,8 +547,9 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   }, [lastSavedAt, workspace.entry?.display_id, entryId, bus]);
 
   const handleSave = useCallback(() => {
-    save(isNew ? pendingTagIds : undefined);
-  }, [save, isNew, pendingTagIds]);
+    if (workspace.save.actionBusy) return;
+    void save(isNew ? pendingTagIds : undefined).catch(() => {});
+  }, [save, isNew, pendingTagIds, workspace.save.actionBusy]);
 
   const headerActions = (
     <SlotRenderer
@@ -504,9 +560,12 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
   );
 
   const editorElement = (
+    <>
     <ElnPortableBlockHostContext.Provider value={portableBlockHost}>
+    <fieldset disabled={workspace.save.actionBusy || reviewState?.locked === true} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
     <TipTapRenderer
-      key={entryId ?? "new"}
+      key={`${entryId ?? "new"}:${editorGeneration}`}
+      editorRef={editorRef}
       slotId="eln.editor"
       bindings={editorBindings}
       bus={bus}
@@ -515,13 +574,16 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       extensions={editorExtensions}
       onCreate={handleEditorCreate}
       onUpdate={handleEditorUpdate}
-      editable={workspace.editor.editable}
+      editable={workspace.editor.editable && reviewState?.locked !== true}
       saveSignal={workspace.editor.saveSignal}
       targetId={workspace.editor.targetId}
       onFlushActions={sendAction}
       hasPendingRef={workspace.editor.hasPendingRef}
     />
+    </fieldset>
     </ElnPortableBlockHostContext.Provider>
+    {!isNew && entryDisplayId && <ReviewThreadsPanel displayId={entryDisplayId} reviewState={reviewState} editor={editorRef.current} onReviewStateChanged={setReviewState} save={workspace.save.save} />}
+    </>
   );
 
   const sidebarElement = (
@@ -540,26 +602,29 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       isNew={isNew}
       entryDisplayId={entryDisplayId}
       entry={workspace.entry}
+      discussionRecordId={workspace.entry?.platform_record_id}
     projectUid={searchParams.get("project")}
     folderPath={folderPath}
     sourcePath={workspace.entry?.source_path}
       title={title}
-      onTitleChange={setTitle}
+      onTitleChange={(value) => { if (!workspace.save.actionBusy) setTitle(value); }}
       description={description}
-      onDescriptionChange={setDescription}
+      onDescriptionChange={(value) => { if (!workspace.save.actionBusy) setDescription(value); }}
       isLockedByOther={isLockedByOther}
       lockHeldBy={lockHeldBy}
       saveStatus={saveStatus}
       queueLength={queueLength}
       onSave={handleSave}
       onReview={() => { void handleReview(); }}
+      onWithdrawReview={() => { void handleWithdrawReview(); }}
+      reviewState={reviewState}
       reviewing={reviewing}
       reviewError={reviewError}
       renditions={renditions}
       onDelete={deleteEntry}
       tags={tags}
-      onAddTag={addTag}
-      onRemoveTag={removeTag}
+      onAddTag={(tag) => { if (!workspace.save.actionBusy) void addTag(tag); }}
+      onRemoveTag={(id) => { if (!workspace.save.actionBusy) void removeTag(id); }}
       recentEditors={recentEditors}
       headerActions={headerActions}
       editor={editorElement}

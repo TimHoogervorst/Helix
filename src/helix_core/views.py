@@ -757,7 +757,7 @@ class PlatformRecordCollectionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from bundled.access.access.policies import role
+        from bundled.access.access.policies import effective_role
         from helix_core.models import PlatformRecord
 
         rows = PlatformRecord.objects.select_related("schema", "project").order_by("-created_at", "-pk")
@@ -767,7 +767,7 @@ class PlatformRecordCollectionView(APIView):
             rows = rows.filter(schema_id=request.query_params["schema_id"])
         if request.query_params.get("project_id"):
             rows = rows.filter(project_id=request.query_params["project_id"])
-        rows = [row for row in rows if role(request.user, row.project) in {"read", "edit"}]
+        rows = [row for row in rows if effective_role(request.user, row) is not None]
         from helix_core.record_persistence import _record_response
         page, page_size = _record_page_params(request)
         count = len(rows)
@@ -844,7 +844,7 @@ class PlatformRecordDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get_record(self, request, record_id):
-        from bundled.access.access.policies import role
+        from bundled.access.access.policies import effective_role
         from helix_core.models import PlatformRecord
         from rest_framework.exceptions import NotFound, PermissionDenied
 
@@ -852,7 +852,7 @@ class PlatformRecordDetailView(APIView):
             record = PlatformRecord.objects.select_related("schema__schema_type", "project").get(pk=record_id)
         except (PlatformRecord.DoesNotExist, ValueError):
             raise NotFound("Record not found.")
-        if role(request.user, record.project) not in {"read", "edit"}:
+        if effective_role(request.user, record) is None:
             raise PermissionDenied("You do not have permission to read this record.")
         return record
 
@@ -958,6 +958,17 @@ class PlatformRecordDetailView(APIView):
             request_hash=fingerprint,
         )
         return Response(response)
+
+
+class ReviewTargetHistoryView(APIView):
+    """Platform resource-aware read of retained review history."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, target_id):
+        from helix_core.public import review_target_history
+
+        return Response(review_target_history(target_id=target_id, actor=request.user))
 
 
 class PlatformRecordAttachmentDownloadView(PlatformRecordDetailView):

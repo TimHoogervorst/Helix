@@ -9,6 +9,133 @@ from helix_core.public import (
 )
 
 
+def validate_review_anchor(*, anchor, manifest):
+    """Validate annotation coordinates against the retained TipTap document."""
+    if anchor.get("group_key") != "document":
+        return False
+    document = manifest.get("groups", {}).get("document", {}).get("snapshot", {}).get("document")
+    kind = anchor.get("kind")
+
+    def text_content(node):
+        if not isinstance(node, dict):
+            return ""
+        if node.get("type") == "text":
+            return node.get("text", "")
+        return "".join(text_content(child) for child in node.get("content", []) if isinstance(child, dict))
+
+    if kind == "document":
+        return isinstance(document, dict)
+    if kind == "text":
+        start, end, selected = anchor.get("from"), anchor.get("to"), anchor.get("text")
+        whole_text = text_content(document)
+        return isinstance(start, int) and isinstance(end, int) and 0 < start < end and isinstance(selected, str) and bool(selected.strip()) and selected in whole_text
+    if kind == "block":
+        path = anchor.get("block_path")
+        if not isinstance(path, list) or not path:
+            return False
+        node = document
+        try:
+            for index in path:
+                node = node["content"][index]
+        except (KeyError, IndexError, TypeError):
+            return False
+        return isinstance(node, dict) and text_content(node) == anchor.get("text", text_content(node))
+    return False
+
+
+
+def validate_review_suggestion(*, anchor, manifest, require_unique=True):
+    """Permit replacement ranges wholly within one prose paragraph or heading."""
+    document = manifest.get("groups", {}).get("document", {}).get("snapshot", {}).get("document")
+    if not isinstance(document, dict) or anchor.get("kind") != "text":
+        return False
+    start, end, expected = anchor.get("from"), anchor.get("to"), anchor.get("text")
+    if not isinstance(start, int) or not isinstance(end, int) or start >= end or not isinstance(expected, str):
+        return False
+
+    def size(node):
+        if node.get("type") == "text":
+            return len(node.get("text", ""))
+        content = node.get("content")
+        if isinstance(content, list) or node.get("type") in {"doc", "paragraph", "heading", "listItem"}:
+            return 2 + sum(size(child) for child in content or [] if isinstance(child, dict))
+        return 1
+
+    eligible = []
+    candidate_texts = []
+    def visit(node, pos, parent_type):
+        kind = node.get("type")
+        if kind in {"paragraph", "heading"} and (parent_type == "doc" or (kind == "paragraph" and parent_type == "listItem")):
+            candidate_texts.append("".join(child.get("text", "") for child in node.get("content", []) if isinstance(child, dict) and child.get("type") == "text"))
+            content_start = pos + 1
+            content_end = pos + size(node) - 1
+            if start >= content_start and end <= content_end:
+                cursor = content_start
+                pieces = []
+                valid = True
+                for child in node.get("content", []):
+                    child_size = size(child)
+                    left, right = max(start, cursor), min(end, cursor + child_size)
+                    if left < right:
+                        if child.get("type") != "text":
+                            valid = False
+                            break
+                        value = child.get("text", "")
+                        pieces.append(value[left - cursor:right - cursor])
+                    cursor += child_size
+                if valid and "".join(pieces) == expected:
+                    eligible.append((start, end))
+        cursor = pos + 1
+        for child in node.get("content", []):
+            visit(child, cursor, kind)
+            cursor += size(child)
+
+    visit(document, 0, None)
+    occurrences = sum(text.count(expected) for text in candidate_texts)
+    return len(eligible) == 1 and (not require_unique or occurrences == 1)
+
+
+def locate_review_suggestion(*, anchor, manifest):
+    """Find exact occurrences in eligible text blocks and return ProseMirror ranges."""
+    document = manifest.get("groups", {}).get("document", {}).get("snapshot", {}).get("document")
+    expected = anchor.get("text")
+    if not isinstance(document, dict) or not isinstance(expected, str) or not expected:
+        return []
+
+    def size(node):
+        if node.get("type") == "text":
+            return len(node.get("text", ""))
+        content = node.get("content")
+        if isinstance(content, list) or node.get("type") in {"doc", "paragraph", "heading", "listItem"}:
+            return 2 + sum(size(child) for child in content or [] if isinstance(child, dict))
+        return 1
+
+    ranges = []
+    def visit(node, pos, parent_type):
+        kind = node.get("type")
+        eligible = kind in {"paragraph", "heading"} and (parent_type == "doc" or (kind == "paragraph" and parent_type == "listItem"))
+        if eligible:
+            cursor = pos + 1
+            chars = []
+            for child in node.get("content", []):
+                if child.get("type") == "text":
+                    chars.extend((char, cursor + index) for index, char in enumerate(child.get("text", "")))
+                cursor += size(child)
+            text = "".join(char for char, _ in chars)
+            offset = text.find(expected)
+            while offset >= 0:
+                first, last = chars[offset][1], chars[offset + len(expected) - 1][1] + 1
+                if last - first == len(expected):
+                    ranges.append((first, last))
+                offset = text.find(expected, offset + 1)
+        cursor = pos + 1
+        for child in node.get("content", []):
+            visit(child, cursor, kind)
+            cursor += size(child)
+
+    visit(document, 0, None)
+    return ranges
+
 class TiptapContentColumnType(ColumnType):
     """Column type for TipTap rich-text content stored as JSON.
 
@@ -49,6 +176,7 @@ def register(mod):
     """Called by ModLoader after topological sort. Populates the backend registry."""
     from mods.eln.cascade import update_status_from_source
     from mods.eln.models import NotebookEntry
+    from mods.eln.renditions import PRESENTATION_VERSION, capture_external_evidence, render_review_manifest
     from mods.eln.serializers import NotebookEntrySerializer
     from mods.eln.views import NotebookEntryViewSet
     from helix_core.public import visible_rows_q
@@ -68,6 +196,19 @@ def register(mod):
             "created": "eln.entry.created",
             "edited": "eln.entry.edited",
         },
+    )
+    mod.register_review_target(
+        "review-target",
+        entry,
+        revision_groups=["document"],
+        renderer=render_review_manifest,
+        renderer_version=PRESENTATION_VERSION,
+        evidence_capture=capture_external_evidence,
+        annotation_capabilities=["narrative-text", "whole-block", "document"],
+        anchor_validator=validate_review_anchor,
+        suggestion_validator=validate_review_suggestion,
+        suggestion_locator=locate_review_suggestion,
+        operation_effects={"edit_entry": ["document"]},
     )
     mod.register_source_kind(
         "entry",

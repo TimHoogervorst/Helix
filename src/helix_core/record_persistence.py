@@ -157,11 +157,16 @@ def delete_platform_record(record, *, actor=None, source=None):
     from helix_core.models import ActionLogEntry, ActionParticipant, RecordRevisionGroup
 
     locked = type(record).objects.select_for_update().get(pk=record.pk)
+    from helix_core.reviews import ensure_record_unlocked
+    ensure_record_unlocked(locked)
     revision_ids = [
         str(value)
         for value in locked.revision_groups.values_list("revisions__pk", flat=True).distinct()
         if value
     ]
+    rendition_attachment_ids = list(
+        locked.renditions.values_list("attachment_id", flat=True).distinct()
+    )
     action = ActionLogEntry.objects.create(
         performed_by=actor,
         action="helix.record.deleted",
@@ -187,7 +192,25 @@ def delete_platform_record(record, *, actor=None, source=None):
         group.delete()
     from django.db import models as django_models
     django_models.Model.delete(locked)
+    if rendition_attachment_ids:
+        transaction.on_commit(
+            lambda ids=tuple(rendition_attachment_ids): _delete_unreferenced_attachments(ids)
+        )
     return action
+
+
+def _delete_unreferenced_attachments(attachment_ids):
+    """Remove files owned only by a deleted record after its transaction commits."""
+    from django.core.files.storage import default_storage
+    from helix_core.models import PlatformAttachment
+
+    for attachment_id in attachment_ids:
+        with transaction.atomic():
+            attachment = PlatformAttachment.objects.select_for_update().filter(pk=attachment_id).first()
+            if attachment is None or attachment.revision_links.exists() or attachment.renditions.exists():
+                continue
+            default_storage.delete(attachment.storage_key)
+            attachment.delete()
 
 
 @transaction.atomic
@@ -198,6 +221,11 @@ def delete_source_entity(model, object_id, *, target_model_reference, actor=None
     entity = model.objects.select_for_update().filter(pk=object_id).first()
     if entity is None:
         return None
+
+    from helix_core.reviews import ensure_record_unlocked
+    review_record_id = getattr(entity, "platform_record_id", None)
+    if review_record_id:
+        ensure_record_unlocked(review_record_id)
 
     target_references = {target_model_reference}
     if target_model_reference == "helix.eln:entry":
@@ -377,6 +405,8 @@ def edit_record(
             raise NotFound("Record not found.")
         if effective_role(actor, record) != "edit":
             raise PermissionDenied("You do not have permission to edit this record.")
+        from helix_core.reviews import ensure_record_unlocked
+        ensure_record_unlocked(record)
         if str(record.state_token) != str(state_token):
             raise StateConflict()
 
@@ -398,6 +428,9 @@ def edit_record(
         record.last_editor = actor
         record.state_token = uuid4()
         record.save(update_fields=["field_values", "properties", "last_editor", "state_token", "updated_at"])
+        if values_changed or metadata_changed:
+            from helix_core.reviews import record_review_metadata_effect
+            record_review_metadata_effect(record=record, actor=actor)
 
         group = record.revision_groups.select_for_update(of=("self",)).select_related(
             "current_revision"
@@ -512,6 +545,8 @@ def save_revision_group(
             raise NotFound("Record not found.")
         if effective_role(actor, record) != "edit":
             raise PermissionDenied("You do not have permission to edit this record.")
+        from helix_core.reviews import ensure_record_unlocked
+        ensure_record_unlocked(record)
         if str(record.state_token) != str(state_token):
             raise StateConflict()
 
@@ -563,6 +598,14 @@ def save_revision_group(
                 record.name = record_name
                 update_fields.append("name")
             record.save(update_fields=update_fields)
+        from helix_core.reviews import record_review_content_effect
+        if changed or name_changed or action_type == "created":
+            record_review_content_effect(
+                record=record, actor=actor,
+                provider_mod_id=registration["owner_mod_id"],
+                group_key=group_key,
+                effect="created" if action_type == "created" else "edited",
+            )
         target_ref = target_model_reference
         target_id = target_object_id
         action_metadata = {
@@ -752,7 +795,7 @@ def _validate_contract_value(type_node, value, where, depth=0):
 def _require_current_read_access(actor, record):
     from bundled.access.access.policies import effective_role
 
-    if effective_role(actor, record) not in {"read", "edit"}:
+    if effective_role(actor, record) not in {"read", "review", "edit"}:
         raise PermissionDenied("You no longer have permission to access this Action outcome.")
 
 
@@ -861,7 +904,7 @@ def _resolve_record_source(actor, source, type_node, where):
         raise PermissionDenied("You do not have permission to use this Action input.")
     target = PlatformRecord.objects.select_for_update(of=("self",)).select_related("schema__schema_type").get(pk=target.pk)
     _lock_record_access_rows(actor, target)
-    if effective_role(actor, target) not in {"read", "edit"}:
+    if effective_role(actor, target) not in {"read", "review", "edit"}:
         raise PermissionDenied("You do not have permission to use this Action input.")
 
     groups = target.revision_groups.select_for_update().filter(group_key="record")
@@ -1091,6 +1134,8 @@ def _execute_action_invocation_body(
 
     if effective_role(actor, record) != "edit":
         raise PermissionDenied("You do not have permission to execute an Action on this record.")
+    from helix_core.reviews import ensure_record_unlocked
+    ensure_record_unlocked(record)
     revision_group = record.revision_groups.select_for_update(of=("self",)).select_related(
         "current_revision"
     ).get(group_key="record")
@@ -2087,7 +2132,7 @@ def _authorize_invocation_replay(actor, receipt):
                 project = Project.objects.get(pk=project_id)
             except (Project.DoesNotExist, ValueError, TypeError):
                 raise PermissionDenied("The Action outcome lacks authorization context for a deleted participant.")
-            if role(actor, project) not in {"read", "edit"}:
+            if role(actor, project) not in {"read", "review", "edit"}:
                 raise PermissionDenied("You no longer have permission to access this Action outcome.")
             unavailable.add(record_id)
             continue

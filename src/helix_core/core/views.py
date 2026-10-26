@@ -79,6 +79,7 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 )
         super().perform_create(serializer)
 
+    @transaction.atomic
     def perform_update(self, serializer):
         from bundled.access.access.policies import destination_within_shared_subtree, effective_role
         from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -92,6 +93,9 @@ class FolderViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         if "parent" in serializer.validated_data:
             new_parent = serializer.validated_data["parent"]
+            if instance.source != (new_parent or instance.project):
+                from helix_core.reviews import ensure_source_subtree_unlocked
+                ensure_source_subtree_unlocked(instance)
             if new_parent is not None and new_parent.project_id != instance.project_id:
                 raise ValidationError(
                     {"parent": "Folders cannot be moved to a different Project."}

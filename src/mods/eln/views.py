@@ -254,6 +254,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             raise PermissionDenied(
                 "You do not have permission to delete this entry."
             )
+        if instance.platform_record_id:
+            from helix_core.public import ensure_record_unlocked
+            ensure_record_unlocked(instance.platform_record_id)
         with transaction.atomic():
             delete_source_descendants(instance, actor=self.request.user)
             if instance.platform_record_id:
@@ -433,13 +436,155 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             PlatformAttachment.objects.filter(pk=uploaded.pk, status="staged").delete()
             raise
 
+    @action(detail=True, methods=["post"], url_path="review/submit")
+    def submit_review(self, request, display_id=None):
+        """Submit the exact saved ELN state through Platform's review contract."""
+        from helix_core.public import submit_review_target
+        from helix_core.public import effective_role
+        from helix_core.public import StateConflict
+
+        entry = self.get_object()
+        if effective_role(request.user, entry) != "edit":
+            raise PermissionDenied("You do not have permission to submit this entry for review.")
+        record = entry.platform_record
+        if record is None:
+            raise StateConflict("Save the document before submitting it for review.")
+        state_token = request.data.get("state_token")
+        revision_id = request.data.get("revision_id")
+        if not state_token or not revision_id:
+            raise DRFValidationError({"review": "state_token and revision_id are required."})
+        group = record.revision_groups.filter(group_key="document").select_related("current_revision").first()
+        if (
+            group is None or group.current_revision_id is None
+            or str(group.current_revision_id) != str(revision_id)
+            or str(record.state_token) != str(state_token)
+            or group.current_revision.snapshot.get("document") != entry.content
+        ):
+            raise StateConflict("Submission requires the exact current saved ELN document Revision.")
+        result = submit_review_target(
+            record_id=record.pk,
+            target_identity="helix.eln:review-target",
+            actor=request.user,
+            expected_state_token=state_token,
+            expected_groups={"document": str(revision_id)},
+            request_id=request.data.get("request_id"),
+        )
+        result["download_url"] = (
+            f"/api/records/{record.pk}/attachments/{result['attachment_id']}/content/"
+            f"?revision_id={revision_id}"
+        )
+        return Response(result, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="review/withdraw")
+    def withdraw_review(self, request, display_id=None):
+        """Explicitly return the submitted entry to authoring, retaining its round."""
+        from helix_core.public import withdraw_review_submission
+
+        entry = self.get_object()
+        if entry.platform_record_id is None:
+            raise DRFValidationError({"review": "This entry has no Platform review target."})
+        return Response(withdraw_review_submission(
+            record_id=entry.platform_record_id,
+            actor=request.user,
+            request_id=request.data.get("request_id"),
+        ))
+
+    @action(detail=True, methods=["get"], url_path="review/status")
+    def review_status(self, request, display_id=None):
+        from helix_core.public import review_target_state, effective_role
+
+        entry = self.get_object()
+        if effective_role(request.user, entry) not in {"read", "review", "edit"}:
+            raise PermissionDenied("You do not have permission to read review history.")
+        if entry.platform_record_id is None:
+            return Response({"available": False, "reason": "Save the document before review."})
+        return Response(review_target_state(record_id=entry.platform_record_id, actor=request.user))
+
+    @action(detail=True, methods=["get", "post"], url_path="review/threads")
+    def review_threads(self, request, display_id=None):
+        from helix_core.review_threads import review_threads, create_review_thread
+        entry = self.get_object()
+        if request.method == "GET":
+            return Response(review_threads(entry, request.user))
+        return Response(create_review_thread(
+            entry, request.user,
+            submission_id=request.data.get("submission_id"),
+            anchor=request.data.get("anchor"), body=request.data.get("body"),
+            discussion_id=request.data.get("discussion_id"), suggestion=request.data.get("suggestion"),
+        ), status=201)
+
+    @action(detail=True, methods=["post"], url_path="review/participate")
+    def start_review_participation(self, request, display_id=None):
+        from helix_core.review_threads import start_participation
+        return Response(start_participation(self.get_object(), request.user), status=201)
+
+    @action(detail=True, methods=["post"], url_path="review/assess")
+    def assess_review(self, request, display_id=None):
+        if request.data.get("outcome") == "approve":
+            from helix_core.public import approve_review_target
+            entry = self.get_object()
+            if entry.platform_record_id is None:
+                raise DRFValidationError({"review": "This entry has no Platform review target."})
+            return Response(approve_review_target(
+                record_id=entry.platform_record_id, actor=request.user,
+                assessment=request.data.get("assessment"), request_id=request.data.get("request_id"),
+            ))
+        if request.data.get("outcome") == "finish_review":
+            from helix_core.public import finish_review_participation
+            entry = self.get_object()
+            if entry.platform_record_id is None:
+                raise DRFValidationError({"review": "This entry has no Platform review target."})
+            return Response(finish_review_participation(
+                entry=entry, actor=request.user, assessment=request.data.get("assessment"),
+            ))
+        from helix_core.review_threads import assess_review
+        return Response(assess_review(
+            self.get_object(), request.user,
+            assessment=request.data.get("assessment"), outcome=request.data.get("outcome"),
+        ))
+
+    @action(detail=True, methods=["post"], url_path="review/reopen")
+    def reopen_review(self, request, display_id=None):
+        from helix_core.public import reopen_review_target
+        entry = self.get_object()
+        if entry.platform_record_id is None:
+            raise DRFValidationError({"review": "This entry has no Platform review target."})
+        return Response(reopen_review_target(
+            record_id=entry.platform_record_id, actor=request.user,
+            reason=request.data.get("reason"),
+        ))
+
+    @action(detail=True, methods=["post"], url_path=r"review/threads/(?P<thread_id>[^/.]+)/(?P<thread_action>address|resolve|withdraw|reopen)")
+    def change_review_thread(self, request, display_id=None, thread_id=None, thread_action=None):
+        from helix_core.review_threads import change_thread
+        return Response(change_thread(self.get_object(), request.user, thread_id, thread_action))
+
+    @action(detail=True, methods=["post"], url_path=r"review/threads/(?P<thread_id>[^/.]+)/suggestion/(?P<suggestion_action>apply|reject)")
+    def review_suggestion_action(self, request, display_id=None, thread_id=None, suggestion_action=None):
+        from helix_core.review_threads import dispose_suggestion
+        return Response(dispose_suggestion(
+            self.get_object(), request.user, thread_id, action=suggestion_action,
+            result_revision_id=request.data.get("result_revision_id"), source_revision_id=request.data.get("source_revision_id"), result_from=request.data.get("result_from"),
+        ))
+
+    @action(detail=True, methods=["post"], url_path=r"review/threads/(?P<thread_id>[^/.]+)/messages")
+    def reply_review_thread(self, request, display_id=None, thread_id=None):
+        from helix_core.review_threads import reply_to_thread
+        return Response(reply_to_thread(self.get_object(), request.user, thread_id, body=request.data.get("body"), parent_id=request.data.get("parent_id")), status=201)
+
+    @action(detail=True, methods=["patch", "delete"], url_path=r"review/threads/(?P<thread_id>[^/.]+)/messages/(?P<message_id>[^/.]+)")
+    def change_review_thread_message(self, request, display_id=None, thread_id=None, message_id=None):
+        from helix_core.review_threads import change_thread_message
+        action_name = "amend" if request.method == "PATCH" else "retract"
+        return Response(change_thread_message(self.get_object(), request.user, thread_id, message_id, action=action_name, body=request.data.get("body")))
+
     @action(detail=True, methods=["get"], url_path="renditions")
     def renditions(self, request, display_id=None):
         """List immutable captures while applying the entry's current access policy."""
         from helix_core.public import effective_role
 
         entry = self.get_object()
-        if effective_role(request.user, entry) not in {"read", "edit"}:
+        if effective_role(request.user, entry) not in {"read", "review", "edit"}:
             raise PermissionDenied("You do not have permission to read this entry's history.")
         results = []
         from helix_core.public import list_renditions
@@ -482,6 +627,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             raise PermissionDenied(
                 "You do not have permission to edit this entry."
             )
+        if instance.platform_record_id:
+            from helix_core.public import ensure_record_unlocked
+            ensure_record_unlocked(instance.platform_record_id)
 
         # ── Cross-Project move rejection ───────────────────────────────────
         if "source_type" in validated_data or "source_id" in validated_data:
@@ -507,6 +655,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                 raise DRFValidationError(
                     {"source": "You do not have permission to move the entry here."}
                 )
+            if instance.source != new_source:
+                from helix_core.public import ensure_source_subtree_unlocked
+                ensure_source_subtree_unlocked(instance)
             instance.set_source(new_source)
 
         # Resolve the authoritative document from its Platform Revision Group.
@@ -634,6 +785,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             raise PermissionDenied(
                 "You do not have permission to edit this entry."
             )
+        if entry.platform_record_id:
+            from helix_core.public import ensure_record_unlocked
+            ensure_record_unlocked(entry.platform_record_id)
         tag_ids = request.data.get("tag_ids", [])
         if not isinstance(tag_ids, list):
             return Response(
@@ -657,6 +811,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             raise PermissionDenied(
                 "You do not have permission to edit this entry."
             )
+        if entry.platform_record_id:
+            from helix_core.public import ensure_record_unlocked
+            ensure_record_unlocked(entry.platform_record_id)
         try:
             tag = Tag.objects.get(id=tag_id)
         except Tag.DoesNotExist:
@@ -844,6 +1001,9 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             raise PermissionDenied(
                 "You do not have permission to lock this entry."
             )
+        if entry.platform_record_id:
+            from helix_core.public import ensure_record_unlocked
+            ensure_record_unlocked(entry.platform_record_id)
 
         try:
             existing = entry.lock

@@ -186,6 +186,9 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
 
         def write_update():
             if "source_type" in serializer.validated_data or "source_id" in serializer.validated_data:
+                if instance.source != new_source:
+                    from helix_core.public import ensure_source_subtree_unlocked
+                    ensure_source_subtree_unlocked(instance)
                 instance.set_source(new_source)
             return serializer.save()
 
@@ -672,6 +675,9 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                     entity.properties = persisted_values
                     if result_source is not None:
                         try:
+                            if entity.source != result_source:
+                                from helix_core.public import ensure_source_subtree_unlocked
+                                ensure_source_subtree_unlocked(entity)
                             entity.set_source(result_source)
                             update_fields.extend([
                                 "source_type", "source_id", "source_path",
@@ -734,6 +740,8 @@ class EntityViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
                         author=author,
                     )
                     try:
+                        from helix_core.public import ensure_source_subtree_unlocked
+                        ensure_source_subtree_unlocked(entity)
                         entity.set_source(result_source or row_source)
                         entity.save()
                     except DjangoValidationError as exc:

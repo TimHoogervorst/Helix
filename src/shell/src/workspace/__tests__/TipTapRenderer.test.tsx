@@ -1958,3 +1958,51 @@ describe("TipTapRenderer", () => {
     });
   });
 });
+
+
+describe("live editor reference", () => {
+  it("clears the reference on unmount and publishes the replacement before commands run", async () => {
+    const editorRef: { current: Editor | null } = { current: null };
+    const bus = new WorkspaceBus();
+    const bindings = [makeBlockBinding()];
+    const props = { slotId: defaultSlotId, bus, bindings, context: defaultContext, editorRef, onCreate: (editor: Editor) => { editorRef.current = editor; } };
+    const first = render(<TipTapRenderer {...props} />);
+    await waitFor(() => expect(editorRef.current).not.toBeNull());
+    const previous = editorRef.current!;
+    first.unmount();
+    await waitFor(() => expect(previous.isDestroyed).toBe(true));
+    expect(() => editorRef.current?.commands).not.toThrow();
+    expect(editorRef.current).toBeNull();
+    render(<TipTapRenderer {...props} />);
+    expect(editorRef.current).not.toBeNull();
+    expect(editorRef.current).not.toBe(previous);
+    expect(() => editorRef.current!.commands.setContent({ type: "doc", content: [{ type: "paragraph" }] })).not.toThrow();
+  });
+});
+
+
+it("loads a committed registration on editor replacement without retaining draft rows", async () => {
+  const editorRef: { current: Editor | null } = { current: null };
+  const bus = new WorkspaceBus();
+  const binding = makeBlockBinding({ id: "helix.lims:registry-table", component: TestBlock });
+  const draft = { type: "doc", content: [{ type: binding.id, attrs: { content: JSON.stringify({
+    rows: [{ displayId: "#new-1", __name: "Sample 5", isRegistered: false }],
+  }) } }, { type: "paragraph" }] };
+  const saved = { type: "doc", content: [{ type: binding.id, attrs: { content: JSON.stringify({
+    rows: [{ displayId: "SAM3", __name: "Sample 5", recordId: "42faee80-c1d1-4f3c-bc27-34623f41ba6e",
+      values: { Description: "This is an Sample" }, isRegistered: true, registrationError: null }],
+  }) } }, { type: "paragraph" }] };
+  const props = { slotId: defaultSlotId, bus, bindings: [binding], context: defaultContext, editorRef };
+  const view = render(<TipTapRenderer key="draft" {...props} content={draft} />);
+  await waitFor(() => expect(editorRef.current).not.toBeNull());
+  const previous = editorRef.current!;
+  view.rerender(<TipTapRenderer key="committed" {...props} content={saved} />);
+  expect(editorRef.current).not.toBe(previous);
+  expect(editorRef.current!.getJSON()).toMatchObject(saved);
+  await act(async () => {
+    editorRef.current!.commands.insertContentAt(editorRef.current!.state.doc.content.size - 1, "More notes");
+  });
+  expect(JSON.stringify(editorRef.current!.getJSON())).toContain("SAM3");
+  expect(JSON.stringify(editorRef.current!.getJSON())).toContain("More notes");
+  expect(JSON.stringify(editorRef.current!.getJSON())).not.toContain("#new-1");
+});

@@ -19,6 +19,7 @@ import { useMentionContext } from "@helix/mod-api/host";
 import { useActivity } from "../hooks/useActivity";
 import { getRecentEditors } from "../activityHelpers";
 import ElnChrome from "./ElnChrome";
+import ReviewThreadsPanel from "../components/ReviewThreadsPanel";
 import { portableAttributeNodeTypes, preparePortableDocument, restorePortableDocument } from "../portableDocument";
 import { PortableNodeAttributes } from "../editor/portableBlockExtensions";
 import { ElnPortableBlockHostContext, type ElnPortableBlockHost } from "../editor/portableBlockExtensions";
@@ -580,6 +581,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     />
     </fieldset>
     </ElnPortableBlockHostContext.Provider>
+    {!isNew && entryDisplayId && <ReviewThreadsPanel displayId={entryDisplayId} reviewState={reviewState} editor={editorRef.current} />}
   );
 
   const sidebarElement = (

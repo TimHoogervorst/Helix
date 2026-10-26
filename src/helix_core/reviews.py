@@ -66,7 +66,7 @@ def review_target_state(record_id, *, actor):
         record = PlatformRecord.objects.select_related("project").get(pk=record_id)
     except (PlatformRecord.DoesNotExist, ValueError, TypeError):
         raise NotFound("Record not found.")
-    if effective_role(actor, record) not in {"read", "edit"}:
+    if effective_role(actor, record) not in {"read", "review", "edit"}:
         raise PermissionDenied("You do not have permission to read review history.")
     target = ReviewTarget.objects.filter(record=record).select_related("current_submission").first()
     if target is None:
@@ -242,6 +242,7 @@ def submit_review_target(
                 presentation_version=provider.renderer_version,
                 presentation_context={"format": "pdf", "manifest_version": 1},
             )
+            previous_submission = target.submissions.order_by("-round_number").first()
             submission = ReviewSubmission.objects.create(
                 target=target, round_number=target.submissions.count() + 1,
                 manifest=manifest,
@@ -249,6 +250,20 @@ def submit_review_target(
                 rendition=rendition, submitted_by=actor,
                 request_id=request_uuid, request_fingerprint=fingerprint,
             )
+            # Unresolved blockers follow the target into each fresh round, while
+            # retaining their original submission and anchor as immutable context.
+            from helix_core.models import ReviewThread
+            for blocker in ReviewThread.objects.filter(
+                target=target, submission=previous_submission,
+                state__in=(ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED),
+            ).select_related("requester").order_by("created_at"):
+                ReviewThread.objects.create(
+                    target=target, submission=submission, carried_from=blocker,
+                    requester=blocker.requester,
+                    requester_stable_id=blocker.requester_stable_id,
+                    requester_snapshot=deepcopy(blocker.requester_snapshot),
+                    anchor=deepcopy(blocker.anchor), state=blocker.state,
+                )
             target.state = ReviewTarget.State.SUBMITTED
             target.current_submission = submission
             target.save(update_fields=["state", "current_submission", "updated_at"])

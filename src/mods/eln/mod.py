@@ -9,6 +9,40 @@ from helix_core.public import (
 )
 
 
+def validate_review_anchor(*, anchor, manifest):
+    """Validate annotation coordinates against the retained TipTap document."""
+    if anchor.get("group_key") != "document":
+        return False
+    document = manifest.get("groups", {}).get("document", {}).get("snapshot", {}).get("document")
+    kind = anchor.get("kind")
+
+    def text_content(node):
+        if not isinstance(node, dict):
+            return ""
+        if node.get("type") == "text":
+            return node.get("text", "")
+        return "".join(text_content(child) for child in node.get("content", []) if isinstance(child, dict))
+
+    if kind == "document":
+        return isinstance(document, dict)
+    if kind == "text":
+        start, end, selected = anchor.get("from"), anchor.get("to"), anchor.get("text")
+        whole_text = text_content(document)
+        return isinstance(start, int) and isinstance(end, int) and 0 < start < end and isinstance(selected, str) and bool(selected.strip()) and selected in whole_text
+    if kind == "block":
+        path = anchor.get("block_path")
+        if not isinstance(path, list) or not path:
+            return False
+        node = document
+        try:
+            for index in path:
+                node = node["content"][index]
+        except (KeyError, IndexError, TypeError):
+            return False
+        return isinstance(node, dict) and text_content(node) == anchor.get("text", text_content(node))
+    return False
+
+
 class TiptapContentColumnType(ColumnType):
     """Column type for TipTap rich-text content stored as JSON.
 
@@ -77,7 +111,8 @@ def register(mod):
         renderer=render_review_manifest,
         renderer_version=PRESENTATION_VERSION,
         evidence_capture=capture_external_evidence,
-        annotation_capabilities=[],
+        annotation_capabilities=["narrative-text", "whole-block", "document"],
+        anchor_validator=validate_review_anchor,
         operation_effects={"edit_entry": ["document"]},
     )
     mod.register_source_kind(

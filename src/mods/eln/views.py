@@ -500,6 +500,48 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
             return Response({"available": False, "reason": "Save the document before review."})
         return Response(review_target_state(record_id=entry.platform_record_id, actor=request.user))
 
+    @action(detail=True, methods=["get", "post"], url_path="review/threads")
+    def review_threads(self, request, display_id=None):
+        from helix_core.review_threads import review_threads, create_review_thread
+        entry = self.get_object()
+        if request.method == "GET":
+            return Response(review_threads(entry, request.user))
+        return Response(create_review_thread(
+            entry, request.user,
+            submission_id=request.data.get("submission_id"),
+            anchor=request.data.get("anchor"), body=request.data.get("body"),
+            discussion_id=request.data.get("discussion_id"),
+        ), status=201)
+
+    @action(detail=True, methods=["post"], url_path="review/participate")
+    def start_review_participation(self, request, display_id=None):
+        from helix_core.review_threads import start_participation
+        return Response(start_participation(self.get_object(), request.user), status=201)
+
+    @action(detail=True, methods=["post"], url_path="review/assess")
+    def assess_review(self, request, display_id=None):
+        from helix_core.review_threads import assess_review
+        return Response(assess_review(
+            self.get_object(), request.user,
+            assessment=request.data.get("assessment"), outcome=request.data.get("outcome"),
+        ))
+
+    @action(detail=True, methods=["post"], url_path=r"review/threads/(?P<thread_id>[^/.]+)/(?P<thread_action>address|resolve|withdraw|reopen)")
+    def change_review_thread(self, request, display_id=None, thread_id=None, thread_action=None):
+        from helix_core.review_threads import change_thread
+        return Response(change_thread(self.get_object(), request.user, thread_id, thread_action))
+
+    @action(detail=True, methods=["post"], url_path=r"review/threads/(?P<thread_id>[^/.]+)/messages")
+    def reply_review_thread(self, request, display_id=None, thread_id=None):
+        from helix_core.review_threads import reply_to_thread
+        return Response(reply_to_thread(self.get_object(), request.user, thread_id, body=request.data.get("body"), parent_id=request.data.get("parent_id")), status=201)
+
+    @action(detail=True, methods=["patch", "delete"], url_path=r"review/threads/(?P<thread_id>[^/.]+)/messages/(?P<message_id>[^/.]+)")
+    def change_review_thread_message(self, request, display_id=None, thread_id=None, message_id=None):
+        from helix_core.review_threads import change_thread_message
+        action_name = "amend" if request.method == "PATCH" else "retract"
+        return Response(change_thread_message(self.get_object(), request.user, thread_id, message_id, action=action_name, body=request.data.get("body")))
+
     @action(detail=True, methods=["get"], url_path="renditions")
     def renditions(self, request, display_id=None):
         """List immutable captures while applying the entry's current access policy."""

@@ -69,6 +69,42 @@ export interface ReviewState {
   }>;
 }
 
+export interface ReviewThread {
+  id: string;
+  submission_id: string;
+  original_submission_id: string;
+  state: "open" | "addressed" | "resolved" | "withdrawn";
+  blocking: boolean;
+  anchor: Record<string, unknown>;
+  requester: { username?: string; displayName?: string };
+  requester_is_actor: boolean;
+  messages: Array<{ id: string; body: string; author: { username?: string; displayName?: string }; retracted: boolean }>;
+  can_resolve: boolean;
+  can_address: boolean;
+}
+export interface ReviewThreadsState {
+  participation: { id: string; submission_id: string; state: string; assessment: string } | null;
+  threads: ReviewThread[];
+}
+export function getReviewThreads(displayId: string): Promise<ReviewThreadsState> {
+  return get<ReviewThreadsState>(`/eln/entries/${displayId}/review/threads/`);
+}
+export function startReviewParticipation(displayId: string) {
+  return post<{ id: string; submission_id: string; state: string }>(`/eln/entries/${displayId}/review/participate/`, {});
+}
+export function addReviewThread(displayId: string, submissionId: string, anchor: Record<string, unknown>, body: string) {
+  return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/`, { submission_id: submissionId, anchor, body });
+}
+export function changeReviewThread(displayId: string, threadId: string, action: "address" | "resolve" | "withdraw" | "reopen") {
+  return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/${action}/`, {});
+}
+export function replyReviewThread(displayId: string, threadId: string, body: string) {
+  return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/messages/`, { body });
+}
+export function assessReview(displayId: string, assessment: string) {
+  return post(`/eln/entries/${displayId}/review/assess/`, { assessment, outcome: "request_changes" });
+}
+
 export function submitReview(
   displayId: string,
   stateToken: string,

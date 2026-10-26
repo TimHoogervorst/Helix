@@ -439,6 +439,7 @@ class ModRegistrar:
         annotation_capabilities: list[str] | None = None,
         anchor_validator: Callable[..., bool] | None = None,
         suggestion_validator: Callable[..., bool] | None = None,
+        suggestion_locator: Callable[..., list[tuple[int, int]]] | None = None,
         operation_effects: dict[str, list[str]] | None = None,
     ) -> str:
         """Opt a Mod target into Platform's fixed review lifecycle and guards."""
@@ -456,6 +457,7 @@ class ModRegistrar:
             annotation_capabilities=annotation_capabilities,
             anchor_validator=anchor_validator,
             suggestion_validator=suggestion_validator,
+            suggestion_locator=suggestion_locator,
             operation_effects=operation_effects,
             provider_mod_id=self.id,
         )

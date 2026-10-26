@@ -564,7 +564,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         from helix_core.review_threads import dispose_suggestion
         return Response(dispose_suggestion(
             self.get_object(), request.user, thread_id, action=suggestion_action,
-            result_revision_id=request.data.get("result_revision_id"), result_from=request.data.get("result_from"),
+            result_revision_id=request.data.get("result_revision_id"), source_revision_id=request.data.get("source_revision_id"), result_from=request.data.get("result_from"),
         ))
 
     @action(detail=True, methods=["post"], url_path=r"review/threads/(?P<thread_id>[^/.]+)/messages")

@@ -96,6 +96,8 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
   };
   const applySuggestion = (thread: ReviewThread) => void run(async () => {
     if (!editor) throw new Error("The document editor is unavailable.");
+    const source = await save();
+    if (!source?.document_revision_id) throw new Error("Save the current document before applying a suggestion.");
     const selected = String(thread.anchor.text ?? "");
     const replacement = thread.suggestion.replacement;
     if (!selected || !replacement) throw new Error("This replacement suggestion is incomplete.");
@@ -123,12 +125,10 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
     });
     if (matches.length !== 1) throw new Error(matches.length ? "The selected text is ambiguous in the current document." : "The selected text is stale. Refresh the document and review the suggestion.");
     const { from, to } = matches[0];
-    const overlaps = state.threads.some((other) => other.id !== thread.id && other.suggestion_disposition === "pending" && other.submission_id === thread.submission_id && typeof other.anchor.from === "number" && typeof other.anchor.to === "number" && Math.max(Number(thread.anchor.from), Number(other.anchor.from)) < Math.min(Number(thread.anchor.to), Number(other.anchor.to)));
-    if (overlaps) throw new Error("This replacement overlaps another pending suggestion.");
     editor.chain().focus().insertContentAt({ from, to }, replacement).run();
     const saved = await save();
     if (!saved?.document_revision_id) throw new Error("Save the replacement before recording it as applied.");
-    await disposeReviewSuggestion(displayId, thread.id, "apply", saved.document_revision_id, from);
+    await disposeReviewSuggestion(displayId, thread.id, "apply", saved.document_revision_id, from, source.document_revision_id);
   });
   if (!reviewState?.submissions?.length) return null;
   return <section aria-label="Submission review feedback" className="mx-auto my-6 w-full max-w-4xl border-t border-border px-6 py-5">
@@ -161,6 +161,7 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="font-medium">{name(thread.requester)} · {thread.state}</span>{thread.blocking && <span className="rounded bg-destructive/10 px-2 py-0.5 text-destructive">Blocks review</span>}</div>
         <p className="mt-1 text-xs text-muted-foreground">Original submission {thread.original_submission_id.slice(0, 8)} · {String(thread.anchor.kind)}{typeof thread.anchor.text === "string" && thread.anchor.text ? `: “${thread.anchor.text}”` : ""}</p>
         {thread.suggestion.replacement && <p className="mt-1 text-xs text-muted-foreground">Suggested replacement: “{thread.suggestion.replacement}” · {thread.suggestion_disposition}</p>}
+        {active && thread.suggestion_disposition === "pending" && thread.suggestion.replacement && <p className="mt-1 text-xs text-muted-foreground">Withdraw the submission to apply or reject this suggestion.</p>}
         {thread.anchor.kind === "text" && thread.anchor.submission_id === submissionId && editor && typeof thread.anchor.from === "number" && typeof thread.anchor.to === "number" && <button type="button" className="mt-1 text-xs text-primary underline" onClick={() => editor.chain().focus().setTextSelection({ from: thread.anchor.from as number, to: thread.anchor.to as number }).scrollIntoView().run()}>Show selected text</button>}
         <div className="mt-3 space-y-2">{thread.messages.map((message) => <p key={message.id} className="border-l-2 border-border pl-3 text-sm"><strong>{name(message.author)}:</strong> {message.retracted ? "Message retracted" : message.body}</p>)}</div>
         {thread.can_address && <button type="button" className="mt-2 text-xs text-primary underline" disabled={busy} onClick={() => void run(() => changeReviewThread(displayId, thread.id, "address"))}>Mark Addressed</button>}

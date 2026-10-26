@@ -200,7 +200,7 @@ def change_thread(entry, actor, thread_id, action):
 
 
 @transaction.atomic
-def dispose_suggestion(entry, actor, thread_id, *, action, result_revision_id=None, result_from=None):
+def dispose_suggestion(entry, actor, thread_id, *, action, result_revision_id=None, source_revision_id=None, result_from=None):
     """Record the editor's separate disposition of one proposed replacement."""
     record, role = _record_for_entry(entry, actor)
     if role != "edit":
@@ -224,6 +224,7 @@ def dispose_suggestion(entry, actor, thread_id, *, action, result_revision_id=No
     from helix_core.models import RecordRevisionGroup, ScientificRevision
     group = RecordRevisionGroup.objects.filter(record=record, group_key="document").select_related("current_revision").first()
     revision = get_object_or_404(ScientificRevision, pk=result_revision_id, group=group)
+    source_revision = get_object_or_404(ScientificRevision, pk=source_revision_id, group=group)
     if group is None or group.current_revision_id != revision.pk:
         raise ValidationError({"result_revision_id": "The applied suggestion must be the current saved Revision."})
     start, end = thread.anchor.get("from"), thread.anchor.get("to")
@@ -232,9 +233,15 @@ def dispose_suggestion(entry, actor, thread_id, *, action, result_revision_id=No
     applied_from = result_from if isinstance(result_from, int) else start
     resulting_anchor = {**thread.anchor, "from": applied_from, "to": applied_from + len(replacement), "text": replacement}
     resulting_manifest = {"groups": {"document": {"snapshot": revision.snapshot}}}
+    source_anchor = {**thread.anchor, "from": applied_from, "to": applied_from + len(thread.anchor.get("text", "")), "text": thread.anchor.get("text")}
+    source_manifest = {"groups": {"document": {"snapshot": source_revision.snapshot}}}
+    fresh_ranges = provider.suggestion_locator(anchor=source_anchor, manifest=source_manifest) if provider and provider.suggestion_locator else []
     if (
         not isinstance(start, int) or not isinstance(end, int)
         or provider is None or provider.suggestion_validator is None
+        or source_revision.sequence + 1 != revision.sequence
+        or fresh_ranges != [(applied_from, applied_from + len(thread.anchor.get("text", "")))]
+        or not provider.suggestion_validator(anchor=source_anchor, manifest=source_manifest)
         or not provider.suggestion_validator(anchor=resulting_anchor, manifest=resulting_manifest, require_unique=False)
     ):
         raise ValidationError({"suggestion": "The saved Revision no longer contains this exact replacement at the anchored text range."})
@@ -242,12 +249,15 @@ def dispose_suggestion(entry, actor, thread_id, *, action, result_revision_id=No
         target=target, submission=ReviewSubmission.objects.filter(target=target).order_by("-round_number").first(),
         suggestion_disposition="pending",
     ).exclude(pk=thread.pk)
-    if any(
-        other.suggestion.get("replacement")
-        and isinstance(other.anchor.get("from"), int) and isinstance(other.anchor.get("to"), int)
-        and max(start, other.anchor["from"]) < min(end, other.anchor["to"])
-        for other in pending
-    ):
+    overlaps = False
+    for other in pending:
+        if not other.suggestion.get("replacement"):
+            continue
+        other_ranges = provider.suggestion_locator(anchor=other.anchor, manifest=source_manifest) if provider.suggestion_locator else []
+        if len(other_ranges) == 1 and max(fresh_ranges[0][0], other_ranges[0][0]) < min(fresh_ranges[0][1], other_ranges[0][1]):
+            overlaps = True
+            break
+    if overlaps:
         raise ValidationError({"suggestion": "This replacement overlaps another pending suggestion."})
     thread.suggestion_disposition = "applied"
     thread.suggestion_actor_snapshot = user_attribution_snapshot(actor)

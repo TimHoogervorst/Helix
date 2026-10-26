@@ -73,6 +73,7 @@ class ReviewTargetProvider:
     annotation_capabilities: tuple[str, ...] = ()
     anchor_validator: Callable[..., bool] | None = None
     suggestion_validator: Callable[..., bool] | None = None
+    suggestion_locator: Callable[..., list[tuple[int, int]]] | None = None
     operation_effects: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
     provider_mod_id: str | None = None
 
@@ -235,6 +236,7 @@ class BackendModRegistry:
         evidence_capture: Callable[..., Mapping[str, Any]] | None = None,
         anchor_validator: Callable[..., bool] | None = None,
         suggestion_validator: Callable[..., bool] | None = None,
+        suggestion_locator: Callable[..., list[tuple[int, int]]] | None = None,
         operation_effects: Mapping[str, list[str]] | None = None,
         provider_mod_id: str | None = None,
     ) -> None:
@@ -252,6 +254,8 @@ class BackendModRegistry:
             raise TypeError("anchor_validator must be callable")
         if suggestion_validator is not None and not callable(suggestion_validator):
             raise TypeError("suggestion_validator must be callable")
+        if suggestion_locator is not None and not callable(suggestion_locator):
+            raise TypeError("suggestion_locator must be callable")
         effects = operation_effects or {}
         if not isinstance(effects, Mapping) or any(
             not isinstance(operation, str) or not operation
@@ -270,6 +274,7 @@ class BackendModRegistry:
             annotation_capabilities=tuple(dict.fromkeys(annotation_capabilities or [])),
             anchor_validator=anchor_validator,
             suggestion_validator=suggestion_validator,
+            suggestion_locator=suggestion_locator,
             operation_effects={key: tuple(value) for key, value in effects.items()},
             provider_mod_id=provider_mod_id,
         )

@@ -106,8 +106,8 @@ export function addReviewThread(displayId: string, submissionId: string, anchor:
 export function changeReviewThread(displayId: string, threadId: string, action: "address" | "resolve" | "withdraw" | "reopen") {
   return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/${action}/`, {});
 }
-export function disposeReviewSuggestion(displayId: string, threadId: string, action: "apply" | "reject", resultRevisionId?: string, resultFrom?: number) {
-  return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/suggestion/${action}/`, { result_revision_id: resultRevisionId, result_from: resultFrom });
+export function disposeReviewSuggestion(displayId: string, threadId: string, action: "apply" | "reject", resultRevisionId?: string, resultFrom?: number, sourceRevisionId?: string) {
+  return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/suggestion/${action}/`, { result_revision_id: resultRevisionId, result_from: resultFrom, source_revision_id: sourceRevisionId });
 }
 export function replyReviewThread(displayId: string, threadId: string, body: string) {
   return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/messages/`, { body });

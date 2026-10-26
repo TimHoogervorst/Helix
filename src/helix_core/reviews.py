@@ -80,6 +80,7 @@ def ensure_record_unlocked(record_or_id):
 def ensure_source_subtree_unlocked(root):
     """Reject Source moves that would relocate any actively reviewed record below root."""
     from django.contrib.contenttypes.models import ContentType
+    from helix_core.core.models import Folder
     from helix_core.mod_system.registry import registry
     from helix_core.models import PlatformRecord, ReviewTarget
     from helix_core.record_persistence import StateConflict
@@ -88,6 +89,8 @@ def ensure_source_subtree_unlocked(root):
                      if all(hasattr(model, field) for field in ("source_type_id", "source_id"))]
     if PlatformRecord not in source_models:
         source_models.append(PlatformRecord)
+    if Folder not in source_models:
+        source_models.append(Folder)
     model_types = {ContentType.objects.get_for_model(model, for_concrete_model=False).pk: model
                    for model in source_models}
     pending = [(ContentType.objects.get_for_model(root, for_concrete_model=False).pk, root.pk)]

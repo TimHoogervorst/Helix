@@ -356,7 +356,7 @@ def submit_review_target(
         upload.content_type = "application/pdf"
         attachment = upload_attachment(project=record.project, actor=actor, uploaded_file=upload)
     except Exception as exc:
-        raise ValidationError({"rendering": f"Submission evidence could not be captured and rendered faithfully: {exc}"}) from exc
+        raise ValidationError({"rendering": "Submission evidence could not be captured and rendered faithfully."}) from exc
 
     try:
         with transaction.atomic():

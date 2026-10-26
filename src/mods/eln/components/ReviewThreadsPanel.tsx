@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import {
-  addReviewThread, approveReview, assessReview, changeReviewThread, finishReview, getReviewState, getReviewThreads, reopenReview,
+  addReviewThread, approveReview, assessReview, changeReviewThread, finishReview, getReviewState, disposeReviewSuggestion, getReviewThreads, reopenReview,
   replyReviewThread, startReviewParticipation,
   type ReviewState, type ReviewThread, type ReviewThreadsState,
 } from "../api";
@@ -29,8 +29,8 @@ function forgetApprovalRequest(key: string, assessment: string) {
   } catch { try { sessionStorage.removeItem(key); } catch { /* Storage can be unavailable in restricted contexts. */ } }
 }
 
-export default function ReviewThreadsPanel({ displayId, reviewState, editor, onReviewStateChanged }: {
-  displayId: string; reviewState: ReviewState | null; editor: Editor | null;
+export default function ReviewThreadsPanel({ displayId, reviewState, editor, onReviewStateChanged, save }: {
+  displayId: string; reviewState: ReviewState | null; editor: Editor | null; save: () => Promise<{ document_revision_id?: string | null } | null>;
   onReviewStateChanged: (state: ReviewState) => void;
 }) {
   const [state, setState] = useState<ReviewThreadsState>({ participation: null, threads: [] });
@@ -94,6 +94,42 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
       onReviewStateChanged(await getReviewState(displayId));
     });
   };
+  const applySuggestion = (thread: ReviewThread) => void run(async () => {
+    if (!editor) throw new Error("The document editor is unavailable.");
+    const selected = String(thread.anchor.text ?? "");
+    const replacement = thread.suggestion.replacement;
+    if (!selected || !replacement) throw new Error("This replacement suggestion is incomplete.");
+    const matches: Array<{ from: number; to: number }> = [];
+    editor.state.doc.descendants((node, pos, parent) => {
+      if ((node.type.name !== "paragraph" && node.type.name !== "heading") || !parent || (parent.type.name !== "doc" && !(node.type.name === "paragraph" && parent.type.name === "listItem"))) return;
+      const content = node.textContent;
+      let offset = content.indexOf(selected);
+      while (offset >= 0) {
+        let remaining = offset;
+        let from: number | null = null;
+        let to: number | null = null;
+        node.forEach((child, childOffset) => {
+          if (!child.isText) return;
+          const start = Math.max(0, remaining);
+          const end = Math.min(child.text!.length, offset + selected.length - childOffset);
+          if (start < end) {
+            if (from === null) from = pos + 1 + childOffset + start;
+            to = pos + 1 + childOffset + end;
+          }
+        });
+        if (from !== null && to !== null) matches.push({ from, to });
+        offset = content.indexOf(selected, offset + 1);
+      }
+    });
+    if (matches.length !== 1) throw new Error(matches.length ? "The selected text is ambiguous in the current document." : "The selected text is stale. Refresh the document and review the suggestion.");
+    const { from, to } = matches[0];
+    const overlaps = state.threads.some((other) => other.id !== thread.id && other.suggestion_disposition === "pending" && other.submission_id === thread.submission_id && typeof other.anchor.from === "number" && typeof other.anchor.to === "number" && Math.max(Number(thread.anchor.from), Number(other.anchor.from)) < Math.min(Number(thread.anchor.to), Number(other.anchor.to)));
+    if (overlaps) throw new Error("This replacement overlaps another pending suggestion.");
+    editor.chain().focus().insertContentAt({ from, to }, replacement).run();
+    const saved = await save();
+    if (!saved?.document_revision_id) throw new Error("Save the replacement before recording it as applied.");
+    await disposeReviewSuggestion(displayId, thread.id, "apply", saved.document_revision_id, from);
+  });
   if (!reviewState?.submissions?.length) return null;
   return <section aria-label="Submission review feedback" className="mx-auto my-6 w-full max-w-4xl border-t border-border px-6 py-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -103,6 +139,11 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
       {state.can_reopen && <button type="button" className="rounded border border-border px-3 py-2 text-sm" disabled={busy} onClick={reopen}>Reopen finished work</button>}
     </div>
     {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
+    {!active && editor && state.threads.filter((thread) => thread.suggestion.replacement && thread.suggestion_disposition === "pending").map((thread) => <article key={`suggestion-${thread.id}`} className="mt-3 rounded border border-border bg-card p-3">
+      <p className="text-sm font-medium">Suggested replacement</p>
+      <p className="mt-1 text-sm text-muted-foreground">“{String(thread.anchor.text ?? "")}” → “{thread.suggestion.replacement}”</p>
+      {thread.can_dispose_suggestion && <div className="mt-2 flex gap-3"><button type="button" className="text-xs text-primary underline" disabled={busy} onClick={() => applySuggestion(thread)}>Apply suggestion</button><button type="button" className="text-xs text-muted-foreground underline" disabled={busy} onClick={() => void run(() => disposeReviewSuggestion(displayId, thread.id, "reject"))}>Reject suggestion</button></div>}
+    </article>)}
     {state.approval_available === false && state.approval_unavailable_reason && <p role="status" data-approval-category={state.approval_unavailable_category || "readiness"} className="my-3 text-sm text-muted-foreground"><strong>{state.approval_unavailable_category === "access" ? "Review access required." : state.approval_unavailable_category === "attribution" ? "Contributor history." : state.approval_unavailable_category === "exclusion" ? "Witness eligibility." : state.approval_unavailable_category === "blockers" ? "Blocking feedback." : "Approval readiness."}</strong> {state.approval_unavailable_reason}</p>}
     {state.approval && <div className="my-4 rounded border border-border p-3" role="status"><p className="font-medium">Approved by {name(state.approval.witness)} · {new Date(state.approval.approved_at).toLocaleString()}</p><p className="mt-1 text-sm">{state.approval.assessment}</p></div>}
     {reviewable && state.participation && <>
@@ -119,6 +160,7 @@ export default function ReviewThreadsPanel({ displayId, reviewState, editor, onR
       <div className="space-y-3">{state.threads.map((thread) => <article key={thread.id} className="rounded border border-border bg-card p-3">
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="font-medium">{name(thread.requester)} · {thread.state}</span>{thread.blocking && <span className="rounded bg-destructive/10 px-2 py-0.5 text-destructive">Blocks review</span>}</div>
         <p className="mt-1 text-xs text-muted-foreground">Original submission {thread.original_submission_id.slice(0, 8)} · {String(thread.anchor.kind)}{typeof thread.anchor.text === "string" && thread.anchor.text ? `: “${thread.anchor.text}”` : ""}</p>
+        {thread.suggestion.replacement && <p className="mt-1 text-xs text-muted-foreground">Suggested replacement: “{thread.suggestion.replacement}” · {thread.suggestion_disposition}</p>}
         {thread.anchor.kind === "text" && thread.anchor.submission_id === submissionId && editor && typeof thread.anchor.from === "number" && typeof thread.anchor.to === "number" && <button type="button" className="mt-1 text-xs text-primary underline" onClick={() => editor.chain().focus().setTextSelection({ from: thread.anchor.from as number, to: thread.anchor.to as number }).scrollIntoView().run()}>Show selected text</button>}
         <div className="mt-3 space-y-2">{thread.messages.map((message) => <p key={message.id} className="border-l-2 border-border pl-3 text-sm"><strong>{name(message.author)}:</strong> {message.retracted ? "Message retracted" : message.body}</p>)}</div>
         {thread.can_address && <button type="button" className="mt-2 text-xs text-primary underline" disabled={busy} onClick={() => void run(() => changeReviewThread(displayId, thread.id, "address"))}>Mark Addressed</button>}

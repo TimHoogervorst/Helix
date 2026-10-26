@@ -582,7 +582,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
     />
     </fieldset>
     </ElnPortableBlockHostContext.Provider>
-    {!isNew && entryDisplayId && <ReviewThreadsPanel displayId={entryDisplayId} reviewState={reviewState} editor={editorRef.current} onReviewStateChanged={setReviewState} />}
+    {!isNew && entryDisplayId && <ReviewThreadsPanel displayId={entryDisplayId} reviewState={reviewState} editor={editorRef.current} onReviewStateChanged={setReviewState} save={workspace.save.save} />}
     </>
   );
 

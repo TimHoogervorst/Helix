@@ -54,6 +54,7 @@ def _payload(thread, actor, role):
         "created_at": thread.created_at, "resolved_at": thread.resolved_at,
         "can_resolve": role in {"review", "edit"} and thread.requester_id == actor.pk and thread.state in {ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED},
         "can_address": role in {"review", "edit"} and thread.requester_id != actor.pk and thread.state == ReviewThread.State.OPEN,
+        "can_dispose_suggestion": role == "edit" and thread.target.state == ReviewTarget.State.AUTHORING,
         "messages": messages,
     }
 
@@ -138,6 +139,10 @@ def create_review_thread(entry, actor, *, submission_id, anchor, body, discussio
             raise ValidationError({"suggestion": "Replacement text must be between 1 and 5,000 characters."})
         if not anchor.get("text") or len(anchor["text"]) > 5000:
             raise ValidationError({"suggestion": "The selected text cannot be replaced."})
+        if provider.suggestion_validator is None or not provider.suggestion_validator(
+            anchor=anchor, manifest=target.current_submission.manifest,
+        ):
+            raise ValidationError({"suggestion": "Replacement must stay within one paragraph, heading, or list-item paragraph."})
         suggestion = {"replacement": replacement}
     thread = ReviewThread.objects.create(
         target=target, submission=target.current_submission, requester=actor,
@@ -191,6 +196,63 @@ def change_thread(entry, actor, thread_id, action):
     else:
         raise ValidationError("Unsupported review thread action.")
     thread.save(update_fields=("state", "resolved_at", "resolved_by_snapshot", "updated_at"))
+    return _payload(thread, actor, role)
+
+
+@transaction.atomic
+def dispose_suggestion(entry, actor, thread_id, *, action, result_revision_id=None, result_from=None):
+    """Record the editor's separate disposition of one proposed replacement."""
+    record, role = _record_for_entry(entry, actor)
+    if role != "edit":
+        raise PermissionDenied("Edit access is required to apply or reject a suggestion.")
+    thread = get_object_or_404(
+        ReviewThread.objects.select_for_update().select_related("target", "submission"),
+        pk=thread_id, target__record=record,
+    )
+    target = ReviewTarget.objects.select_for_update().get(pk=thread.target_id)
+    if target.state != ReviewTarget.State.AUTHORING or target.current_submission_id is not None:
+        raise ValidationError("Withdraw the submission before changing its content.")
+    if not thread.suggestion or thread.suggestion_disposition != "pending":
+        raise ValidationError("This suggestion has already been disposed or does not contain a replacement.")
+    if action == "reject":
+        thread.suggestion_disposition = "rejected"
+        thread.suggestion_actor_snapshot = user_attribution_snapshot(actor)
+        thread.save(update_fields=("suggestion_disposition", "suggestion_actor_snapshot", "updated_at"))
+        return _payload(thread, actor, role)
+    if action != "apply" or not result_revision_id:
+        raise ValidationError("Applying a suggestion requires the saved resulting Revision.")
+    from helix_core.models import RecordRevisionGroup, ScientificRevision
+    group = RecordRevisionGroup.objects.filter(record=record, group_key="document").select_related("current_revision").first()
+    revision = get_object_or_404(ScientificRevision, pk=result_revision_id, group=group)
+    if group is None or group.current_revision_id != revision.pk:
+        raise ValidationError({"result_revision_id": "The applied suggestion must be the current saved Revision."})
+    start, end = thread.anchor.get("from"), thread.anchor.get("to")
+    replacement = thread.suggestion.get("replacement")
+    provider = __import__("helix_core.mod_system.registry", fromlist=["registry"]).registry.get_review_target(target.registration_id)
+    applied_from = result_from if isinstance(result_from, int) else start
+    resulting_anchor = {**thread.anchor, "from": applied_from, "to": applied_from + len(replacement), "text": replacement}
+    resulting_manifest = {"groups": {"document": {"snapshot": revision.snapshot}}}
+    if (
+        not isinstance(start, int) or not isinstance(end, int)
+        or provider is None or provider.suggestion_validator is None
+        or not provider.suggestion_validator(anchor=resulting_anchor, manifest=resulting_manifest, require_unique=False)
+    ):
+        raise ValidationError({"suggestion": "The saved Revision no longer contains this exact replacement at the anchored text range."})
+    pending = ReviewThread.objects.filter(
+        target=target, submission=ReviewSubmission.objects.filter(target=target).order_by("-round_number").first(),
+        suggestion_disposition="pending",
+    ).exclude(pk=thread.pk)
+    if any(
+        other.suggestion.get("replacement")
+        and isinstance(other.anchor.get("from"), int) and isinstance(other.anchor.get("to"), int)
+        and max(start, other.anchor["from"]) < min(end, other.anchor["to"])
+        for other in pending
+    ):
+        raise ValidationError({"suggestion": "This replacement overlaps another pending suggestion."})
+    thread.suggestion_disposition = "applied"
+    thread.suggestion_actor_snapshot = user_attribution_snapshot(actor)
+    thread.suggestion_result_revision = revision
+    thread.save(update_fields=("suggestion_disposition", "suggestion_actor_snapshot", "suggestion_result_revision", "updated_at"))
     return _payload(thread, actor, role)
 
 

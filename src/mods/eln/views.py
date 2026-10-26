@@ -559,6 +559,14 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         from helix_core.review_threads import change_thread
         return Response(change_thread(self.get_object(), request.user, thread_id, thread_action))
 
+    @action(detail=True, methods=["post"], url_path=r"review/threads/(?P<thread_id>[^/.]+)/suggestion/(?P<suggestion_action>apply|reject)")
+    def review_suggestion_action(self, request, display_id=None, thread_id=None, suggestion_action=None):
+        from helix_core.review_threads import dispose_suggestion
+        return Response(dispose_suggestion(
+            self.get_object(), request.user, thread_id, action=suggestion_action,
+            result_revision_id=request.data.get("result_revision_id"), result_from=request.data.get("result_from"),
+        ))
+
     @action(detail=True, methods=["post"], url_path=r"review/threads/(?P<thread_id>[^/.]+)/messages")
     def reply_review_thread(self, request, display_id=None, thread_id=None):
         from helix_core.review_threads import reply_to_thread

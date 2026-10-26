@@ -43,6 +43,57 @@ def validate_review_anchor(*, anchor, manifest):
     return False
 
 
+
+def validate_review_suggestion(*, anchor, manifest, require_unique=True):
+    """Permit replacement ranges wholly within one prose paragraph or heading."""
+    document = manifest.get("groups", {}).get("document", {}).get("snapshot", {}).get("document")
+    if not isinstance(document, dict) or anchor.get("kind") != "text":
+        return False
+    start, end, expected = anchor.get("from"), anchor.get("to"), anchor.get("text")
+    if not isinstance(start, int) or not isinstance(end, int) or start >= end or not isinstance(expected, str):
+        return False
+
+    def size(node):
+        if node.get("type") == "text":
+            return len(node.get("text", ""))
+        content = node.get("content")
+        if isinstance(content, list) or node.get("type") in {"doc", "paragraph", "heading", "listItem"}:
+            return 2 + sum(size(child) for child in content or [] if isinstance(child, dict))
+        return 1
+
+    eligible = []
+    candidate_texts = []
+    def visit(node, pos, parent_type):
+        kind = node.get("type")
+        if kind in {"paragraph", "heading"} and (parent_type == "doc" or (kind == "paragraph" and parent_type == "listItem")):
+            candidate_texts.append("".join(child.get("text", "") for child in node.get("content", []) if isinstance(child, dict) and child.get("type") == "text"))
+            content_start = pos + 1
+            content_end = pos + size(node) - 1
+            if start >= content_start and end <= content_end:
+                cursor = content_start
+                pieces = []
+                valid = True
+                for child in node.get("content", []):
+                    child_size = size(child)
+                    left, right = max(start, cursor), min(end, cursor + child_size)
+                    if left < right:
+                        if child.get("type") != "text":
+                            valid = False
+                            break
+                        value = child.get("text", "")
+                        pieces.append(value[left - cursor:right - cursor])
+                    cursor += child_size
+                if valid and "".join(pieces) == expected:
+                    eligible.append((start, end))
+        cursor = pos + 1
+        for child in node.get("content", []):
+            visit(child, cursor, kind)
+            cursor += size(child)
+
+    visit(document, 0, None)
+    occurrences = sum(text.count(expected) for text in candidate_texts)
+    return len(eligible) == 1 and (not require_unique or occurrences == 1)
+
 class TiptapContentColumnType(ColumnType):
     """Column type for TipTap rich-text content stored as JSON.
 
@@ -113,6 +164,7 @@ def register(mod):
         evidence_capture=capture_external_evidence,
         annotation_capabilities=["narrative-text", "whole-block", "document"],
         anchor_validator=validate_review_anchor,
+        suggestion_validator=validate_review_suggestion,
         operation_effects={"edit_entry": ["document"]},
     )
     mod.register_source_kind(

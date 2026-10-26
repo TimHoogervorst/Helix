@@ -78,6 +78,7 @@ export interface ReviewThread {
   anchor: Record<string, unknown>;
   suggestion: { replacement?: string };
   suggestion_disposition: "pending" | "applied" | "rejected";
+  can_dispose_suggestion: boolean;
   requester: { username?: string; displayName?: string };
   requester_is_actor: boolean;
   messages: Array<{ id: string; body: string; author: { username?: string; displayName?: string }; retracted: boolean }>;
@@ -104,6 +105,9 @@ export function addReviewThread(displayId: string, submissionId: string, anchor:
 }
 export function changeReviewThread(displayId: string, threadId: string, action: "address" | "resolve" | "withdraw" | "reopen") {
   return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/${action}/`, {});
+}
+export function disposeReviewSuggestion(displayId: string, threadId: string, action: "apply" | "reject", resultRevisionId?: string, resultFrom?: number) {
+  return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/suggestion/${action}/`, { result_revision_id: resultRevisionId, result_from: resultFrom });
 }
 export function replyReviewThread(displayId: string, threadId: string, body: string) {
   return post<ReviewThread>(`/eln/entries/${displayId}/review/threads/${threadId}/messages/`, { body });

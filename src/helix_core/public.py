@@ -438,6 +438,7 @@ class ModRegistrar:
         evidence_capture: Callable[..., Any] | None = None,
         annotation_capabilities: list[str] | None = None,
         anchor_validator: Callable[..., bool] | None = None,
+        suggestion_validator: Callable[..., bool] | None = None,
         operation_effects: dict[str, list[str]] | None = None,
     ) -> str:
         """Opt a Mod target into Platform's fixed review lifecycle and guards."""
@@ -454,6 +455,7 @@ class ModRegistrar:
             evidence_capture=evidence_capture,
             annotation_capabilities=annotation_capabilities,
             anchor_validator=anchor_validator,
+            suggestion_validator=suggestion_validator,
             operation_effects=operation_effects,
             provider_mod_id=self.id,
         )

@@ -65,6 +65,7 @@ export interface ReviewState {
     submitted_by: Record<string, unknown>;
     withdrawn_at: string | null;
     rendition_id: string | null;
+    download_url?: string | null;
   }>;
 }
 

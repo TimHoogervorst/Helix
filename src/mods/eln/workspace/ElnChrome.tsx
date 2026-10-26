@@ -521,6 +521,20 @@ function ElnChrome({
                       </ul>
                     </section>
                   )}
+                  {!!reviewState?.submissions?.length && (
+                    <section aria-labelledby="review-submissions-heading" className="workspace-text-column mt-8 rounded-md border border-hairline p-4" data-testid="review-submissions">
+                      <h2 id="review-submissions-heading" className="mb-2 font-medium">Review submissions</h2>
+                      <p className="mb-3 text-sm text-muted-foreground">Each retained PDF is the frozen presentation submitted for that round. Its embedded source records the exact scientific values and external revisions.</p>
+                      <ul className="space-y-2">
+                        {reviewState.submissions.map((submission) => (
+                          <li key={submission.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                            <span>Round {submission.round} · {new Date(submission.submitted_at).toLocaleString()}</span>
+                            {submission.download_url ? <a className="text-primary underline" href={submission.download_url} target="_blank" rel="noreferrer">Open frozen review</a> : <span className="text-muted-foreground">Retained rendition unavailable</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
                   {!isNew && discussionRecordId && <DiscussionPanel recordId={discussionRecordId} />}
                   <button
                     type="button"

@@ -88,8 +88,12 @@ def review_target_state(record_id, *, actor):
                 "submitted_at": submission.submitted_at.isoformat(),
                 "withdrawn_at": submission.withdrawn_at.isoformat() if submission.withdrawn_at else None,
                 "rendition_id": str(submission.rendition_id) if submission.rendition_id else None,
+                "download_url": (
+                    f"/api/records/{record.pk}/attachments/{submission.rendition.attachment_id}/content/?revision_id={submission.rendition.revision_id}"
+                    if submission.rendition_id and submission.rendition.attachment_id else None
+                ),
             }
-            for submission in target.submissions.order_by("round_number")
+            for submission in target.submissions.select_related("rendition").order_by("round_number")
         ],
     }
 
@@ -170,6 +174,11 @@ def submit_review_target(
         "captured_external_evidence": {},
     }
     try:
+        if provider.evidence_capture is not None:
+            evidence = provider.evidence_capture(manifest=deepcopy(manifest), project_id=record.project_id, actor=actor)
+            if not isinstance(evidence, dict):
+                raise ValueError("The review evidence adapter did not return structured evidence.")
+            manifest["captured_external_evidence"] = deepcopy(evidence)
         rendered = provider.renderer(manifest=deepcopy(manifest), project_id=record.project_id)
         if not isinstance(rendered, (bytes, bytearray)) or not rendered:
             raise ValueError("The review renderer returned no PDF bytes.")
@@ -180,7 +189,7 @@ def submit_review_target(
         upload.content_type = "application/pdf"
         attachment = upload_attachment(project=record.project, actor=actor, uploaded_file=upload)
     except Exception as exc:
-        raise ValidationError({"rendering": f"Submission evidence could not be rendered faithfully: {exc}"}) from exc
+        raise ValidationError({"rendering": f"Submission evidence could not be captured and rendered faithfully: {exc}"}) from exc
 
     try:
         with transaction.atomic():

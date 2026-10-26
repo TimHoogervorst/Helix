@@ -69,6 +69,7 @@ class ReviewTargetProvider:
     revision_groups: tuple[str, ...]
     renderer: Callable[..., Any]
     renderer_version: str
+    evidence_capture: Callable[..., Mapping[str, Any]] | None = None
     annotation_capabilities: tuple[str, ...] = ()
     anchor_validator: Callable[..., bool] | None = None
     operation_effects: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
@@ -230,6 +231,7 @@ class BackendModRegistry:
         self, identity: str, target_model_reference: Any, *,
         revision_groups: list[str], renderer: Callable[..., Any],
         renderer_version: str, annotation_capabilities: list[str] | None = None,
+        evidence_capture: Callable[..., Mapping[str, Any]] | None = None,
         anchor_validator: Callable[..., bool] | None = None,
         operation_effects: Mapping[str, list[str]] | None = None,
         provider_mod_id: str | None = None,
@@ -242,6 +244,8 @@ class BackendModRegistry:
             raise ValueError("Review target Revision Groups must be unique")
         if not callable(renderer) or not isinstance(renderer_version, str) or not renderer_version:
             raise ValueError("Review target rendering requires a callable and exact version")
+        if evidence_capture is not None and not callable(evidence_capture):
+            raise TypeError("evidence_capture must be callable")
         if anchor_validator is not None and not callable(anchor_validator):
             raise TypeError("anchor_validator must be callable")
         effects = operation_effects or {}
@@ -258,6 +262,7 @@ class BackendModRegistry:
             revision_groups=tuple(revision_groups),
             renderer=renderer,
             renderer_version=renderer_version,
+            evidence_capture=evidence_capture,
             annotation_capabilities=tuple(dict.fromkeys(annotation_capabilities or [])),
             anchor_validator=anchor_validator,
             operation_effects={key: tuple(value) for key, value in effects.items()},

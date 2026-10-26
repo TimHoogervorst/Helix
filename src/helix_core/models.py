@@ -371,6 +371,107 @@ class PlatformRecord(AbstractEntity):
         return delete_platform_record(self, actor=None)
 
 
+class PlatformDiscussion(models.Model):
+    """An ordinary, non-blocking conversation attached to a Platform record."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    origin_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    record = models.ForeignKey(
+        PlatformRecord, on_delete=models.CASCADE, related_name="discussions",
+    )
+    created_by = models.ForeignKey(
+        "core.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="platform_discussions_opened",
+    )
+    created_by_snapshot = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        "core.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="platform_discussions_resolved",
+    )
+    resolved_by_snapshot = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "helix_platform_discussion"
+        ordering = ("-created_at", "id")
+
+    @property
+    def is_resolved(self):
+        return self.resolved_at is not None
+
+    def save(self, *args, **kwargs):
+        if self.created_by_id and not self.created_by_snapshot:
+            self.created_by_snapshot = user_attribution_snapshot(self.created_by)
+        if self.resolved_by_id and not self.resolved_by_snapshot:
+            self.resolved_by_snapshot = user_attribution_snapshot(self.resolved_by)
+        return super().save(*args, **kwargs)
+
+
+class PlatformDiscussionMessage(models.Model):
+    """One authored contribution in an ordinary discussion."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    discussion = models.ForeignKey(
+        PlatformDiscussion, on_delete=models.CASCADE, related_name="messages",
+    )
+    parent = models.ForeignKey(
+        "self", on_delete=models.CASCADE, null=True, blank=True,
+        related_name="replies",
+    )
+    author = models.ForeignKey(
+        "core.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="platform_discussion_messages",
+    )
+    author_snapshot = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "helix_platform_discussion_message"
+        ordering = ("created_at", "id")
+
+    def save(self, *args, **kwargs):
+        if self.author_id and not self.author_snapshot:
+            self.author_snapshot = user_attribution_snapshot(self.author)
+        return super().save(*args, **kwargs)
+
+
+class PlatformDiscussionMessageRevision(models.Model):
+    """Append-only create, amend, and retract history for a contribution."""
+
+    ACTIONS = (("create", "Create"), ("amend", "Amend"), ("retract", "Retract"))
+    message = models.ForeignKey(
+        PlatformDiscussionMessage, on_delete=models.CASCADE, related_name="history",
+    )
+    sequence = models.PositiveIntegerField()
+    action = models.CharField(max_length=10, choices=ACTIONS)
+    body = models.TextField(blank=True, default="")
+    actor = models.ForeignKey(
+        "core.User", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="platform_discussion_message_changes",
+    )
+    actor_snapshot = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "helix_platform_discussion_message_revision"
+        ordering = ("sequence",)
+        constraints = [models.UniqueConstraint(
+            fields=("message", "sequence"),
+            name="helix_discussion_message_seq_uniq",
+        )]
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and type(self).objects.filter(pk=self.pk).exists():
+            raise ValueError("Platform discussion message history is immutable")
+        if self.actor_id and not self.actor_snapshot:
+            self.actor_snapshot = user_attribution_snapshot(self.actor)
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("Platform discussion message history is immutable")
+
+
 class RecordRevisionGroup(models.Model):
     """Stable identity and current pointer for a record's immutable field snapshot."""
 

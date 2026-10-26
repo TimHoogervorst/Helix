@@ -1,5 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from helix_core.discussion_views import (
+    PlatformDiscussionCollectionView,
+    PlatformDiscussionDetailView,
+    PlatformDiscussionMessageView,
+    PlatformDiscussionResolveView,
+)
 
 from helix_core.views import (
     ActionCreateView,
@@ -40,6 +46,10 @@ registry_router = DefaultRouter()
 registry_router.register(r"entities", EntityHubListView, basename="registry-entity")
 
 urlpatterns = [
+    path("discussions/", PlatformDiscussionCollectionView.as_view(), name="platform-discussions"),
+    path("discussions/<uuid:discussion_id>/", PlatformDiscussionDetailView.as_view(), name="platform-discussion-detail"),
+    path("discussions/<uuid:discussion_id>/resolve/", PlatformDiscussionResolveView.as_view(), name="platform-discussion-resolve"),
+    path("discussions/<uuid:discussion_id>/messages/<uuid:message_id>/", PlatformDiscussionMessageView.as_view(), name="platform-discussion-message"),
     path("projects/<int:project_id>/attachments/", ProjectAttachmentUploadView.as_view(), name="platform-attachment-upload"),
     path("records/<uuid:record_id>/attachments/<uuid:attachment_id>/content/", PlatformRecordAttachmentDownloadView.as_view(), name="platform-attachment-download"),
     path("action-invocations/", ActionInvocationCollectionView.as_view(), name="action-invocation-list"),

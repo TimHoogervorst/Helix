@@ -24,6 +24,7 @@ import { TagSection } from "../tags/ui/TagSection";
 import { Button } from "@helix/mod-api/host";
 import { IconButton } from "@helix/mod-api/host";
 import { NotFound } from "@helix/mod-api/host";
+import DiscussionPanel from "../components/DiscussionPanel";
 import type { EntryDetail, Tag, ElnAction, SourcePathSegment } from "../types";
 import type { HistoricalRendition } from "../api";
 import type { ReviewState } from "../api";
@@ -41,6 +42,7 @@ export interface ElnChromeProps {
   entryDisplayId: string;
 
   entry: EntryDetail | null;
+  discussionRecordId?: string | null;
   projectUid?: string | null;
   folderPath: string;
   sourcePath?: SourcePathSegment[];
@@ -84,6 +86,7 @@ function ElnChrome({
   isNew,
   entryDisplayId,
   entry,
+  discussionRecordId,
   projectUid,
   folderPath,
   sourcePath,
@@ -518,6 +521,7 @@ function ElnChrome({
                       </ul>
                     </section>
                   )}
+                  {!isNew && discussionRecordId && <DiscussionPanel recordId={discussionRecordId} />}
                   <button
                     type="button"
                     className="eln-end-of-entry workspace-text-column block w-full border-0 bg-transparent p-0 text-left"

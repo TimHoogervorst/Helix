@@ -598,6 +598,7 @@ function ElnWorkspace({ entryId }: ElnWorkspaceProps) {
       isNew={isNew}
       entryDisplayId={entryDisplayId}
       entry={workspace.entry}
+      discussionRecordId={workspace.entry?.platform_record_id}
     projectUid={searchParams.get("project")}
     folderPath={folderPath}
     sourcePath={workspace.entry?.source_path}

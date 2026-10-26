@@ -100,6 +100,62 @@ export function captureReview(
   });
 }
 
+export interface DiscussionMessageRevision {
+  action: "create" | "amend" | "retract";
+  body: string;
+  actor: { id?: string; username?: string; displayName?: string };
+  created_at: string;
+}
+
+export interface DiscussionMessage {
+  id: string;
+  parent_id: string | null;
+  author: { id?: string; username?: string; displayName?: string };
+  created_at: string;
+  body: string;
+  retracted: boolean;
+  history: DiscussionMessageRevision[];
+  can_change: boolean;
+}
+
+export interface Discussion {
+  id: string;
+  origin_id: string;
+  record_id: string;
+  created_by: { id?: string; username?: string; displayName?: string };
+  created_at: string;
+  resolved: boolean;
+  resolved_by: { id?: string; username?: string; displayName?: string };
+  resolved_at: string | null;
+  can_contribute: boolean;
+  can_resolve: boolean;
+  messages: DiscussionMessage[];
+}
+
+export function listDiscussions(recordId: string): Promise<{ results: Discussion[]; can_contribute: boolean }> {
+  return get<{ results: Discussion[]; can_contribute: boolean }>(`/discussions/?record=${encodeURIComponent(recordId)}`);
+}
+
+export function createDiscussion(recordId: string, body: string): Promise<Discussion> {
+  return post<Discussion>("/discussions/", { record_id: recordId, body });
+}
+
+export function replyToDiscussion(id: string, body: string, parentId?: string): Promise<Discussion> {
+  return post<Discussion>(`/discussions/${id}/`, { body, parent_id: parentId });
+}
+
+export function resolveDiscussion(id: string): Promise<Discussion> {
+  return post<Discussion>(`/discussions/${id}/resolve/`, {});
+}
+
+export function amendDiscussionMessage(discussionId: string, messageId: string, body: string): Promise<Discussion> {
+  return patch<Discussion>(`/discussions/${discussionId}/messages/${messageId}/`, { body });
+}
+
+export function retractDiscussionMessage(discussionId: string, messageId: string): Promise<Discussion> {
+  return del<Discussion>(`/discussions/${discussionId}/messages/${messageId}/`);
+}
+
 export async function listRenditions(displayId: string): Promise<HistoricalRendition[]> {
   const response = await get<{ results: HistoricalRendition[] }>(
     `/eln/entries/${displayId}/renditions/`,

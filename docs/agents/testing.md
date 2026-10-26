@@ -87,6 +87,18 @@ pytest
 
 `DATABASE_URL` accepts `sqlite:///local.db`, `sqlite://local.db`, or bare `sqlite` (falls back to `db.sqlite3`). Most suites pass on SQLite; a handful of tests depend on Postgres/pgvector behaviour and should be run in Docker.
 
+Changes to row locks (`select_for_update`), transaction/concurrency behavior, or
+database-specific queries require focused validation on PostgreSQL before being
+reported as verified. SQLite passing is not evidence for PostgreSQL lock semantics:
+a registration query previously passed SQLite checks but failed on PostgreSQL
+because it attempted to lock the nullable side of a join.
+
+Run the affected regression and concurrency tests against Docker PostgreSQL, using
+the focused commands above. Include External Mod tests explicitly when affected;
+the canonical suite excludes them. If PostgreSQL is unavailable, report that
+validation gap and obtain a PostgreSQL run locally or in CI before claiming the
+database behavior is verified. Keep PostgreSQL regressions in their owning suites.
+
 ## Frontend
 
 ```bash
@@ -174,7 +186,7 @@ independence; restoration and canonical-discovery slices own that remaining work
 
 ## CI
 
-`.github/workflows/test.yml` runs `pytest -n auto` against Postgres on every push/PR. When in doubt about "how tests actually run", that workflow is the source of truth.
+`.github/workflows/test.yml` runs `pytest -n auto` against Postgres on pushes to `master` and `dev`, and on pull requests. When in doubt about "how tests actually run", that workflow is the source of truth.
 
 ### Mentions and Library integration (#675)
 

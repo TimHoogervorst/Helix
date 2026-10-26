@@ -400,9 +400,9 @@ A revision-bound review comment or text replacement suggestion together with its
 
 ### Published Review
 
-A reviewer's completed individual assessment of a submission, with a final comment and all threads they opened resolved. Publishing completes that reviewer's participation; it is distinct from witness sign-off, which finishes the reviewed target. New blocking feedback from that reviewer returns their participation to Under review while retaining the prior publication in history. A witness must publish their own review before signing off.
+A reviewer's completed individual assessment of an exact submission, with a final comment. **Approve** resolves the reviewer's own outstanding threads, publishes the assessment as witness approval, and finishes the target together; another reviewer's outstanding request prevents approval. **Request changes** publishes an assessment with at least one of that reviewer's own unresolved threads, including carried feedback, and leaves those requests blocking. After another witness finishes the target, **Finish review** completes remaining participation with a non-blocking final assessment and no additional witness approval. Later assessments and feedback preserve prior publication history.
 
-**Status:** Agreed review design; not yet implemented. See [the annotation decision](https://github.com/TimHoogervorst/Helix/issues/727#issuecomment-6413908440).
+**Status:** Agreed review design; not yet implemented. See [the validated review interaction](https://github.com/TimHoogervorst/Helix/issues/729#issuecomment-6414528606) and [specification consolidation](https://github.com/TimHoogervorst/Helix/issues/732).
 
 ### Review Contributor
 

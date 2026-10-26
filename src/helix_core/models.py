@@ -629,7 +629,7 @@ class ReviewTarget(models.Model):
         related_name="current_for_targets",
     )
     creator_snapshot = models.JSONField(default=dict, blank=True)
-    contributor_history_complete = models.BooleanField(default=True)
+    contributor_history_complete = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 

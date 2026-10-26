@@ -494,7 +494,7 @@ class NotebookEntryViewSet(ActionLoggingMixin, viewsets.ModelViewSet):
         from helix_core.public import review_target_state, effective_role
 
         entry = self.get_object()
-        if effective_role(request.user, entry) not in {"read", "edit"}:
+        if effective_role(request.user, entry) not in {"read", "review", "edit"}:
             raise PermissionDenied("You do not have permission to read review history.")
         if entry.platform_record_id is None:
             return Response({"available": False, "reason": "Save the document before review."})

@@ -65,9 +65,10 @@ def review_threads(entry, actor):
     if submission is None:
         return {"participation": None, "threads": []}
     participation = ReviewParticipation.objects.filter(submission=submission, actor=actor).first() if target.current_submission_id else None
-    eligibility = _approval_eligibility(target, submission, actor, role) if target.current_submission_id else (False, "There is no active submission.")
+    eligibility = _approval_eligibility(target, submission, actor, role) if target.current_submission_id else (False, "There is no active submission.", "readiness")
     return {
         "approval_available": eligibility[0], "approval_unavailable_reason": eligibility[1],
+        "approval_unavailable_category": eligibility[2],
         "can_reopen": role == "edit" and target.state == ReviewTarget.State.FINISHED,
         "approval": None if not hasattr(submission, "approval") else {
             "id": str(submission.approval.pk), "witness": submission.approval.witness_snapshot,
@@ -256,47 +257,37 @@ def assess_review(entry, actor, *, assessment, outcome, request_id=None):
 
 
 def _approval_eligibility(target, submission, actor, role):
-    from helix_core.mod_system.registry import registry
+    from helix_core.reviews import compatible_review_provider
     from helix_core.models import ActionParticipant, PlatformRecord, PlatformRendition, ReviewTarget as ReviewTargetModel
 
     if role not in {"review", "edit"}:
-        return False, "Current Review access is required to approve."
+        return False, "Current Review access is required to approve.", "access"
     if target.state != ReviewTarget.State.SUBMITTED or target.current_submission_id != submission.pk:
-        return False, "Approval requires the exact active submission."
+        return False, "Approval requires the exact active submission.", "readiness"
     if not target.contributor_history_complete:
-        return False, "Complete contributor attribution is unavailable, so this submission cannot be approved."
-    provider = registry.get_review_target(target.registration_id)
+        return False, "Approval unavailable: contributor history incomplete.", "attribution"
+    provider = compatible_review_provider(target)
     if provider is None:
-        return False, "The registered review provider is unavailable."
+        return False, "The registered review provider is unavailable or incompatible.", "readiness"
     manifest = submission.manifest or {}
     groups = manifest.get("groups")
     if (not provider.revision_groups or not isinstance(groups, dict) or set(groups) != set(provider.revision_groups)
             or submission.rendition_id is None or not submission.captured_evidence.get("pdf_attachment_id")
             or str(manifest.get("record_id")) != str(target.record_id)):
-        return False, "The active submission is missing complete retained evidence."
+        return False, "The active submission is missing complete retained evidence.", "readiness"
     rendition = PlatformRendition.objects.filter(pk=submission.rendition_id).first()
     primary_group = groups.get(provider.revision_groups[0], {})
     if (rendition is None
             or str(rendition.attachment_id) != str(submission.captured_evidence.get("pdf_attachment_id"))
             or str(rendition.revision_id) != str(primary_group.get("revision_id"))
             or rendition.source_hash != str(primary_group.get("content_hash"))):
-        return False, "The retained presentation does not match the exact active submission."
-    excluded = {str(target.creator_snapshot.get("id", ""))}
-    excluded.update(filter(None, [str(target.record.author_id or ""), str(target.record.last_editor_id or "")]))
-    excluded.update(target.contributors.values_list("actor_stable_id", flat=True))
-    for participation in ActionParticipant.objects.filter(
-        record=target.record, action__action_type__in=("created", "edited"),
-    ).select_related("action"):
-        contributor_id = participation.action.performed_by_id or participation.action.performed_by_snapshot.get("id")
-        if not contributor_id:
-            return False, "Contributor attribution is incomplete for the reviewed record."
-        excluded.add(str(contributor_id))
-    for group in target.record.revision_groups.all():
-        for revision in group.revisions.all():
-            contributor_id = revision.created_by_id or revision.created_by_snapshot.get("id")
-            if not contributor_id:
-                return False, "Contributor attribution is incomplete for the reviewed record."
-            excluded.add(str(contributor_id))
+        return False, "The retained presentation does not match the exact active submission.", "readiness"
+    excluded = set(target.contributors.values_list("actor_stable_id", flat=True))
+    for record in (target.record,):
+        contributors = _durably_tracked_contributors(record, ActionParticipant)
+        if contributors is None:
+            return False, "Approval unavailable: contributor history incomplete.", "attribution"
+        excluded.update(contributors)
     for prior_submission in target.submissions.all():
         excluded.add(str(prior_submission.submitted_by_snapshot.get("id", "")))
         if prior_submission.submitted_by_id:
@@ -306,31 +297,54 @@ def _approval_eligibility(target, submission, actor, role):
         try:
             external_record = PlatformRecord.objects.get(pk=external_id)
         except (PlatformRecord.DoesNotExist, ValueError, TypeError):
-            return False, "Indirect contributor attribution is incomplete for captured external evidence."
+            return False, "Approval unavailable: contributor history incomplete.", "attribution"
         if not isinstance(item, dict) or str(item.get("record_id")) != str(external_record.pk):
-            return False, "Captured external evidence does not identify its exact record."
-        excluded.update(filter(None, [str(external_record.author_id or ""), str(external_record.last_editor_id or "")]))
+            return False, "Captured external evidence does not identify its exact record.", "readiness"
         indirect_target = ReviewTargetModel.objects.filter(record=external_record).first()
         if indirect_target is not None:
             if not indirect_target.contributor_history_complete:
-                return False, "Indirect contributor attribution is incomplete for captured external evidence."
+                return False, "Approval unavailable: contributor history incomplete.", "attribution"
             excluded.update(indirect_target.contributors.values_list("actor_stable_id", flat=True))
-        for participation in ActionParticipant.objects.filter(
-            record=external_record, action__action_type__in=("created", "edited"),
-        ).select_related("action"):
-            contributor_id = participation.action.performed_by_id or participation.action.performed_by_snapshot.get("id")
-            if not contributor_id:
-                return False, "Indirect contributor attribution is incomplete for captured external evidence."
-            excluded.add(str(contributor_id))
-        for group in external_record.revision_groups.all():
-            for revision in group.revisions.all():
-                contributor_id = revision.created_by_id or revision.created_by_snapshot.get("id")
-                if not contributor_id:
-                    return False, "Indirect contributor attribution is incomplete for captured external evidence."
-                excluded.add(str(contributor_id))
+        contributors = _durably_tracked_contributors(external_record, ActionParticipant)
+        if contributors is None:
+            return False, "Approval unavailable: contributor history incomplete.", "attribution"
+        excluded.update(contributors)
+    if ReviewThread.objects.filter(
+        target=target, submission=submission,
+        state__in=(ReviewThread.State.OPEN, ReviewThread.State.ADDRESSED),
+    ).exclude(requester_stable_id=str(actor.pk)).exists():
+        return False, "Another reviewer has an outstanding blocking request.", "blockers"
     if str(actor.pk) in excluded:
-        return False, "Contributors and submitters cannot witness this target."
-    return True, None
+        return False, "Contributors and submitters cannot witness this target.", "exclusion"
+    return True, None, None
+
+
+def _durably_tracked_contributors(record, action_participant_model):
+    """Collect only retained Action and Revision attribution with a creation baseline."""
+    actions = list(action_participant_model.objects.filter(
+        record=record, action__action_type__in=("created", "edited"),
+    ).select_related("action"))
+    if not actions or not any(item.action.action_type == "created" for item in actions):
+        return None
+    contributors = set()
+    for item in actions:
+        contributor_id = item.action.performed_by_id or item.action.performed_by_snapshot.get("id")
+        if not contributor_id:
+            return None
+        contributors.add(str(contributor_id))
+    groups = list(record.revision_groups.all())
+    if not groups:
+        return None
+    for group in groups:
+        revisions = list(group.revisions.all())
+        if not revisions or min(revision.sequence for revision in revisions) != 1:
+            return None
+        for revision in revisions:
+            contributor_id = revision.created_by_id or revision.created_by_snapshot.get("id")
+            if not contributor_id:
+                return None
+            contributors.add(str(contributor_id))
+    return contributors
 
 
 @transaction.atomic
@@ -383,7 +397,7 @@ def approve_review(entry=None, *, record_id=None, actor, assessment, request_id)
     submission = target.current_submission
     if submission is None:
         raise ValidationError({"review": "There is no active submission to approve."})
-    allowed, reason = _approval_eligibility(target, submission, actor, effective_role(actor, record))
+    allowed, reason, _ = _approval_eligibility(target, submission, actor, effective_role(actor, record))
     if not allowed:
         raise PermissionDenied(reason)
     participation = ReviewParticipation.objects.select_for_update().filter(submission=submission, actor=actor).first()

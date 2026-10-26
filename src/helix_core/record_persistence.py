@@ -164,6 +164,9 @@ def delete_platform_record(record, *, actor=None, source=None):
         for value in locked.revision_groups.values_list("revisions__pk", flat=True).distinct()
         if value
     ]
+    rendition_attachment_ids = list(
+        locked.renditions.values_list("attachment_id", flat=True).distinct()
+    )
     action = ActionLogEntry.objects.create(
         performed_by=actor,
         action="helix.record.deleted",
@@ -189,7 +192,25 @@ def delete_platform_record(record, *, actor=None, source=None):
         group.delete()
     from django.db import models as django_models
     django_models.Model.delete(locked)
+    if rendition_attachment_ids:
+        transaction.on_commit(
+            lambda ids=tuple(rendition_attachment_ids): _delete_unreferenced_attachments(ids)
+        )
     return action
+
+
+def _delete_unreferenced_attachments(attachment_ids):
+    """Remove files owned only by a deleted record after its transaction commits."""
+    from django.core.files.storage import default_storage
+    from helix_core.models import PlatformAttachment
+
+    for attachment_id in attachment_ids:
+        with transaction.atomic():
+            attachment = PlatformAttachment.objects.select_for_update().filter(pk=attachment_id).first()
+            if attachment is None or attachment.revision_links.exists() or attachment.renditions.exists():
+                continue
+            default_storage.delete(attachment.storage_key)
+            attachment.delete()
 
 
 @transaction.atomic

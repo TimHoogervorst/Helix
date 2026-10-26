@@ -31,6 +31,10 @@ def record_review_content_effect(*, record, actor, provider_mod_id, group_key, e
             "provider_mod_id": provider_mod_id,
             "registration_id": provider.identity,
             "creator_snapshot": user_attribution_snapshot(actor),
+            # A target first seen on an edit may have older, unattributed
+            # content. Only the record's original, tracked creation establishes
+            # complete coverage from the beginning of its history.
+            "contributor_history_complete": effect == "created",
         },
     )
     stable_id = str(getattr(actor, "pk", "anonymous"))
@@ -73,10 +77,50 @@ def ensure_record_unlocked(record_or_id):
         raise StateConflict("This record is locked by its active review submission.")
 
 
+def compatible_review_provider(target, record=None):
+    """Return the provider only when its identity and declared scope still fit."""
+    from helix_core.mod_system.registry import registry
+
+    provider = registry.get_review_target(target.registration_id)
+    if provider is None or provider.provider_mod_id != target.provider_mod_id:
+        return None
+    record = record or target.record
+    reference_id = getattr(provider.target_model_reference, "id", provider.target_model_reference)
+    target_model = registry.get_registered_models().get(reference_id)
+    if isinstance(target_model, str):
+        from django.apps import apps
+        try:
+            target_model = apps.get_model(target_model)
+        except (LookupError, ValueError):
+            return None
+    if target_model is None:
+        return None
+    from django.contrib.contenttypes.models import ContentType
+    if record.source_type_id != ContentType.objects.get_for_model(
+        target_model, for_concrete_model=False,
+    ).pk:
+        return None
+    groups = list(record.revision_groups.all())
+    if not groups:
+        return None
+    registered_keys = set()
+    for group in groups:
+        registration = registry.resolve_revision_group_registration(
+            group.target_model_reference, group.group_key,
+        )
+        if registration is None or registration["owner_mod_id"] != target.provider_mod_id:
+            return None
+        if str(group.target_object_id) != str(record.source_id):
+            return None
+        registered_keys.add(group.group_key)
+    if registered_keys != set(provider.revision_groups):
+        return None
+    return provider
+
+
 def review_target_state(record_id, *, actor):
     from bundled.access.access.policies import effective_role
     from helix_core.models import PlatformRecord, ReviewTarget
-    from helix_core.mod_system.registry import registry
 
     try:
         record = PlatformRecord.objects.select_related("project").get(pk=record_id)
@@ -87,10 +131,10 @@ def review_target_state(record_id, *, actor):
     target = ReviewTarget.objects.filter(record=record).select_related("current_submission").first()
     if target is None:
         return {"available": True, "reason": None, "state": "authoring", "locked": False, "submissions": []}
-    provider = registry.get_review_target(target.registration_id)
+    provider = compatible_review_provider(target, record)
     return {
         "available": provider is not None,
-        "reason": None if provider else "The Mod that registered this review target is unavailable.",
+        "reason": None if provider else "The Mod that registered this review target is unavailable or incompatible.",
         "target_id": str(target.pk),
         "state": target.state,
         "locked": target.locked,
@@ -357,6 +401,8 @@ def withdraw_review_submission(*, record_id, actor, request_id):
     target = ReviewTarget.objects.select_for_update().select_related("current_submission").filter(record=record).first()
     if target is None or target.state != ReviewTarget.State.SUBMITTED or target.current_submission is None:
         raise ValidationError({"review": "There is no active submission to withdraw."})
+    if compatible_review_provider(target, record) is None:
+        raise ValidationError({"review": "The registered review Mod is unavailable or incompatible; the target remains locked."})
     submission = target.current_submission
     submission.withdraw_actor_stable_id = actor_stable_id
     submission.withdraw_request_id = request_uuid
@@ -404,6 +450,8 @@ def reopen_review_target(*, record_id, actor, reason):
     target = ReviewTarget.objects.select_for_update().filter(record=record).first()
     if target is None or target.state != ReviewTarget.State.FINISHED:
         raise ValidationError({"review": "Only a finished target can be reopened."})
+    if compatible_review_provider(target, record) is None:
+        raise ValidationError({"review": "The registered review Mod is unavailable or incompatible; the target remains locked."})
     approval = ReviewApproval.objects.filter(target=target).order_by("-approved_at").first()
     if approval is None:
         raise ValidationError({"review": "The finished target has no retained witness approval."})

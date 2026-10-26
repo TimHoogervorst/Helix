@@ -363,7 +363,7 @@ function ElnChrome({
             </Button>
 
             {reviewState?.state === "submitted" ? (
-              <Button variant="ghost" size="sm" aria-label="Withdraw review submission" disabled={reviewing} onClick={onWithdrawReview}>
+              <Button variant="ghost" size="sm" aria-label="Withdraw review submission" title={reviewState.available === false ? reviewState.reason || "The review Mod is unavailable." : "Withdraw this submission and return to authoring"} disabled={reviewing || reviewState.available === false} onClick={onWithdrawReview}>
                 {reviewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <FileCheck2 className="h-3.5 w-3.5" aria-hidden="true" />}
                 {reviewing ? "Withdrawing…" : "Withdraw submission"}
               </Button>
@@ -391,6 +391,11 @@ function ElnChrome({
             <div className="px-6 pb-24 pt-8">
               <CommentVisibilityProvider showComments={showComments}>
                 <div>
+                  {reviewState?.available === false && reviewState.reason && (
+                    <div className="mb-4 rounded-md border border-[var(--color-ink-hairline)] bg-[var(--color-surface)] px-4 py-2.5 text-sm" role="status" data-review-readiness="unavailable">
+                      Review transition unavailable. {reviewState.reason} Retained history and evidence remain available below.
+                    </div>
+                  )}
                   {/* ── Locked banner ── */}
                   {isEditingLocked && (
                     <div
@@ -399,7 +404,7 @@ function ElnChrome({
                     >
                       <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
                       <span>{isReviewLocked
-                        ? (reviewState?.state === "finished" ? "This target is finished and locked. An editor must reopen it with a reason before making changes." : "This exact submission is locked for review. Withdraw it before making changes.")
+                        ? (reviewState?.state === "finished" ? "This target is finished and locked. An editor must reopen it with a reason before making changes." : reviewState?.available === false ? "This submission remains locked because its review Mod is unavailable or incompatible." : "This exact submission is locked for review. Withdraw it before making changes.")
                         : <>This entry is currently being edited by <strong>{lockHeldBy || "another user"}</strong>. You are viewing it in read-only mode.</>}
                       </span>
                     </div>

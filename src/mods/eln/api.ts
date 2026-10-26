@@ -87,6 +87,7 @@ export interface ReviewThreadsState {
   threads: ReviewThread[];
   approval_available?: boolean;
   approval_unavailable_reason?: string | null;
+  approval_unavailable_category?: "access" | "readiness" | "attribution" | "exclusion" | "blockers" | null;
   can_reopen?: boolean;
   approval?: { id: string; witness: { username?: string; displayName?: string }; assessment: string; approved_at: string } | null;
 }
